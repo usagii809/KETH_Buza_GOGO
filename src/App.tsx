@@ -101,14 +101,14 @@ function Dashboard({ user }: { user: User }) {
       {month.error && <div className="mb-4 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-sm text-toss-red font-medium leading-relaxed">{month.error}</div>}
 
       <QuipBubble s={summary} period={period} now={now} />
-      <ReportSection period={period} s={summary} txs={month.txs} prevTxs={month.prevTxs} goals={shared.goals} now={now}
+      <ReportSection period={period} s={summary} txs={month.txs} prevTxs={month.prevTxs} goals={shared.goals} now={now} noSpendStart={shared.noSpendStart}
         onOpenLastMonth={() => setYm(shiftMonth(todayYm(now), -1))} onDepositToGoal={openGoal} />
       <SavingsCard s={summary} period={period} onEditBudget={() => setSheet({ type: "budget" })} />
       <GoalsCard goals={shared.goals} planned={planned} now={now} onOpen={(g) => openGoal(g)}
         onNew={() => setSheet({ type: "goal", goalId: null, mode: "edit" })} />
       <BudgetCard budget={month.budget} s={summary} period={period} prevTxs={month.prevTxs} />
       <TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={month.prevTxs} bars={bars} />
-      <NoSpendCard period={period} txs={month.txs} prevTxs={month.prevTxs} now={now} />
+      <NoSpendCard period={period} txs={month.txs} prevTxs={month.prevTxs} now={now} start={shared.noSpendStart} uid={user.uid} />
       <TransactionList txs={month.txs} now={now} onEdit={(tx) => setSheet({ type: "expense", tx })} />
 
       <div className="fixed bottom-5 left-0 right-0 z-30 flex justify-center pointer-events-none px-4" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>

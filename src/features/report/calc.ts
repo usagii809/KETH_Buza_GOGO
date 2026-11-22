@@ -19,7 +19,7 @@ export interface Report {
   shareText: string;
 }
 
-export function buildReport(period: PeriodInfo, s: Summary, txs: Transaction[], prevTxs: Transaction[], now = new Date()): Report {
+export function buildReport(period: PeriodInfo, s: Summary, txs: Transaction[], prevTxs: Transaction[], now = new Date(), noSpendStart: string | null = null): Report {
   const m = period.m;
   const spentTotal = s.totalVariableSpent;
   const actual = s.projectedSavings;
@@ -33,7 +33,11 @@ export function buildReport(period: PeriodInfo, s: Summary, txs: Transaction[], 
 
   const rows: ReportRow[] = [];
   if (s.income > 0) rows.push({ label: "저축률", value: `${s.savingsRate.toFixed(1)}%` });
-  rows.push({ label: "무지출", value: `${countNoSpendDays(period, spentByDate(txs), todayStr(now))}일 🌱` });
+  // 무지출은 챌린지를 하던 달에만 보여줘요
+  const monthEnd = `${period.key}-${String(period.dim).padStart(2, "0")}`;
+  if (noSpendStart && noSpendStart <= monthEnd) {
+    rows.push({ label: "무지출", value: `${countNoSpendDays(period, spentByDate(txs), todayStr(now), noSpendStart)}일 🌱` });
+  }
 
   const sorted = CATEGORIES.map((c) => [c, s.usage[c.key]] as const).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   if (sorted.length) rows.push({ label: "가장 많이 쓴 곳", value: `${sorted[0][0].label} · ${formatShort(sorted[0][1])}` });

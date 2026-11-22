@@ -13,12 +13,13 @@ interface Props {
   prevTxs: Transaction[];
   goals: Goal[];
   now: Date;
+  noSpendStart: string | null;
   onOpenLastMonth: () => void;
   onDepositToGoal: (goal: Goal, amount: number) => void;
 }
 
 /** 이번 달 화면: "성적표 도착" 배너 / 지난 달 화면: 결산 카드 */
-export function ReportSection({ period, s, txs, prevTxs, goals, now, onOpenLastMonth, onDepositToGoal }: Props) {
+export function ReportSection({ period, s, txs, prevTxs, goals, now, noSpendStart, onOpenLastMonth, onDepositToGoal }: Props) {
   const { toast } = useFeedback();
   const lastMonth = shiftMonth(todayYm(now), -1);
   const showCard = period.state === "past" && txs.length > 0;
@@ -40,7 +41,7 @@ export function ReportSection({ period, s, txs, prevTxs, goals, now, onOpenLastM
   }
   if (!showCard) return null;
 
-  const r = buildReport(period, s, txs, prevTxs, now);
+  const r = buildReport(period, s, txs, prevTxs, now, noSpendStart);
   const share = async () => {
     try {
       if (navigator.share) { await navigator.share({ text: r.shareText }); return; }

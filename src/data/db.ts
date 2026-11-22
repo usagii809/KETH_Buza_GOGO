@@ -18,7 +18,8 @@ export const refs = {
   recurring: () => collection(db, `${BASE}/recurring`),
   recurringRule: (id: string) => doc(db, `${BASE}/recurring/${id}`),
   goals: () => collection(db, `${BASE}/goals`),
-  goal: (id: string) => doc(db, `${BASE}/goals/${id}`)
+  goal: (id: string) => doc(db, `${BASE}/goals/${id}`),
+  challenge: () => doc(db, `${BASE}/config/challenge`)
 };
 
 export const monthQuery = (ym: string) => query(refs.transactions(), where("yearMonth", "==", ym));
@@ -140,6 +141,11 @@ export const deleteGoal = (id: string) => deleteDoc(refs.goal(id));
 /** amount > 0 모으기, < 0 꺼내기 */
 export const moveGoalMoney = (id: string, amount: number) =>
   updateDoc(refs.goal(id), { saved: increment(amount), history: arrayUnion({ at: Date.now(), amount }) });
+
+// ── 무지출 챌린지 (시작일을 두 사람이 같이 씀) ──
+export const startNoSpendChallenge = (date: string, uid: string) =>
+  setDoc(refs.challenge(), { noSpendStart: date, startedBy: uid, startedAt: Date.now() }, { merge: true });
+export const stopNoSpendChallenge = () => setDoc(refs.challenge(), { noSpendStart: null }, { merge: true });
 
 // ── 백업 / 복원 ──
 export async function exportBackup(defaultBudget: Budget) {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { computeAvailable, computeSummary, compareWithPrev } from "../features/budget/calc";
 import { goalEta } from "../features/goals/calc";
 import { buildMemoIndex, suggestMemos } from "../features/expenses/memo";
-import { countNoSpendDays, noSpendStreak, spentByDate } from "../features/noSpend/calc";
+import { challengeDay, countNoSpendDays, noSpendStreak, spentByDate } from "../features/noSpend/calc";
 import { buildReport } from "../features/report/calc";
 import { normalizeBudget, normalizeCategory, normalizeSpender, ZERO_BUDGET } from "./categories";
 import { dueDateInMonth, getPeriodInfo } from "./dates";
@@ -73,11 +73,23 @@ describe("지난달 비교", () => {
 describe("무지출 챌린지", () => {
   const txs = [tx("2026-11-03", "foodCafe", 4500), tx("2026-11-15", "livingTelecom", 55000, { auto: true }), tx("2026-11-20", "foodCafe", 3000)];
   const map = spentByDate(txs);
-  it("자동 기록은 지출로 보지 않는다", () => {
-    expect(countNoSpendDays(nov, map, "2026-11-22")).toBe(20);
+  it("시작 전에는 0일 (기록이 없던 날을 무지출로 세지 않아요)", () => {
+    expect(countNoSpendDays(nov, {}, "2026-11-22", null)).toBe(0);
+    expect(noSpendStreak({}, NOW, "2026-11", null)).toBe(0);
+  });
+  it("시작일 이전 날짜는 세지 않아요", () => {
+    expect(noSpendStreak({}, NOW, "2026-11", "2026-11-22")).toBe(1);
+    expect(countNoSpendDays(nov, map, "2026-11-22", "2026-11-18")).toBe(4); // 18,19,21,22
+  });
+  it("자동 기록은 지출로 보지 않아요", () => {
+    expect(countNoSpendDays(nov, map, "2026-11-22", "2026-11-01")).toBe(20);
   });
   it("연속 기록은 마지막 지출 다음 날부터", () => {
-    expect(noSpendStreak(map, NOW, "2026-11")).toBe(2);
+    expect(noSpendStreak(map, NOW, "2026-11", "2026-11-01")).toBe(2);
+  });
+  it("며칠째인지", () => {
+    expect(challengeDay("2026-11-22", "2026-11-22")).toBe(1);
+    expect(challengeDay("2026-11-01", "2026-11-22")).toBe(22);
   });
 });
 
@@ -133,7 +145,7 @@ describe("기타", () => {
 });
 
 import { averageOf, buildMonthBars } from "../features/trend/calc";
-import { getSpendLevel, pickQuip, QUIPS } from "../features/quips/quips";
+import { getSpendTier, pickQuip, TIERS } from "../features/quips/quips";
 
 describe("월별 지출 그래프", () => {
   it("보고 있는 달까지 6개월, 진행 중인 달은 평균에서 빼요", () => {
@@ -146,22 +158,28 @@ describe("월별 지출 그래프", () => {
 });
 
 describe("오늘의 한마디", () => {
-  const level = (spent: number, p = nov) => getSpendLevel(computeSummary(budget, spent ? [tx("2026-11-01", "foodDining", spent)] : [], p), p);
-  it("지출 페이스로 레벨을 정해요", () => {
-    // 22일 기준 써도 되는 돈 = 115만 × 71% ≈ 81.7만
-    expect(level(0)).toBe("rich");
-    expect(level(600000)).toBe("good");
-    expect(level(800000)).toBe("normal");
-    expect(level(1000000)).toBe("warning");
-    expect(level(1200000)).toBe("broke");
+  // 한 달 변동지출 예산 115만 원 기준
+  const tier = (spent: number, p = nov) => getSpendTier(computeSummary(budget, spent ? [tx("2026-11-01", "foodDining", spent)] : [], p), p);
+  it("예산 사용률 10% 단위로 단계를 정해요", () => {
+    expect(tier(0)).toBe(0);            // 재벌
+    expect(tier(114999)).toBe(0);       // 10% 미만
+    expect(tier(115000)).toBe(1);       // 10% → 건물주
+    expect(tier(575000)).toBe(5);       // 50% → 평화
+    expect(tier(1034999)).toBe(8);      // 90% 미만 → 비상
+    expect(tier(1035000)).toBe(9);      // 90% → 텅장 (최악)
+    expect(tier(2000000)).toBe(9);      // 예산 초과도 텅장
+  });
+  it("10단계, 단계마다 문구 1개 이상 (문구 개수는 자유롭게)", () => {
+    expect(TIERS).toHaveLength(10);
+    TIERS.forEach((t) => expect(t.quips.length).toBeGreaterThanOrEqual(1));
   });
   it("예산이 없으면 보여주지 않아요", () => {
-    expect(getSpendLevel(computeSummary(ZERO_BUDGET, [], nov), nov)).toBeNull();
+    expect(getSpendTier(computeSummary(ZERO_BUDGET, [], nov), nov)).toBeNull();
   });
   it("같은 날엔 같은 문구, 탭하면 다른 문구", () => {
-    const a = pickQuip("rich", "2026-11|2026-11-22");
-    expect(pickQuip("rich", "2026-11|2026-11-22")).toBe(a);
-    expect(pickQuip("rich", "2026-11|2026-11-22", 1)).not.toBe(a);
-    expect(QUIPS.rich).toContain(a);
+    const a = pickQuip(0, "2026-11|2026-11-22");
+    expect(pickQuip(0, "2026-11|2026-11-22")).toBe(a);
+    expect(pickQuip(0, "2026-11|2026-11-22", 1)).not.toBe(a);
+    expect(TIERS[0].quips).toContain(a);
   });
 });

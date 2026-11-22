@@ -86,6 +86,7 @@ export function useSharedData() {
   const [recurringLoaded, setRecurringLoaded] = useState(false);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [history, setHistory] = useState<Transaction[]>([]);
+  const [noSpendStart, setNoSpendStart] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubRec = onSnapshot(refs.recurring(), (snap) => {
@@ -95,11 +96,15 @@ export function useSharedData() {
     const unsubGoals = onSnapshot(refs.goals(), (snap) => {
       setGoals(snap.docs.map((d) => withId<Goal>(d.id, d.data())).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)));
     }, (err) => console.warn("저축 목표 구독 참고:", err));
+    const unsubChallenge = onSnapshot(refs.challenge(), (snap) => {
+      const v = snap.exists() ? snap.data().noSpendStart : null;
+      setNoSpendStart(typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+    }, (err) => console.warn("무지출 챌린지 구독 참고:", err));
     loadRecentTransactions().then(setHistory).catch((err) => console.warn("최근 기록 조회 참고:", err));
-    return () => { unsubRec(); unsubGoals(); };
+    return () => { unsubRec(); unsubGoals(); unsubChallenge(); };
   }, []);
 
-  return { recurring, recurringLoaded, goals, history };
+  return { recurring, recurringLoaded, goals, history, noSpendStart };
 }
 
 /** 앱으로 돌아올 때마다 '오늘' 기준을 다시 잡기 위한 시계 */

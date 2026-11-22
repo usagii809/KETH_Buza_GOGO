@@ -11,19 +11,27 @@ export function spentByDate(txs: Transaction[]): Record<string, number> {
   return m;
 }
 
-export function countNoSpendDays(period: PeriodInfo, map: Record<string, number>, today: string): number {
+/** 이 달의 무지출 일수. 챌린지 시작일(start) 이전 날짜는 세지 않아요 */
+export function countNoSpendDays(period: PeriodInfo, map: Record<string, number>, today: string, start: string | null): number {
+  if (!start) return 0;
   let c = 0;
   for (let d = 1; d <= period.dim; d++) {
     const ds = `${period.key}-${String(d).padStart(2, "0")}`;
     if (ds > today) break;
+    if (ds < start) continue;
     if (!map[ds]) c++;
   }
   return c;
 }
 
-/** 오늘부터 거꾸로 연속 무지출 일수 (지난달 1일까지 확인). 오늘 지출이 있으면 0 */
-export function noSpendStreak(map: Record<string, number>, now: Date, periodKey: string): number {
-  const limit = `${shiftMonth(periodKey, -1)}-01`;
+/**
+ * 오늘부터 거꾸로 연속 무지출 일수. 오늘 지출이 있으면 0.
+ * 챌린지 시작일과 '지난달 1일'(불러온 기록의 범위) 중 늦은 날까지만 확인해요.
+ */
+export function noSpendStreak(map: Record<string, number>, now: Date, periodKey: string, start: string | null): number {
+  if (!start) return 0;
+  const loaded = `${shiftMonth(periodKey, -1)}-01`;
+  const limit = start > loaded ? start : loaded;
   let streak = 0;
   const cur = new Date(now);
   for (;;) {
@@ -33,4 +41,11 @@ export function noSpendStreak(map: Record<string, number>, now: Date, periodKey:
     cur.setDate(cur.getDate() - 1);
   }
   return streak;
+}
+
+/** 시작일부터 오늘까지 며칠째인지 (시작일 = 1일째) */
+export function challengeDay(start: string, today: string): number {
+  const a = new Date(`${start}T00:00:00`).getTime();
+  const b = new Date(`${today}T00:00:00`).getTime();
+  return Math.max(0, Math.round((b - a) / 86400000)) + 1;
 }

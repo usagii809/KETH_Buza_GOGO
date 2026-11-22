@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <!-- 아이폰 노치/다이나믹 아일랜드 대응 및 확대 방지 뷰포트 설정 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>태형 경은 가계부</title>
+  <title>태형이와 경은이의 부자 되기 프로젝트!!</title>
 
   <!-- iOS PWA (홈 화면에 추가 시 네이티브 앱처럼 동작) -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -54,7 +54,7 @@
       color: #191F28;
       -webkit-tap-highlight-color: transparent;
       padding-top: env(safe-area-inset-top);
-      padding-bottom: calc(env(safe-area-inset-bottom) + 24px);
+      padding-bottom: calc(env(safe-area-inset-bottom) + 88px);
     }
     .num {
       font-variant-numeric: tabular-nums;
@@ -62,7 +62,9 @@
     .progress-fill {
       transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.25s ease;
     }
-    /* 숫자 입력 화살표 제거 */
+    .donut-segment {
+      transition: stroke-dasharray 0.45s cubic-bezier(0.22, 1, 0.36, 1), stroke-dashoffset 0.45s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.25s ease;
+    }
     input[type="number"]::-webkit-inner-spin-button,
     input[type="number"]::-webkit-outer-spin-button {
       -webkit-appearance: none;
@@ -111,7 +113,7 @@
     <header class="flex items-center justify-between py-2 mb-3">
       <div>
         <div class="flex items-center gap-2">
-          <span class="text-xs font-bold text-toss-blue tracking-tight">태형 경은 가계부</span>
+          <span class="text-xs font-bold text-toss-blue tracking-tight">태형이와 경은이의 부자 되기 프로젝트!!</span>
         </div>
         <!-- 월 이동 컨트롤 -->
         <div class="flex items-center gap-2 mt-1.5">
@@ -144,37 +146,86 @@
     <!-- DB 권한/네트워크 경고 배너 -->
     <div id="dbErrorBanner" class="hidden mb-4 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-xs text-toss-red font-medium leading-relaxed"></div>
 
-    <!-- 2-1. 상단 요약 대시보드 카드 -->
+    <!-- 2-1. 상단 대시보드 카드 (SVG 원형 그래프 + 저축액 + 남은 예산 + 식비 게이지) -->
     <section class="bg-white rounded-3xl p-5 shadow-2xs mb-4">
-      <!-- DB 예산 미등록 안내 배너 (초기 0원 상태일 때 표시) -->
+      <!-- DB 예산 미등록 안내 배너 -->
       <div id="emptyBudgetPrompt" class="hidden mb-4 p-3.5 rounded-2xl bg-toss-blueLight border border-blue-100 flex items-center justify-between gap-3">
         <p class="text-xs text-toss-text font-medium leading-relaxed">
-          아직 DB에 저장된 예산이 없습니다. 우측 <strong class="text-toss-blue">[예산 수정]</strong>을 눌러 수입과 고정지출·예산을 등록해 주세요.
+          아직 등록된 예산이 없습니다. 우측 <strong class="text-toss-blue">[예산 수정]</strong>을 눌러 수입과 고정지출·예산을 등록해 주세요.
         </p>
       </div>
 
-      <!-- 이번 달 예상 순수 저축액 -->
-      <div class="flex items-start justify-between mb-4 pb-4 border-b border-toss-border">
-        <div>
-          <p class="text-xs font-medium text-toss-sub">이번 달 예상 순수 저축액</p>
-          <p id="netSavingsAmount" class="text-2xl font-bold text-toss-blue num mt-1">0원</p>
-          <p id="savingsRateText" class="text-xs text-toss-muted mt-1 num">저축률 0.0% · 예산 전액 사용 시 목표 0원</p>
+      <!-- 원형 그래프 대시보드 + 우측 저축 요약 & 범례 -->
+      <div class="flex items-center gap-4 mb-4 pb-4 border-b border-toss-border">
+        <!-- 좌측: SVG 원형(도넛) 그래프 -->
+        <div class="relative w-28 h-28 shrink-0 flex items-center justify-center">
+          <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-label="월 수입 배분 원형 그래프">
+            <!-- 배경 트랙 -->
+            <circle cx="50" cy="50" r="38" fill="none" stroke="#F2F4F6" stroke-width="11" />
+            <!-- 1) 저축 세그먼트 (Toss Blue #3182F6) -->
+            <circle id="donutSavingsSeg" cx="50" cy="50" r="38" fill="none" stroke="#3182F6" stroke-width="11"
+              stroke-linecap="butt" stroke-dasharray="0 238.76" stroke-dashoffset="0" class="donut-segment" />
+            <!-- 2) 생활비 세그먼트 (Toss Green #00B37E / Amber #FF9F00) -->
+            <circle id="donutLivingSeg" cx="50" cy="50" r="38" fill="none" stroke="#00B37E" stroke-width="11"
+              stroke-linecap="butt" stroke-dasharray="0 238.76" stroke-dashoffset="0" class="donut-segment" />
+            <!-- 3) 고정지출 세그먼트 (Slate #8B95A1) -->
+            <circle id="donutFixedSeg" cx="50" cy="50" r="38" fill="none" stroke="#8B95A1" stroke-width="11"
+              stroke-linecap="butt" stroke-dasharray="0 238.76" stroke-dashoffset="0" class="donut-segment" />
+          </svg>
+          <!-- 도넛 중앙 저축률 텍스트 -->
+          <div class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+            <span class="text-[10px] font-medium text-toss-muted leading-none">저축률</span>
+            <span id="donutCenterRate" class="text-sm font-bold text-toss-text num mt-1">0.0%</span>
+          </div>
         </div>
-        <button id="openBudgetModalBtn" type="button"
-          class="text-xs font-semibold text-toss-sub bg-toss-bg hover:bg-gray-200/70 px-3 py-1.5 rounded-xl active:scale-95 transition shrink-0">
-          예산 수정
-        </button>
+
+        <!-- 우측: 이번 달 예상 저축액 + 예산 수정 버튼 + 컬러 범례 -->
+        <div class="flex-1 min-w-0">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="text-xs font-medium text-toss-sub">이번 달 예상 저축액</p>
+              <p id="netSavingsAmount" class="text-xl sm:text-2xl font-bold text-toss-blue num mt-0.5 truncate">0원</p>
+              <p id="savingsRateText" class="text-[11px] text-toss-muted mt-0.5 num truncate">예산 전액 사용 시 목표 0원</p>
+            </div>
+            <button id="openBudgetModalBtn" type="button"
+              class="text-xs font-semibold text-toss-sub bg-toss-bg hover:bg-gray-200/70 px-2.5 py-1.5 rounded-xl active:scale-95 transition shrink-0">
+              예산 수정
+            </button>
+          </div>
+
+          <!-- 3색 배분 범례 -->
+          <div class="mt-3 pt-2.5 border-t border-toss-border/70 space-y-1">
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="flex items-center gap-1.5 text-toss-sub font-medium">
+                <span class="w-2 h-2 rounded-full bg-toss-blue inline-block"></span>저축
+              </span>
+              <span id="legendSavingsVal" class="font-bold text-toss-text num">0원</span>
+            </div>
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="flex items-center gap-1.5 text-toss-sub font-medium">
+                <span id="legendLivingDot" class="w-2 h-2 rounded-full bg-toss-green inline-block"></span>생활비
+              </span>
+              <span id="legendLivingVal" class="font-bold text-toss-text num">0원</span>
+            </div>
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="flex items-center gap-1.5 text-toss-sub font-medium">
+                <span class="w-2 h-2 rounded-full bg-toss-muted inline-block"></span>고정지출
+              </span>
+              <span id="legendFixedVal" class="font-bold text-toss-text num">0원</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 핵심 잔액 2단 박스 -->
       <div class="grid grid-cols-2 gap-3 mb-4">
         <div class="bg-toss-bg rounded-2xl p-3.5">
-          <span class="text-xs font-medium text-toss-sub block">남은 생활 예산 총합</span>
+          <span class="text-xs font-medium text-toss-sub block">남은 예산 총합</span>
           <span id="remainingVariableAmount" class="text-base font-bold text-toss-text num mt-1 block">0원</span>
           <span id="totalVariableBudgetSub" class="text-[11px] text-toss-muted num mt-0.5 block">총 생활 예산 0원</span>
         </div>
         <div class="bg-toss-blueLight/80 rounded-2xl p-3.5">
-          <span class="text-xs font-semibold text-toss-blue block">식비 남은 예산</span>
+          <span class="text-xs font-semibold text-toss-blue block">남은 식비 예산</span>
           <span id="remainingFoodAmount" class="text-base font-bold text-toss-text num mt-1 block">0원</span>
           <span id="foodUsageSub" class="text-[11px] text-toss-sub num mt-0.5 block">총 예산 0원 · 사용 0원 (0%)</span>
         </div>
@@ -191,7 +242,7 @@
         </div>
       </div>
 
-      <!-- 6개 생활 예산 카테고리별 상세 진행 바 -->
+      <!-- 세부 항목별 예산 현황 8개 진행 바 -->
       <div>
         <div class="flex items-center justify-between mb-3">
           <span class="text-xs font-bold text-toss-text">세부 항목별 예산 현황</span>
@@ -203,92 +254,7 @@
       </div>
     </section>
 
-    <!-- 2-2. 빠른 지출 기록 폼 카드 -->
-    <section class="bg-white rounded-3xl p-5 shadow-2xs mb-4">
-      <div class="flex items-center justify-between mb-3.5">
-        <h2 class="text-sm font-bold text-toss-text">빠른 지출 기록</h2>
-        <span class="text-[11px] text-toss-muted">저장 즉시 부부 화면 동시 반영</span>
-      </div>
-
-      <form id="expenseForm" class="space-y-3.5">
-        <!-- 날짜 & 카테고리 -->
-        <div class="grid grid-cols-2 gap-2.5">
-          <div>
-            <label for="expenseDate" class="block text-xs font-medium text-toss-sub mb-1">날짜</label>
-            <input type="date" id="expenseDate" required
-              class="w-full bg-toss-bg text-toss-text text-sm font-medium rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue num" />
-          </div>
-          <div>
-            <label for="expenseCategory" class="block text-xs font-medium text-toss-sub mb-1">카테고리</label>
-            <select id="expenseCategory" required
-              class="w-full bg-toss-bg text-toss-text text-sm font-medium rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue">
-              <option value="foodIngredients">[식비] 식재료비</option>
-              <option value="foodDining">[식비] 외식 · 배달</option>
-              <option value="foodCafe">[식비] 카페 · 디저트</option>
-              <option value="miscLiving">[생활] 통신 · 교통 · 기타 생활비</option>
-              <option value="essentialConsumables">[생필품] 정기 소모품 (세제·휴지·물 등)</option>
-              <option value="essentialReserve">[생필품] 비정기 생활잡화 · 의류 예비비</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- 지출 주체 선택 (남편 / 아내 / 공동) -->
-        <div>
-          <span class="block text-xs font-medium text-toss-sub mb-1.5">지출 주체</span>
-          <div class="grid grid-cols-3 gap-2" id="spenderToggleGroup">
-            <button type="button" data-spender="남편"
-              class="spender-btn py-2 rounded-xl text-xs font-bold bg-toss-blue text-white transition active:scale-95">
-              남편
-            </button>
-            <button type="button" data-spender="아내"
-              class="spender-btn py-2 rounded-xl text-xs font-bold bg-toss-bg text-toss-sub hover:bg-gray-200 transition active:scale-95">
-              아내
-            </button>
-            <button type="button" data-spender="공동"
-              class="spender-btn py-2 rounded-xl text-xs font-bold bg-toss-bg text-toss-sub hover:bg-gray-200 transition active:scale-95">
-              공동
-            </button>
-          </div>
-        </div>
-
-        <!-- 금액 입력 및 빠른 금액 칩 -->
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <label for="expenseAmount" class="text-xs font-medium text-toss-sub">금액 (원)</label>
-            <button type="button" id="clearAmountBtn" class="text-[11px] font-semibold text-toss-muted hover:text-toss-text">
-              금액 초기화
-            </button>
-          </div>
-          <div class="relative">
-            <input type="number" id="expenseAmount" inputmode="numeric" min="1" placeholder="0" required
-              class="w-full bg-toss-bg text-toss-text text-lg font-bold num rounded-xl pl-3.5 pr-9 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
-            <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-toss-sub">원</span>
-          </div>
-          <!-- 빠른 금액 추가 버튼 -->
-          <div class="grid grid-cols-5 gap-1.5 mt-2">
-            <button type="button" data-add="1000" class="quick-chip py-2 rounded-xl bg-toss-bg hover:bg-gray-200 text-xs font-semibold text-toss-sub num active:scale-95 transition">+1천</button>
-            <button type="button" data-add="5000" class="quick-chip py-2 rounded-xl bg-toss-bg hover:bg-gray-200 text-xs font-semibold text-toss-sub num active:scale-95 transition">+5천</button>
-            <button type="button" data-add="10000" class="quick-chip py-2 rounded-xl bg-toss-bg hover:bg-gray-200 text-xs font-semibold text-toss-sub num active:scale-95 transition">+1만</button>
-            <button type="button" data-add="30000" class="quick-chip py-2 rounded-xl bg-toss-bg hover:bg-gray-200 text-xs font-semibold text-toss-sub num active:scale-95 transition">+3만</button>
-            <button type="button" data-add="50000" class="quick-chip py-2 rounded-xl bg-toss-bg hover:bg-gray-200 text-xs font-semibold text-toss-sub num active:scale-95 transition">+5만</button>
-          </div>
-        </div>
-
-        <!-- 메모 입력 -->
-        <div>
-          <label for="expenseMemo" class="block text-xs font-medium text-toss-sub mb-1">사용처 / 메모 (선택)</label>
-          <input type="text" id="expenseMemo" maxlength="40" placeholder="예: 마트 장보기, 주말 저녁, 커피"
-            class="w-full bg-toss-bg text-toss-text text-sm font-medium rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
-        </div>
-
-        <button type="submit" id="submitExpenseBtn"
-          class="w-full py-3.5 rounded-2xl bg-toss-blue hover:bg-toss-blueDark text-white text-sm font-bold shadow-2xs active:scale-[0.99] transition">
-          지출 등록하기
-        </button>
-      </form>
-    </section>
-
-    <!-- 2-3. 이번 달 지출 내역 리스트 카드 -->
+    <!-- 2-2. 이번 달 지출 내역 리스트 카드 -->
     <section class="bg-white rounded-3xl p-5 shadow-2xs">
       <div class="flex items-center justify-between mb-3">
         <div>
@@ -309,16 +275,126 @@
       </div>
     </section>
 
+    <!-- 하단 플로팅 지출 기록 버튼 -->
+    <div class="fixed bottom-5 left-0 right-0 z-30 flex justify-center pointer-events-none px-4" style="padding-bottom: env(safe-area-inset-bottom);">
+      <button id="openExpenseModalBtn" type="button"
+        class="pointer-events-auto flex items-center gap-2 px-6 py-3.5 rounded-full bg-toss-blue hover:bg-toss-blueDark text-white text-sm font-bold shadow-lg shadow-blue-500/30 active:scale-95 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+        </svg>
+        <span>지출 기록</span>
+      </button>
+    </div>
+
   </div>
 
-  <!-- 3. 예산 수정 모달 (상단 헤더 및 하단 저장 버튼 고정, 중앙 폼 영역만 스크롤) -->
+  <!-- 3. 빠른 지출 기록 바텀 시트 모달 (상·하단 고정) -->
+  <div id="expenseModal" class="hidden fixed inset-0 z-50 bg-black/45 backdrop-blur-xs items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[88vh] flex flex-col overflow-hidden shadow-xl">
+      <!-- 고정 상단 헤더 -->
+      <div class="shrink-0 flex items-center justify-between px-5 pt-5 pb-3.5 border-b border-toss-border bg-white">
+        <h3 class="text-base font-bold text-toss-text">빠른 지출 기록</h3>
+        <button id="closeExpenseModalBtn" type="button" aria-label="닫기"
+          class="w-8 h-8 rounded-full bg-toss-bg flex items-center justify-center text-toss-sub hover:bg-gray-200 transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- 중앙 스크롤 폼 영역 -->
+      <form id="expenseForm" class="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <!-- 날짜 & 카테고리 -->
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label for="expenseDate" class="block text-xs font-medium text-toss-sub mb-1">날짜</label>
+              <input type="date" id="expenseDate" required
+                class="w-full bg-toss-bg text-toss-text text-sm font-medium rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue num" />
+            </div>
+            <div>
+              <label for="expenseCategory" class="block text-xs font-medium text-toss-sub mb-1">카테고리</label>
+              <select id="expenseCategory" required
+                class="w-full bg-toss-bg text-toss-text text-sm font-medium rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue">
+                <option value="foodIngredients">[식비] 식재료비</option>
+                <option value="foodDining">[식비] 외식 · 배달</option>
+                <option value="foodCafe">[식비] 카페 · 디저트</option>
+                <option value="livingTelecom">[생활] 통신비</option>
+                <option value="livingTransport">[생활] 교통비</option>
+                <option value="livingOther">[생활] 기타 생활비</option>
+                <option value="essentialConsumables">[생필품] 정기 소모품 (세제·휴지·물 등)</option>
+                <option value="essentialReserve">[생필품] 의류비</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 지출 주체 선택 -->
+          <div>
+            <span class="block text-xs font-medium text-toss-sub mb-1.5">지출 주체</span>
+            <div class="grid grid-cols-3 gap-2" id="spenderToggleGroup">
+              <button type="button" data-spender="남편"
+                class="spender-btn py-2 rounded-xl text-xs font-bold bg-toss-blue text-white transition active:scale-95">
+                남편
+              </button>
+              <button type="button" data-spender="아내"
+                class="spender-btn py-2 rounded-xl text-xs font-bold bg-toss-bg text-toss-sub hover:bg-gray-200 transition active:scale-95">
+                아내
+              </button>
+              <button type="button" data-spender="공동"
+                class="spender-btn py-2 rounded-xl text-xs font-bold bg-toss-bg text-toss-sub hover:bg-gray-200 transition active:scale-95">
+                공동
+              </button>
+            </div>
+          </div>
+
+          <!-- 금액 입력 (천 단위 콤마 실시간 적용) -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label for="expenseAmount" class="text-xs font-medium text-toss-sub">금액 (원)</label>
+              <button type="button" id="clearAmountBtn" class="text-[11px] font-semibold text-toss-muted hover:text-toss-text">
+                금액 초기화
+              </button>
+            </div>
+            <div class="relative">
+              <input type="text" id="expenseAmount" inputmode="numeric" placeholder="0" required
+                class="comma-money-input w-full bg-toss-bg text-toss-text text-lg font-bold num rounded-xl pl-3.5 pr-9 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
+              <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-toss-sub">원</span>
+            </div>
+            <!-- 빠른 금액 추가 버튼 -->
+            <div class="grid grid-cols-5 gap-1.5 mt-2">
+              <button type="button" data-add="1000" class="quick-chip py-2 rounded-xl bg-toss-bg hover:bg-gray-200 text-xs font-semibold text-toss-sub num active:scale-95 transition">+1천</button>
+              <button type="button" data-add="5000" class="quick-chip py-2 rounded-xl bg-toss-bg hover:bg-gray-200 text-xs font-semibold text-toss-sub num active:scale-95 transition">+5천</button>
+              <button type="button" data-add="10000" class="quick-chip py-2 rounded-xl bg-toss-bg hover:bg-gray-200 text-xs font-semibold text-toss-sub num active:scale-95 transition">+1만</button>
+              <button type="button" data-add="30000" class="quick-chip py-2 rounded-xl bg-toss-bg hover:bg-gray-200 text-xs font-semibold text-toss-sub num active:scale-95 transition">+3만</button>
+              <button type="button" data-add="50000" class="quick-chip py-2 rounded-xl bg-toss-bg hover:bg-gray-200 text-xs font-semibold text-toss-sub num active:scale-95 transition">+5만</button>
+            </div>
+          </div>
+
+          <!-- 메모 입력 -->
+          <div>
+            <label for="expenseMemo" class="block text-xs font-medium text-toss-sub mb-1">사용처 / 메모 (선택)</label>
+            <input type="text" id="expenseMemo" maxlength="40" placeholder="예: 마트 장보기, 주말 저녁, 커피"
+              class="w-full bg-toss-bg text-toss-text text-sm font-medium rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
+          </div>
+        </div>
+
+        <!-- 고정 하단 등록 버튼 -->
+        <div class="shrink-0 px-5 py-3.5 border-t border-toss-border bg-white">
+          <button type="submit" id="submitExpenseBtn"
+            class="w-full py-3.5 rounded-2xl bg-toss-blue hover:bg-toss-blueDark text-white text-sm font-bold shadow-2xs active:scale-[0.99] transition">
+            지출 등록하기
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. 예산 수정 모달 (상단 헤더 및 하단 저장 버튼 고정, 콤마 자동 포맷) -->
   <div id="budgetModal" class="hidden fixed inset-0 z-50 bg-black/45 backdrop-blur-xs items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-xl">
       <!-- 고정 상단 헤더 -->
       <div class="shrink-0 flex items-center justify-between px-5 pt-5 pb-3.5 border-b border-toss-border bg-white">
         <div>
           <h3 class="text-base font-bold text-toss-text">수입 · 고정지출 · 예산 수정</h3>
-          <p id="budgetModalMonthSub" class="text-[11px] text-toss-muted mt-0.5">클라우드 DB에 안전하게 저장됩니다</p>
+          <p id="budgetModalMonthSub" class="text-[11px] text-toss-muted mt-0.5">2026년 11월 기준</p>
         </div>
         <button id="closeBudgetModalBtn" type="button" aria-label="닫기"
           class="w-8 h-8 rounded-full bg-toss-bg flex items-center justify-center text-toss-sub hover:bg-gray-200 transition">
@@ -332,11 +408,11 @@
           <!-- 월 세후 수입 -->
           <div>
             <label for="edit_income" class="block text-xs font-bold text-toss-blue mb-1">세후 월수입 (원)</label>
-            <input type="number" id="edit_income" inputmode="numeric" min="0" required
-              class="w-full bg-toss-blueLight/70 text-toss-text text-base font-bold num rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
+            <input type="text" id="edit_income" inputmode="numeric" placeholder="0"
+              class="comma-money-input w-full bg-toss-blueLight/70 text-toss-text text-base font-bold num rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
           </div>
 
-          <!-- 고정 지출액 3개 분리 입력 -->
+          <!-- 고정 지출액 3개 -->
           <div class="pt-3 border-t border-toss-border space-y-2.5">
             <div class="flex items-center justify-between">
               <p class="text-xs font-bold text-toss-sub">고정 지출액 (월 고정 차감)</p>
@@ -344,18 +420,18 @@
             </div>
             <div class="flex items-center justify-between gap-2">
               <label for="edit_fixedLoan" class="text-xs font-medium text-toss-text">대출금</label>
-              <input type="number" id="edit_fixedLoan" inputmode="numeric" min="0" required
-                class="w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
+              <input type="text" id="edit_fixedLoan" inputmode="numeric" placeholder="0"
+                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
             </div>
             <div class="flex items-center justify-between gap-2">
               <label for="edit_fixedMaintenance" class="text-xs font-medium text-toss-text">관리비</label>
-              <input type="number" id="edit_fixedMaintenance" inputmode="numeric" min="0" required
-                class="w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
+              <input type="text" id="edit_fixedMaintenance" inputmode="numeric" placeholder="0"
+                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
             </div>
             <div class="flex items-center justify-between gap-2">
               <label for="edit_fixedEvents" class="text-xs font-medium text-toss-text">경조사비</label>
-              <input type="number" id="edit_fixedEvents" inputmode="numeric" min="0" required
-                class="w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
+              <input type="text" id="edit_fixedEvents" inputmode="numeric" placeholder="0"
+                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
             </div>
           </div>
 
@@ -367,41 +443,59 @@
             </div>
             <div class="flex items-center justify-between gap-2">
               <label for="edit_foodIngredients" class="text-xs font-medium text-toss-text">[식비] 식재료비</label>
-              <input type="number" id="edit_foodIngredients" inputmode="numeric" min="0" required
-                class="w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
+              <input type="text" id="edit_foodIngredients" inputmode="numeric" placeholder="0"
+                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
             </div>
             <div class="flex items-center justify-between gap-2">
               <label for="edit_foodDining" class="text-xs font-medium text-toss-text">[식비] 외식 · 배달</label>
-              <input type="number" id="edit_foodDining" inputmode="numeric" min="0" required
-                class="w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
+              <input type="text" id="edit_foodDining" inputmode="numeric" placeholder="0"
+                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
             </div>
             <div class="flex items-center justify-between gap-2">
               <label for="edit_foodCafe" class="text-xs font-medium text-toss-text">[식비] 카페 · 디저트</label>
-              <input type="number" id="edit_foodCafe" inputmode="numeric" min="0" required
-                class="w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
+              <input type="text" id="edit_foodCafe" inputmode="numeric" placeholder="0"
+                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
             </div>
           </div>
 
-          <!-- 기타 생활 및 생필품 예산 3개 -->
+          <!-- 생활비 세부 예산 3개 (통신비 / 교통비 / 기타 생활비 분리) -->
           <div class="pt-3 border-t border-toss-border space-y-2.5">
             <div class="flex items-center justify-between">
-              <p class="text-xs font-bold text-toss-sub">기타 생활 · 생필품 예산</p>
+              <p class="text-xs font-bold text-toss-sub">생활비 세부 예산</p>
+              <span class="text-xs font-bold text-toss-sub num">소계 <span id="editLivingOnlySubtotal">0원</span></span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <label for="edit_livingTelecom" class="text-xs font-medium text-toss-text">[생활] 통신비</label>
+              <input type="text" id="edit_livingTelecom" inputmode="numeric" placeholder="0"
+                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <label for="edit_livingTransport" class="text-xs font-medium text-toss-text">[생활] 교통비</label>
+              <input type="text" id="edit_livingTransport" inputmode="numeric" placeholder="0"
+                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <label for="edit_livingOther" class="text-xs font-medium text-toss-text">[생활] 기타 생활비</label>
+              <input type="text" id="edit_livingOther" inputmode="numeric" placeholder="0"
+                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
+            </div>
+          </div>
+
+          <!-- 생필품 · 의류 예산 2개 -->
+          <div class="pt-3 border-t border-toss-border space-y-2.5">
+            <div class="flex items-center justify-between">
+              <p class="text-xs font-bold text-toss-sub">생필품 · 의류 예산</p>
               <span class="text-xs font-bold text-toss-text num">생활 예산 총합 <span id="editLivingSubtotal">0원</span></span>
             </div>
             <div class="flex items-center justify-between gap-2">
-              <label for="edit_miscLiving" class="text-xs font-medium text-toss-text">[생활] 통신 · 교통 · 기타 생활비</label>
-              <input type="number" id="edit_miscLiving" inputmode="numeric" min="0" required
-                class="w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
-            </div>
-            <div class="flex items-center justify-between gap-2">
               <label for="edit_essentialConsumables" class="text-xs font-medium text-toss-text">[생필품] 정기 소모품 (세제·휴지·물 등)</label>
-              <input type="number" id="edit_essentialConsumables" inputmode="numeric" min="0" required
-                class="w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
+              <input type="text" id="edit_essentialConsumables" inputmode="numeric" placeholder="0"
+                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
             </div>
             <div class="flex items-center justify-between gap-2">
-              <label for="edit_essentialReserve" class="text-xs font-medium text-toss-text">[생필품] 비정기 생활잡화 · 의류 예비비</label>
-              <input type="number" id="edit_essentialReserve" inputmode="numeric" min="0" required
-                class="w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
+              <label for="edit_essentialReserve" class="text-xs font-medium text-toss-text">[생필품] 의류비</label>
+              <input type="text" id="edit_essentialReserve" inputmode="numeric" placeholder="0"
+                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
             </div>
           </div>
 
@@ -415,7 +509,7 @@
         <!-- 고정 하단 푸터 -->
         <div class="shrink-0 flex gap-2 px-5 py-3.5 border-t border-toss-border bg-white">
           <button type="button" id="resetZeroBudgetBtn" class="px-3.5 py-3 rounded-xl bg-toss-bg text-xs font-bold text-toss-sub hover:bg-gray-200 transition">
-            0원 초기화
+            초기화
           </button>
           <button type="submit" id="saveBudgetSubmitBtn" class="flex-1 py-3 rounded-xl bg-toss-blue hover:bg-toss-blueDark text-white text-sm font-bold shadow-2xs transition">
             DB에 저장
@@ -425,7 +519,7 @@
     </div>
   </div>
 
-  <!-- 4. 설정 · 데이터 백업/복원 · 로그아웃 모달 (상단 헤더 및 하단 푸터 고정) -->
+  <!-- 5. 설정 · 데이터 백업/복원 · 로그아웃 모달 (상단 헤더 및 하단 푸터 고정) -->
   <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/45 backdrop-blur-xs items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-xl">
       <!-- 고정 상단 헤더 -->
@@ -480,7 +574,7 @@
     </div>
   </div>
 
-  <!-- 5. 커스텀 확인 모달 (alert/confirm 대체) -->
+  <!-- 6. 커스텀 확인 모달 (alert/confirm 대체) -->
   <div id="confirmModal" class="hidden fixed inset-0 z-50 bg-black/45 backdrop-blur-xs items-center justify-center p-4">
     <div class="w-full max-w-xs bg-white rounded-3xl p-5 shadow-xl text-center">
       <h4 id="confirmModalTitle" class="text-base font-bold text-toss-text">확인</h4>
@@ -492,8 +586,8 @@
     </div>
   </div>
 
-  <!-- 6. 하단 토스트 알림 -->
-  <div id="toastBanner" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-opacity duration-200">
+  <!-- 7. 하단 토스트 알림 -->
+  <div id="toastBanner" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-opacity duration-200">
     <div id="toastText" class="px-4 py-2.5 rounded-2xl bg-gray-900/90 text-white text-xs font-semibold shadow-lg whitespace-nowrap"></div>
   </div>
 
@@ -540,7 +634,7 @@
       console.warn("인증 지속성 설정 참고:", err);
     });
 
-    // 2. 개인 금융 정보 비노출을 위한 0원 초기 스키마 및 6개 생활 예산 카테고리 정의
+    // 2. 개인 금융 정보 비노출을 위한 0원 초기 스키마 및 8개 세부 예산 카테고리 정의
     const ZERO_BUDGET = {
       income: 0,
       fixedLoan: 0,
@@ -549,7 +643,9 @@
       foodIngredients: 0,
       foodDining: 0,
       foodCafe: 0,
-      miscLiving: 0,
+      livingTelecom: 0,
+      livingTransport: 0,
+      livingOther: 0,
       essentialConsumables: 0,
       essentialReserve: 0
     };
@@ -558,12 +654,16 @@
       { key: "foodIngredients", label: "식재료비", badge: "식비", group: "FOOD", isFood: true },
       { key: "foodDining", label: "외식 · 배달", badge: "식비", group: "FOOD", isFood: true },
       { key: "foodCafe", label: "카페 · 디저트", badge: "식비", group: "FOOD", isFood: true },
-      { key: "miscLiving", label: "통신 · 교통 · 기타 생활비", badge: "생활", group: "LIVING", isFood: false },
+      { key: "livingTelecom", label: "통신비", badge: "생활", group: "LIVING", isFood: false },
+      { key: "livingTransport", label: "교통비", badge: "생활", group: "LIVING", isFood: false },
+      { key: "livingOther", label: "기타 생활비", badge: "생활", group: "LIVING", isFood: false },
       { key: "essentialConsumables", label: "정기 소모품 (세제·휴지·물 등)", badge: "생필품", group: "ESSENTIALS", isFood: false },
-      { key: "essentialReserve", label: "비정기 생활잡화 · 의류 예비비", badge: "생필품", group: "ESSENTIALS", isFood: false }
+      { key: "essentialReserve", label: "의류비", badge: "생필품", group: "ESSENTIALS", isFood: false }
     ];
 
     const CATEGORY_MAP = Object.fromEntries(CATEGORIES.map((c) => [c.key, c]));
+    CATEGORY_MAP.miscLiving = CATEGORY_MAP.livingOther;
+    CATEGORY_MAP.misc_living = CATEGORY_MAP.livingOther;
 
     // 3. 애플리케이션 상태 변수
     let currentUser = null;
@@ -597,6 +697,17 @@
       return `${num.toLocaleString("ko-KR")}원`;
     }
 
+    function parseFormattedNumber(val) {
+      if (val === null || val === undefined) return 0;
+      const digits = String(val).replace(/[^\d]/g, "");
+      return digits ? parseInt(digits, 10) : 0;
+    }
+
+    function formatInputWithCommas(num) {
+      const n = Number(num) || 0;
+      return n > 0 ? n.toLocaleString("ko-KR") : "";
+    }
+
     function escapeHTML(str) {
       return String(str || "")
         .replace(/&/g, "&amp;")
@@ -604,6 +715,31 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
+    }
+
+    // 기존 miscLiving / misc_living 예산 데이터 하위 호환 매핑
+    function normalizeBudgetDoc(raw) {
+      const normalized = { ...ZERO_BUDGET };
+      if (!raw || typeof raw !== "object") return normalized;
+      Object.keys(ZERO_BUDGET).forEach((k) => {
+        if (raw[k] !== undefined) normalized[k] = Number(raw[k]) || 0;
+      });
+      const legacyMisc = Number(raw.miscLiving ?? raw.misc_living) || 0;
+      if (normalized.livingOther === 0 && legacyMisc > 0) {
+        normalized.livingOther = legacyMisc;
+      }
+      return normalized;
+    }
+
+    // 게이지 색상 구간 판별: 0~49%(파랑), 50~79%(주황), 80% 이상(빨강)
+    function getGaugeColorClasses(pct) {
+      if (pct >= 80) {
+        return { bar: "bg-toss-red", text: "text-toss-red" };
+      }
+      if (pct >= 50) {
+        return { bar: "bg-toss-amber", text: "text-toss-amber" };
+      }
+      return { bar: "bg-toss-blue", text: "text-toss-blue" };
     }
 
     let toastTimer = null;
@@ -670,11 +806,7 @@
       const defaultDocRef = doc(db, "ledgers", "shared_household", "config", "defaultBudget");
       unsubDefaultBudget = onSnapshot(defaultDocRef, (snap) => {
         clearDbError();
-        if (snap.exists()) {
-          defaultBudgetData = { ...ZERO_BUDGET, ...snap.data() };
-        } else {
-          defaultBudgetData = { ...ZERO_BUDGET };
-        }
+        defaultBudgetData = snap.exists() ? normalizeBudgetDoc(snap.data()) : { ...ZERO_BUDGET };
         mergeAndRenderBudget();
       }, (err) => {
         console.error("기본 예산 구독 오류:", err);
@@ -699,7 +831,7 @@
       const monthDocRef = doc(db, "ledgers", "shared_household", "months", yearMonth);
       unsubMonthOverride = onSnapshot(monthDocRef, (snap) => {
         clearDbError();
-        monthOverrideData = snap.exists() ? snap.data() : null;
+        monthOverrideData = snap.exists() ? normalizeBudgetDoc(snap.data()) : null;
         mergeAndRenderBudget();
       }, (err) => {
         console.error("월별 예산 구독 오류:", err);
@@ -727,7 +859,57 @@
       });
     }
 
-    // 6. 화면 렌더링 로직
+    // 6. SVG 원형(도넛) 그래프 업데이트 로직
+    function updateDonutChart(income, fixedTotal, livingVal, savingsVal, totalVariableBudget, totalVariableSpent) {
+      const radius = 38;
+      const circumference = 2 * Math.PI * radius; // ≈ 238.76
+
+      const savSeg = document.getElementById("donutSavingsSeg");
+      const livSeg = document.getElementById("donutLivingSeg");
+      const fixSeg = document.getElementById("donutFixedSeg");
+      const livDot = document.getElementById("legendLivingDot");
+
+      // 생활비 세그먼트 색상 (예산 대비 80% 이상 시 빨강, 50% 이상 시 주황, 정상 시 초록)
+      const livingUsagePct = totalVariableBudget > 0 ? Math.round((totalVariableSpent / totalVariableBudget) * 100) : 0;
+      let livingColorHex = "#00B37E";
+      let livingDotClass = "w-2 h-2 rounded-full bg-toss-green inline-block";
+      if (livingUsagePct >= 80) {
+        livingColorHex = "#F04452";
+        livingDotClass = "w-2 h-2 rounded-full bg-toss-red inline-block";
+      } else if (livingUsagePct >= 50) {
+        livingColorHex = "#FF9F00";
+        livingDotClass = "w-2 h-2 rounded-full bg-toss-amber inline-block";
+      }
+      livSeg.setAttribute("stroke", livingColorHex);
+      livDot.className = livingDotClass;
+
+      const safeSav = Math.max(0, savingsVal);
+      const safeLiv = Math.max(0, livingVal);
+      const safeFix = Math.max(0, fixedTotal);
+      const baseTotal = Math.max(income, safeSav + safeLiv + safeFix);
+
+      if (baseTotal <= 0) {
+        savSeg.setAttribute("stroke-dasharray", `0 ${circumference}`);
+        livSeg.setAttribute("stroke-dasharray", `0 ${circumference}`);
+        fixSeg.setAttribute("stroke-dasharray", `0 ${circumference}`);
+        return;
+      }
+
+      const savLen = (safeSav / baseTotal) * circumference;
+      const livLen = (safeLiv / baseTotal) * circumference;
+      const fixLen = (safeFix / baseTotal) * circumference;
+
+      savSeg.setAttribute("stroke-dasharray", `${savLen} ${circumference}`);
+      savSeg.setAttribute("stroke-dashoffset", "0");
+
+      livSeg.setAttribute("stroke-dasharray", `${livLen} ${circumference}`);
+      livSeg.setAttribute("stroke-dashoffset", `${-savLen}`);
+
+      fixSeg.setAttribute("stroke-dasharray", `${fixLen} ${circumference}`);
+      fixSeg.setAttribute("stroke-dashoffset", `${-(savLen + livLen)}`);
+    }
+
+    // 7. 화면 렌더링 로직
     function updateMonthHeaderLabel() {
       const [y, m] = currentYearMonth.split("-");
       document.getElementById("currentMonthLabel").textContent = `${y}년 ${parseInt(m, 10)}월`;
@@ -736,12 +918,15 @@
     function renderDashboard() {
       updateMonthHeaderLabel();
 
-      // 카테고리별 사용 금액 집계
+      // 카테고리별 사용 금액 집계 (기존 miscLiving / misc_living 내역도 livingOther로 합산)
       const usageMap = {};
       CATEGORIES.forEach((c) => { usageMap[c.key] = 0; });
       monthTransactions.forEach((tx) => {
-        if (Object.prototype.hasOwnProperty.call(usageMap, tx.category)) {
-          usageMap[tx.category] += Number(tx.amount) || 0;
+        const mappedKey = (tx.category === "miscLiving" || tx.category === "misc_living")
+          ? "livingOther"
+          : tx.category;
+        if (Object.prototype.hasOwnProperty.call(usageMap, mappedKey)) {
+          usageMap[mappedKey] += Number(tx.amount) || 0;
         }
       });
 
@@ -760,26 +945,39 @@
         emptyBanner.classList.add("hidden");
       }
 
-      // 1) 이번 달 예상 순수 저축액
+      // 1) 이번 달 예상 저축액 & 원형 그래프 업데이트
       const currentExpectedSavings = income - fixedTotal - totalVariableSpent;
       const targetFullBudgetSavings = income - fixedTotal - totalVariableBudget;
       const savingsRate = income > 0 ? ((currentExpectedSavings / income) * 100).toFixed(1) : "0.0";
 
       const netSavingsEl = document.getElementById("netSavingsAmount");
       netSavingsEl.textContent = formatKRW(currentExpectedSavings);
-      netSavingsEl.className = `text-2xl font-bold num mt-1 ${currentExpectedSavings >= 0 ? "text-toss-blue" : "text-toss-red"}`;
+      netSavingsEl.className = `text-xl sm:text-2xl font-bold num mt-0.5 truncate ${currentExpectedSavings >= 0 ? "text-toss-blue" : "text-toss-red"}`;
 
       document.getElementById("savingsRateText").textContent =
-        `저축률 ${savingsRate}% · 예산 전액 사용 시 목표 ${formatKRW(targetFullBudgetSavings)}`;
+        `예산 전액 사용 시 목표 ${formatKRW(targetFullBudgetSavings)}`;
 
-      // 2) 남은 생활 예산 총합
+      const centerRateEl = document.getElementById("donutCenterRate");
+      centerRateEl.textContent = `${savingsRate}%`;
+      centerRateEl.className = `text-sm font-bold num mt-1 ${currentExpectedSavings >= 0 ? "text-toss-text" : "text-toss-red"}`;
+
+      // 도넛 차트에는 실제 지출액이 없으면 예산 배분 기준, 지출이 발생하면 실제 반영 기준 표시
+      const effectiveLivingForChart = Math.max(totalVariableBudget, totalVariableSpent);
+      updateDonutChart(income, fixedTotal, effectiveLivingForChart, currentExpectedSavings, totalVariableBudget, totalVariableSpent);
+
+      document.getElementById("legendSavingsVal").textContent = formatKRW(currentExpectedSavings);
+      document.getElementById("legendLivingVal").textContent =
+        totalVariableSpent > 0 ? `${formatKRW(totalVariableSpent)} / ${formatKRW(totalVariableBudget)}` : formatKRW(totalVariableBudget);
+      document.getElementById("legendFixedVal").textContent = formatKRW(fixedTotal);
+
+      // 2) 남은 예산 총합
       const remainingVariable = totalVariableBudget - totalVariableSpent;
       const remVarEl = document.getElementById("remainingVariableAmount");
       remVarEl.textContent = formatKRW(remainingVariable);
       remVarEl.className = `text-base font-bold num mt-1 block ${remainingVariable < 0 ? "text-toss-red" : "text-toss-text"}`;
       document.getElementById("totalVariableBudgetSub").textContent = `총 생활 예산 ${formatKRW(totalVariableBudget)}`;
 
-      // 3) 식비 남은 예산 & 식비 통합 한도 게이지
+      // 3) 남은 식비 예산 & 식비 통합 한도 게이지 (0~49% 파랑, 50~79% 주황, 80% 이상 빨강)
       const foodCats = CATEGORIES.filter((c) => c.isFood);
       const totalFoodBudget = foodCats.reduce((sum, c) => sum + (Number(activeBudget[c.key]) || 0), 0);
       const totalFoodSpent = foodCats.reduce((sum, c) => sum + (usageMap[c.key] || 0), 0);
@@ -792,25 +990,17 @@
       document.getElementById("foodUsageSub").textContent =
         `총 예산 ${formatKRW(totalFoodBudget)} · 사용 ${formatKRW(totalFoodSpent)} (${foodPct}%)`;
 
+      const foodGaugeColor = getGaugeColorClasses(foodPct);
       const foodBar = document.getElementById("foodGaugeBar");
       const foodPctEl = document.getElementById("foodGaugePercent");
       foodBar.style.width = `${Math.min(foodPct, 100)}%`;
+      foodBar.className = `h-full ${foodGaugeColor.bar} rounded-full progress-fill`;
       foodPctEl.textContent = `${foodPct}%`;
-
-      if (foodPct > 100) {
-        foodBar.className = "h-full bg-toss-red rounded-full progress-fill";
-        foodPctEl.className = "font-bold text-toss-red num";
-      } else if (foodPct >= 80) {
-        foodBar.className = "h-full bg-toss-amber rounded-full progress-fill";
-        foodPctEl.className = "font-bold text-toss-amber num";
-      } else {
-        foodBar.className = "h-full bg-toss-blue rounded-full progress-fill";
-        foodPctEl.className = "font-bold text-toss-blue num";
-      }
+      foodPctEl.className = `font-bold ${foodGaugeColor.text} num`;
 
       document.getElementById("fixedSummaryInline").textContent = formatKRW(fixedTotal);
 
-      // 4) 세부 항목별 예산 현황 6개 진행 바
+      // 4) 세부 항목별 예산 현황 8개 진행 바 (0~49% 파랑, 50~79% 주황, 80% 이상 빨강)
       const catListEl = document.getElementById("categoryProgressList");
       catListEl.innerHTML = CATEGORIES.map((cat) => {
         const budget = Number(activeBudget[cat.key]) || 0;
@@ -822,9 +1012,7 @@
         if (cat.group === "LIVING") badgeStyle = "bg-gray-100 text-toss-sub";
         if (cat.group === "ESSENTIALS") badgeStyle = "bg-amber-50 text-amber-700";
 
-        let barColor = "bg-toss-blue";
-        if (pct > 100) barColor = "bg-toss-red";
-        else if (pct >= 80) barColor = "bg-toss-amber";
+        const gaugeColor = getGaugeColorClasses(pct);
 
         return `
           <div>
@@ -838,11 +1026,11 @@
               </span>
             </div>
             <div class="w-full h-2 bg-toss-bg rounded-full overflow-hidden">
-              <div class="h-full ${barColor} rounded-full progress-fill" style="width: ${Math.min(pct, 100)}%"></div>
+              <div class="h-full ${gaugeColor.bar} rounded-full progress-fill" style="width: ${Math.min(pct, 100)}%"></div>
             </div>
             <div class="flex justify-between items-center text-[11px] text-toss-muted num mt-1">
               <span>사용 ${formatKRW(spent)} / 예산 ${formatKRW(budget)}</span>
-              <span>${pct}%</span>
+              <span class="font-bold ${gaugeColor.text}">${pct}%</span>
             </div>
           </div>
         `;
@@ -920,10 +1108,17 @@
       });
     }
 
-    // 7. 이벤트 바인딩
+    // 8. 이벤트 바인딩
     document.addEventListener("DOMContentLoaded", () => {
-      // 오늘 날짜 기본 세팅
       document.getElementById("expenseDate").value = getTodayDateString();
+
+      // 모든 금액 입력란에 실시간 천 단위 콤마 포맷 적용
+      document.querySelectorAll(".comma-money-input").forEach((input) => {
+        input.addEventListener("input", () => {
+          const num = parseFormattedNumber(input.value);
+          input.value = num > 0 ? num.toLocaleString("ko-KR") : "";
+        });
+      });
 
       // 로그인 폼 제출
       document.getElementById("loginForm").addEventListener("submit", async (e) => {
@@ -939,7 +1134,7 @@
 
         try {
           await signInWithEmailAndPassword(auth, email, password);
-          showToast("태형 경은 가계부에 연결되었습니다.");
+          showToast("태형이와 경은이의 부자 되기 프로젝트에 연결되었습니다.");
         } catch (err) {
           console.error("로그인 실패:", err);
           let msg = "이메일 또는 비밀번호를 다시 확인해 주세요.";
@@ -969,6 +1164,20 @@
         subscribeMonthStream(currentYearMonth);
       });
 
+      // 플로팅 [+ 지출 기록] 모달 열기/닫기
+      const expenseModal = document.getElementById("expenseModal");
+      const amountInput = document.getElementById("expenseAmount");
+
+      document.getElementById("openExpenseModalBtn").addEventListener("click", () => {
+        expenseModal.classList.remove("hidden");
+        expenseModal.classList.add("flex");
+      });
+
+      document.getElementById("closeExpenseModalBtn").addEventListener("click", () => {
+        expenseModal.classList.add("hidden");
+        expenseModal.classList.remove("flex");
+      });
+
       // 지출 주체 토글 (남편 / 아내 / 공동)
       document.querySelectorAll(".spender-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -983,13 +1192,12 @@
         });
       });
 
-      // 빠른 금액 추가 칩 및 초기화
-      const amountInput = document.getElementById("expenseAmount");
+      // 빠른 금액 추가 칩 및 초기화 (콤마 포맷 유지)
       document.querySelectorAll(".quick-chip").forEach((chip) => {
         chip.addEventListener("click", () => {
           const addVal = Number(chip.getAttribute("data-add")) || 0;
-          const currentVal = Number(amountInput.value) || 0;
-          amountInput.value = currentVal + addVal;
+          const currentVal = parseFormattedNumber(amountInput.value);
+          amountInput.value = formatInputWithCommas(currentVal + addVal);
         });
       });
 
@@ -1005,10 +1213,10 @@
 
         const dateVal = document.getElementById("expenseDate").value || getTodayDateString();
         const categoryVal = document.getElementById("expenseCategory").value;
-        const amountVal = parseInt(amountInput.value, 10);
+        const amountVal = parseFormattedNumber(amountInput.value);
         const memoVal = document.getElementById("expenseMemo").value.trim();
 
-        if (isNaN(amountVal) || amountVal <= 0) {
+        if (amountVal <= 0) {
           showToast("1원 이상의 금액을 입력해 주세요.");
           return;
         }
@@ -1031,6 +1239,8 @@
 
           amountInput.value = "";
           document.getElementById("expenseMemo").value = "";
+          expenseModal.classList.add("hidden");
+          expenseModal.classList.remove("flex");
           showToast(`${formatKRW(amountVal)} 지출이 등록되었습니다.`);
 
           if (txYearMonth !== currentYearMonth) {
@@ -1062,22 +1272,28 @@
         });
       });
 
-      // 예산 수정 모달 실시간 소계 계산
+      // 예산 수정 모달 실시간 소계 계산 (콤마 파싱 적용)
       function updateBudgetModalSubtotals() {
-        const loan = parseInt(document.getElementById("edit_fixedLoan").value, 10) || 0;
-        const maint = parseInt(document.getElementById("edit_fixedMaintenance").value, 10) || 0;
-        const events = parseInt(document.getElementById("edit_fixedEvents").value, 10) || 0;
+        const loan = parseFormattedNumber(document.getElementById("edit_fixedLoan").value);
+        const maint = parseFormattedNumber(document.getElementById("edit_fixedMaintenance").value);
+        const events = parseFormattedNumber(document.getElementById("edit_fixedEvents").value);
         document.getElementById("editFixedSubtotal").textContent = formatKRW(loan + maint + events);
 
-        const f1 = parseInt(document.getElementById("edit_foodIngredients").value, 10) || 0;
-        const f2 = parseInt(document.getElementById("edit_foodDining").value, 10) || 0;
-        const f3 = parseInt(document.getElementById("edit_foodCafe").value, 10) || 0;
-        document.getElementById("editFoodSubtotal").textContent = formatKRW(f1 + f2 + f3);
+        const f1 = parseFormattedNumber(document.getElementById("edit_foodIngredients").value);
+        const f2 = parseFormattedNumber(document.getElementById("edit_foodDining").value);
+        const f3 = parseFormattedNumber(document.getElementById("edit_foodCafe").value);
+        const foodSum = f1 + f2 + f3;
+        document.getElementById("editFoodSubtotal").textContent = formatKRW(foodSum);
 
-        const l1 = parseInt(document.getElementById("edit_miscLiving").value, 10) || 0;
-        const l2 = parseInt(document.getElementById("edit_essentialConsumables").value, 10) || 0;
-        const l3 = parseInt(document.getElementById("edit_essentialReserve").value, 10) || 0;
-        document.getElementById("editLivingSubtotal").textContent = formatKRW(f1 + f2 + f3 + l1 + l2 + l3);
+        const l1 = parseFormattedNumber(document.getElementById("edit_livingTelecom").value);
+        const l2 = parseFormattedNumber(document.getElementById("edit_livingTransport").value);
+        const l3 = parseFormattedNumber(document.getElementById("edit_livingOther").value);
+        const livingOnlySum = l1 + l2 + l3;
+        document.getElementById("editLivingOnlySubtotal").textContent = formatKRW(livingOnlySum);
+
+        const e1 = parseFormattedNumber(document.getElementById("edit_essentialConsumables").value);
+        const e2 = parseFormattedNumber(document.getElementById("edit_essentialReserve").value);
+        document.getElementById("editLivingSubtotal").textContent = formatKRW(foodSum + livingOnlySum + e1 + e2);
       }
 
       Object.keys(ZERO_BUDGET).forEach((key) => {
@@ -1089,12 +1305,13 @@
       const budgetModal = document.getElementById("budgetModal");
       document.getElementById("openBudgetModalBtn").addEventListener("click", () => {
         const [y, m] = currentYearMonth.split("-");
-        document.getElementById("budgetModalMonthSub").textContent =
-          `${y}년 ${parseInt(m, 10)}월 기준 · 저장 시 부부 기기 동시 반영`;
+        document.getElementById("budgetModalMonthSub").textContent = `${y}년 ${parseInt(m, 10)}월 기준`;
 
         Object.keys(ZERO_BUDGET).forEach((key) => {
           const inputEl = document.getElementById(`edit_${key}`);
-          if (inputEl) inputEl.value = activeBudget[key] ?? 0;
+          if (inputEl) {
+            inputEl.value = formatInputWithCommas(activeBudget[key] ?? 0);
+          }
         });
         updateBudgetModalSubtotals();
 
@@ -1110,21 +1327,20 @@
       document.getElementById("resetZeroBudgetBtn").addEventListener("click", () => {
         Object.keys(ZERO_BUDGET).forEach((key) => {
           const inputEl = document.getElementById(`edit_${key}`);
-          if (inputEl) inputEl.value = 0;
+          if (inputEl) inputEl.value = "";
         });
         updateBudgetModalSubtotals();
-        showToast("모든 입력칸이 0원으로 초기화되었습니다.");
+        showToast("모든 입력칸이 초기화되었습니다.");
       });
 
-      // 예산 수정 DB 저장
+      // 예산 수정 DB 저장 (콤마 제거 후 순수 정수로 저장)
       document.getElementById("budgetEditForm").addEventListener("submit", async (e) => {
         e.preventDefault();
         if (!currentUser) return;
 
         const payload = {};
         Object.keys(ZERO_BUDGET).forEach((key) => {
-          const val = parseInt(document.getElementById(`edit_${key}`).value, 10);
-          payload[key] = !isNaN(val) && val >= 0 ? val : 0;
+          payload[key] = parseFormattedNumber(document.getElementById(`edit_${key}`).value);
         });
         payload.updatedAt = Date.now();
 
@@ -1140,7 +1356,7 @@
 
           budgetModal.classList.add("hidden");
           budgetModal.classList.remove("flex");
-          showToast("예산 설정이 클라우드 DB에 저장되었습니다.");
+          showToast("예산 설정이 저장되었습니다.");
         } catch (err) {
           console.error("예산 저장 오류:", err);
           showDbError(err);
@@ -1226,19 +1442,15 @@
           const parsed = JSON.parse(text);
 
           if (parsed.defaultBudget && typeof parsed.defaultBudget === "object") {
-            const cleanBudget = { ...ZERO_BUDGET };
-            Object.keys(ZERO_BUDGET).forEach((k) => {
-              if (parsed.defaultBudget[k] !== undefined) {
-                cleanBudget[k] = Number(parsed.defaultBudget[k]) || 0;
-              }
-            });
+            const cleanBudget = normalizeBudgetDoc(parsed.defaultBudget);
             await setDoc(doc(db, "ledgers", "shared_household", "config", "defaultBudget"), cleanBudget, { merge: true });
           }
 
           if (Array.isArray(parsed.transactions)) {
             for (const item of parsed.transactions) {
               if (!item.date || !item.amount) continue;
-              const catKey = CATEGORY_MAP[item.category] ? item.category : "miscLiving";
+              const rawCat = (item.category === "miscLiving" || item.category === "misc_living") ? "livingOther" : item.category;
+              const catKey = CATEGORY_MAP[rawCat] ? rawCat : "livingOther";
               await addDoc(collection(db, "ledgers", "shared_household", "transactions"), {
                 date: String(item.date),
                 yearMonth: String(item.date).slice(0, 7),
@@ -1286,7 +1498,7 @@
       });
     });
 
-    // 8. 인증 상태 감지 및 실시간 스트림 연결
+    // 9. 인증 상태 감지 및 실시간 스트림 연결
     onAuthStateChanged(auth, (user) => {
       const loginView = document.getElementById("loginView");
       const appView = document.getElementById("appView");

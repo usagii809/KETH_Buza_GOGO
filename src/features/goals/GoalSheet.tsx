@@ -5,6 +5,7 @@ import type { Goal } from "../../lib/types";
 import { BigMoneyInput, MoneyInput, ProgressBar, inputClass, primaryButton } from "../../ui/controls";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
+import { confetti } from "../fun/confetti";
 import { GOAL_EMOJIS, goalEta, goalPct } from "./calc";
 
 interface Props {
@@ -40,7 +41,7 @@ function DepositView({ goal, prefill, planned, now, onEdit, onClose }:
       await moveGoalMoney(goal.id, sign * amount);
       onClose();
       const after = saved + sign * amount;
-      if (sign > 0 && goal.target > 0 && after >= goal.target && saved < goal.target) toast(`🎉 ${goal.name} 목표 달성! 축하해요`);
+      if (sign > 0 && goal.target > 0 && after >= goal.target && saved < goal.target) { toast(`🎉 ${goal.name} 목표 달성! 축하해요`); confetti(); }
       else if (sign > 0) toast(`${formatShort(amount)} 모았어요! 목표까지 ${Math.min(100, Math.floor((after / goal.target) * 100))}%`);
       else toast(`${formatShort(amount)} 꺼냈어요`);
     } catch (err) {

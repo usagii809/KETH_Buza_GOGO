@@ -1,7 +1,7 @@
 import type { User } from "firebase/auth";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { pinMonthBudget, runRecurring } from "./data/db";
-import { useAuthUser, useMonthData, useNow, useRecentMonths, useSharedData } from "./data/hooks";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { HISTORY_DAYS, pinMonthBudget, runRecurring, saveNoSpendBest, saveProfile } from "./data/db";
+import { useAuthUser, useLottery, useMonthData, useNow, useRecentMonths, useSharedData } from "./data/hooks";
 import { LoginView } from "./features/auth/LoginView";
 import { BudgetCard } from "./features/budget/BudgetCard";
 import { BudgetSheet } from "./features/budget/BudgetSheet";
@@ -11,16 +11,25 @@ import { ExpenseSheet } from "./features/expenses/ExpenseSheet";
 import { TransactionList } from "./features/expenses/TransactionList";
 import { GoalSheet } from "./features/goals/GoalSheet";
 import { GoalsCard } from "./features/goals/GoalsCard";
+import { longestStreak, pickBest, spentByDate } from "./features/noSpend/calc";
 import { NoSpendCard } from "./features/noSpend/NoSpendCard";
 import { RecurringSheet } from "./features/recurring/RecurringSheet";
+import { LotteryCard } from "./features/lottery/LotteryCard";
+import { forcedNoSpendDays } from "./features/lottery/ticket";
+import { LotterySheet } from "./features/lottery/LotterySheet";
 import { QuipBubble } from "./features/quips/QuipBubble";
+import { Avatar } from "./ui/Avatar";
 import { ReportSection } from "./features/report/ReportSection";
 import { SettingsSheet } from "./features/settings/SettingsSheet";
 import { buildMonthBars } from "./features/trend/calc";
 import { TrendCard } from "./features/trend/TrendCard";
 import { plannedSavingsOf } from "./lib/categories";
-import { getPeriodInfo, shiftMonth, todayYm } from "./lib/dates";
-import type { Goal, Transaction } from "./lib/types";
+import { getPeriodInfo, shiftMonth, toDateStr, todayStr, todayYm } from "./lib/dates";
+import { isHousehold, type Goal, type Transaction } from "./lib/types";
+import { nameForEmail } from "./lib/people";
+import { confetti } from "./features/fun/confetti";
+import { isOurDay } from "./features/fun/eggs";
+import { store } from "./lib/storage";
 import { useFeedback } from "./ui/feedback";
 
 type OpenSheet =
@@ -28,6 +37,7 @@ type OpenSheet =
   | { type: "budget" }
   | { type: "settings" }
   | { type: "recurring" }
+  | { type: "lottery" }
   | { type: "goal"; goalId: string | null; mode: "deposit" | "edit"; prefill?: number }
   | null;
 
@@ -45,17 +55,88 @@ function Dashboard({ user }: { user: User }) {
   const [sheet, setSheet] = useState<OpenSheet>(null);
   const closeSheet = useCallback(() => setSheet(null), []);
 
+  // 🤫 프로젝트 이름을 빠르게 7번 누르면…
+  const titleTaps = useRef<number[]>([]);
+  const onTitleTap = () => {
+    const t = Date.now();
+    titleTaps.current = [...titleTaps.current.filter((x) => t - x < 3000), t];
+    if (titleTaps.current.length >= 7) {
+      titleTaps.current = [];
+      confetti();
+      toast("🔓 비밀 발견! 태형♥경은 부자 클럽 회원 인증 완료");
+    }
+  };
+
+  // 🤫 생일·기념일에는 그날 처음 앱을 열 때 꽃가루
+  useEffect(() => {
+    const today = todayStr(now);
+    if (!isOurDay(today) || store.get(`ourDay_${today}`, "")) return;
+    store.set(`ourDay_${today}`, "1");
+    setTimeout(confetti, 600);
+  }, [now]);
+
   const month = useMonthData(ym);
   const shared = useSharedData();
   const recentTxs = useRecentMonths(ym);
 
+  // 프로필 (내 사진·이름, 상대 사진)
+  const me = shared.profiles.find((p) => p.uid === user.uid) || null;
+  // 로그인 계정으로 태형/경은을 알아내서 내 프로필에 저장 (상대 폰에서도 이름이 보이게)
+  const [emailName, setEmailName] = useState<"태형" | "경은" | null>(null);
+  useEffect(() => { nameForEmail(user.email).then(setEmailName).catch(() => setEmailName(null)); }, [user.email]);
+  useEffect(() => {
+    if (emailName && me?.name !== emailName) saveProfile(user.uid, { name: emailName }).catch((err) => console.warn("프로필 이름 저장 참고:", err));
+  }, [emailName, me?.name, user.uid]);
+  const partner = shared.profiles.find((p) => p.uid !== user.uid) || null;
+
+  // 🎟️ 오늘의 복권
+  const today = todayStr(now);
+  // 지난달 말일 것까지 불러와요 (말일에 터진 폭탄 → 1일 강제 무지출)
+  const lotteryFrom = toDateStr(new Date(now.getFullYear(), now.getMonth(), 0));
+  const tickets = useLottery(lotteryFrom);
+  const jackpotToday = tickets.some((t) => t.date === today && t.tier === "jackpot" && t.revealed);
+  // 💣 폭탄 다음 날은 강제 무지출 데이
+  const forcedDays = useMemo(() => forcedNoSpendDays(tickets, shared.profiles), [tickets, shared.profiles]);
+  const bombBy = forcedDays[today] ?? null;
+
+  // 🏢 회사 돈은 기록만 하고, 예산·저축·무지출·그래프·성적표 계산에서는 전부 빼요
+  const txs = useMemo(() => month.txs.filter(isHousehold), [month.txs]);
+  const prevTxs = useMemo(() => month.prevTxs.filter(isHousehold), [month.prevTxs]);
+  const recentHousehold = useMemo(() => recentTxs.filter(isHousehold), [recentTxs]);
+
   const period = useMemo(() => getPeriodInfo(ym, now), [ym, now]);
-  const summary = useMemo(() => computeSummary(month.budget, month.txs, period), [month.budget, month.txs, period]);
-  const bars = useMemo(() => buildMonthBars(ym, 6, recentTxs, month.txs, todayYm(now)), [ym, recentTxs, month.txs, now]);
+  const summary = useMemo(() => computeSummary(month.budget, txs, period), [month.budget, txs, period]);
+  const bars = useMemo(() => buildMonthBars(ym, 6, recentHousehold, txs, todayYm(now)), [ym, recentHousehold, txs, now]);
   // 저축 목표 예상에 쓰는 '이번 달 계획 저축액'
   const planned = period.state === "current" ? summary.plannedSavings : plannedSavingsOf(month.defaultBudget);
   // 자동완성: 최근 120일 + 지금 보는 달 (id 중복 제거)
   const history = useMemo(() => [...new Map([...shared.history, ...month.txs].map((t) => [t.id, t])).values()], [shared.history, month.txs]);
+
+  // 무지출 챌린지는 '처음 기록을 남긴 날'부터 세요 (그 전엔 앱을 안 썼으니까)
+  const noSpendStart = useMemo(() => {
+    const dates = [...shared.history, ...month.txs].map((t) => t.date).filter(Boolean);
+    if (shared.firstRecord) dates.push(shared.firstRecord);
+    return dates.length ? dates.sort()[0] : null;
+  }, [shared.firstRecord, shared.history, month.txs]);
+
+  // 🏆 무지출 최장 기록: 최근 120일로 계산하고, 더 긴 기록이 나오면 서버에 저장 (두 사람 공유)
+  const windowStart = useMemo(() => todayStr(new Date(now.getTime() - HISTORY_DAYS * 86400000)), [now]);
+  const localBest = useMemo(() => {
+    if (!shared.historyLoaded || !shared.firstRecordLoaded) return null;
+    const all = [...new Map([...shared.history, ...month.prevTxs, ...month.txs].map((t) => [t.id, t])).values()].filter(isHousehold);
+    return longestStreak(spentByDate(all), noSpendStart, windowStart, todayStr(now));
+  }, [shared.historyLoaded, shared.firstRecordLoaded, shared.history, month.prevTxs, month.txs, noSpendStart, windowStart, now]);
+  const best = pickBest(shared.noSpendBest, localBest, windowStart);
+  useEffect(() => {
+    if (!localBest || !best) return;
+    const stored = shared.noSpendBest;
+    if (stored && stored.days === best.days && stored.from === best.from && stored.to === best.to) return;
+    const isNewRecord = !!stored && best.days > stored.days;
+    saveNoSpendBest(best)
+      .then(() => { if (isNewRecord) { confetti(); toast(`🏆 무지출 최장 기록 경신! ${best.days}일 연속`); } })
+      .catch((err) => console.warn("최장 기록 저장 참고:", err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localBest?.days, localBest?.from, localBest?.to, best?.days, best?.from, best?.to, shared.noSpendBest]);
 
   /** 첫 지출이 생기는 달은 그때 예산을 그 달에 고정 */
   const pinIfNeeded = useCallback(async (targetYm: string) => {
@@ -78,7 +159,7 @@ function Dashboard({ user }: { user: User }) {
     <div className="max-w-lg mx-auto px-4 pt-3 pb-10">
       <header className="flex items-center justify-between py-2 mb-3">
         <div>
-          <span className="text-xs font-bold text-toss-blue tracking-tight">태형이와 경은이의 부자 되기 프로젝트!!</span>
+          <span onClick={onTitleTap} className="text-sm font-bold text-toss-blue tracking-tight select-none">태형이와 경은이의 부자 되기 프로젝트!!</span>
           <div className="flex items-center gap-2 mt-1.5">
             <NavButton label="이전 달" d="M15 19l-7-7 7-7" onClick={() => setYm(shiftMonth(ym, -1))} />
             <h1 className="text-xl font-bold text-toss-text tracking-tight num px-1">{period.y}년 {period.m}월</h1>
@@ -89,27 +170,29 @@ function Dashboard({ user }: { user: User }) {
             )}
           </div>
         </div>
-        <button type="button" aria-label="설정" onClick={() => setSheet({ type: "settings" })}
-          className="w-10 h-10 rounded-2xl bg-white border border-toss-border flex items-center justify-center text-toss-sub hover:bg-gray-100 active:scale-95 transition shadow-sm">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.9" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
+        <button type="button" aria-label="내 프로필과 설정" onClick={() => setSheet({ type: "settings" })}
+          className="relative w-12 h-12 shrink-0 rounded-full active:scale-95 transition">
+          <Avatar profile={me} size={48} className="ring-2 ring-white shadow-sm" />
+          {partner && <Avatar profile={partner} size={22} className="absolute -left-1.5 -bottom-0.5 ring-2 ring-white" />}
         </button>
+
       </header>
 
       {month.error && <div className="mb-4 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-sm text-toss-red font-medium leading-relaxed">{month.error}</div>}
 
-      <QuipBubble s={summary} period={period} now={now} />
-      <ReportSection period={period} s={summary} txs={month.txs} prevTxs={month.prevTxs} goals={shared.goals} now={now} noSpendStart={shared.noSpendStart}
+      <QuipBubble s={summary} period={period} now={now} override={jackpotToday ? "🍗🍺 오늘은 복권 1등! 묻지도 따지지도 않고 치맥 GO!" : bombBy ? `💣 오늘은 강제 무지출 데이! (어제 ${bombBy}의 폭탄) 지갑 봉인 🔒` : null} />
+      {period.state === "current" && (
+        <LotteryCard uid={user.uid} today={today} tickets={tickets} profiles={shared.profiles} bombBy={bombBy} onOpen={() => setSheet({ type: "lottery" })} />
+      )}
+      <ReportSection period={period} s={summary} txs={txs} prevTxs={prevTxs} goals={shared.goals} now={now} noSpendStart={noSpendStart}
         onOpenLastMonth={() => setYm(shiftMonth(todayYm(now), -1))} onDepositToGoal={openGoal} />
       <SavingsCard s={summary} period={period} onEditBudget={() => setSheet({ type: "budget" })} />
       <GoalsCard goals={shared.goals} planned={planned} now={now} onOpen={(g) => openGoal(g)}
         onNew={() => setSheet({ type: "goal", goalId: null, mode: "edit" })} />
-      <BudgetCard budget={month.budget} s={summary} period={period} prevTxs={month.prevTxs} />
-      <TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={month.prevTxs} bars={bars} />
-      <NoSpendCard period={period} txs={month.txs} prevTxs={month.prevTxs} now={now} start={shared.noSpendStart} uid={user.uid} />
-      <TransactionList txs={month.txs} now={now} onEdit={(tx) => setSheet({ type: "expense", tx })} />
+      <BudgetCard budget={month.budget} s={summary} period={period} prevTxs={prevTxs} />
+      <TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={prevTxs} bars={bars} />
+      <NoSpendCard period={period} txs={txs} prevTxs={prevTxs} now={now} start={noSpendStart} best={best} forcedDays={forcedDays} />
+      <TransactionList txs={month.txs} ym={ym} now={now} onEdit={(tx) => setSheet({ type: "expense", tx })} />
 
       <div className="fixed bottom-5 left-0 right-0 z-30 flex justify-center pointer-events-none px-4" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <button type="button" onClick={() => setSheet({ type: "expense" })}
@@ -120,14 +203,15 @@ function Dashboard({ user }: { user: User }) {
       </div>
 
       {sheet?.type === "expense" && (
-        <ExpenseSheet tx={sheet.tx} viewedYm={ym} uid={user.uid} history={history} beforeAdd={pinIfNeeded} onMovedMonth={setYm} onClose={closeSheet} />
+        <ExpenseSheet tx={sheet.tx} viewedYm={ym} uid={user.uid} history={history} beforeAdd={pinIfNeeded} myName={me?.name} forcedDays={forcedDays} onMovedMonth={setYm} onClose={closeSheet} />
       )}
       {sheet?.type === "budget" && <BudgetSheet period={period} budget={month.budget} onClose={closeSheet} />}
       {sheet?.type === "settings" && (
-        <SettingsSheet email={user.email} ym={ym} txs={month.txs} defaultBudget={month.defaultBudget} rules={shared.recurring}
+        <SettingsSheet uid={user.uid} me={me} nameLocked={!!emailName} email={user.email} ym={ym} txs={month.txs} defaultBudget={month.defaultBudget} rules={shared.recurring}
           onOpenRecurring={() => setSheet({ type: "recurring" })} onClose={closeSheet} />
       )}
       {sheet?.type === "recurring" && <RecurringSheet rules={shared.recurring} onClose={closeSheet} />}
+      {sheet?.type === "lottery" && <LotterySheet uid={user.uid} myName={me?.name} today={today} onClose={closeSheet} />}
       {sheet?.type === "goal" && (
         <GoalSheet key={sheet.goalId ?? "new"} goal={goal} mode={sheet.mode} prefill={sheet.prefill} planned={planned} now={now} onClose={closeSheet} />
       )}

@@ -1,11 +1,14 @@
 import { signOut } from "firebase/auth";
-import { useRef } from "react";
-import { exportBackup, importBackup, parseBackup } from "../../data/db";
+import { useRef, useState } from "react";
+import { exportBackup, importBackup, parseBackup, removeProfilePhoto, saveProfile } from "../../data/db";
 import { CATEGORY_MAP, normalizeCategory, normalizeSpender, type Budget } from "../../lib/categories";
+import { downloadCsv } from "../../lib/csv";
 import { todayStr } from "../../lib/dates";
 import { auth } from "../../lib/firebase";
 import { formatShort } from "../../lib/format";
-import type { RecurringRule, Transaction } from "../../lib/types";
+import { toAvatarDataUrl } from "../../lib/image";
+import type { Profile, RecurringRule, Transaction } from "../../lib/types";
+import { Avatar } from "../../ui/Avatar";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
 
@@ -19,6 +22,10 @@ function download(blob: Blob, filename: string) {
 }
 
 interface Props {
+  uid: string;
+  me: Profile | null;
+  /** 로그인 계정으로 이름이 정해졌으면 고르는 버튼을 숨겨요 */
+  nameLocked: boolean;
   email: string | null;
   ym: string;
   txs: Transaction[];
@@ -28,9 +35,30 @@ interface Props {
   onClose: () => void;
 }
 
-export function SettingsSheet({ email, ym, txs, defaultBudget, rules, onOpenRecurring, onClose }: Props) {
+export function SettingsSheet({ uid, me, nameLocked, email, ym, txs, defaultBudget, rules, onOpenRecurring, onClose }: Props) {
   const { toast, confirm } = useFeedback();
   const fileRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  const changePhoto = async (file: File) => {
+    setPhotoBusy(true);
+    try {
+      await saveProfile(uid, { photo: await toAvatarDataUrl(file) });
+      toast("프로필 사진을 바꿨어요 📸");
+    } catch (err) {
+      console.error("프로필 사진 오류:", err);
+      toast("사진을 저장하지 못했어요. 다른 사진으로 해볼까요?");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+  const removePhoto = async () => {
+    try { await removeProfilePhoto(uid); toast("사진을 지웠어요"); } catch { toast("지우지 못했어요"); }
+  };
+  const setName = async (name: "태형" | "경은") => {
+    try { await saveProfile(uid, { name }); toast(`반가워요, ${name}! 👋`); } catch { toast("저장하지 못했어요"); }
+  };
 
   const exportCsv = () => {
     const rows = txs.map((tx) => [
@@ -38,10 +66,11 @@ export function SettingsSheet({ email, ym, txs, defaultBudget, rules, onOpenRecu
       normalizeSpender(tx.spender),
       CATEGORY_MAP[normalizeCategory(tx.category)].label,
       Number(tx.amount) || 0,
-      `"${String(tx.memo || "").replace(/"/g, '""')}"`
-    ].join(","));
-    const csv = "﻿" + [["날짜", "지출주체", "카테고리", "금액", "메모"].join(","), ...rows].join("\n");
-    download(new Blob([csv], { type: "text/csv;charset=utf-8;" }), `태형경은가계부_${ym}.csv`);
+      tx.memo || "",
+      tx.items || "",
+      tx.company ? "회사 돈" : ""
+    ]);
+    downloadCsv(`태형경은가계부_${ym}.csv`, ["날짜", "지출주체", "카테고리", "금액", "사용처", "품목", "구분"], rows);
     toast("파일을 저장했어요");
   };
 
@@ -90,6 +119,35 @@ export function SettingsSheet({ email, ym, txs, defaultBudget, rules, onOpenRecu
     <Sheet title="설정" subtitle={email || "로그인됨"} onClose={onClose}
       footer={<button type="button" onClick={logout} className="w-full py-3 rounded-2xl bg-red-50 hover:bg-red-100 text-toss-red text-sm font-bold transition">로그아웃</button>}>
       <div className="space-y-2.5">
+        {/* 내 프로필 */}
+        <div className="p-4 rounded-2xl bg-toss-bg flex items-center gap-4">
+          <button type="button" onClick={() => photoRef.current?.click()} disabled={photoBusy} aria-label="프로필 사진 바꾸기" className="relative shrink-0">
+            <Avatar profile={me} size={64} className={photoBusy ? "opacity-50" : ""} />
+            <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-white shadow flex items-center justify-center text-xs">📷</span>
+          </button>
+          <div className="min-w-0 flex-1">
+            {nameLocked && me?.name ? (
+              <>
+                <p className="text-lg font-bold text-toss-text">{me.name}</p>
+                <p className="text-xs text-toss-sub">사진을 눌러서 프로필 사진을 바꿔요</p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-toss-sub">나는 누구?</p>
+                <div className="flex gap-1.5 mt-1">
+                  {(["태형", "경은"] as const).map((n) => (
+                    <button key={n} type="button" onClick={() => setName(n)}
+                      className={`px-3 py-1.5 rounded-full text-sm font-bold transition ${me?.name === n ? "bg-toss-blue text-white" : "bg-white text-toss-sub"}`}>{n}</button>
+                  ))}
+                </div>
+              </>
+            )}
+            {me?.photo && <button type="button" onClick={removePhoto} className="mt-1.5 text-xs text-toss-sub underline">사진 지우기</button>}
+          </div>
+          <input ref={photoRef} type="file" accept="image/*" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) changePhoto(f); }} />
+        </div>
+
         <button type="button" id="openRecurringBtn" onClick={onOpenRecurring} className={`${item} !bg-toss-blueLight`}>
           <div>
             <p className="text-sm font-bold text-toss-text">🔁 매달 자동 기록</p>

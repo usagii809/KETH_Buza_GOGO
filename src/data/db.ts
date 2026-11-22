@@ -1,12 +1,12 @@
 // Firestore 읽기/쓰기는 전부 이 파일에서. 화면 코드는 여기 함수만 불러요.
 import {
-  addDoc, arrayUnion, collection, deleteDoc, deleteField, doc, getDocs, increment,
-  query, setDoc, updateDoc, where, writeBatch, type DocumentData
+  addDoc, arrayUnion, collection, deleteDoc, deleteField, doc, getDoc, getDocs, increment, limit,
+  orderBy, query, setDoc, updateDoc, where, writeBatch, type DocumentData
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { BUDGET_KEYS, normalizeBudget, normalizeCategory, normalizeSpender, type Budget } from "../lib/categories";
 import { dueDateInMonth, todayStr, todayYm } from "../lib/dates";
-import type { Goal, RecurringRule, Transaction } from "../lib/types";
+import type { Goal, LotteryTicket, Profile, RecurringRule, Transaction } from "../lib/types";
 
 const BASE = "ledgers/shared_household";
 export const refs = {
@@ -19,7 +19,11 @@ export const refs = {
   recurringRule: (id: string) => doc(db, `${BASE}/recurring/${id}`),
   goals: () => collection(db, `${BASE}/goals`),
   goal: (id: string) => doc(db, `${BASE}/goals/${id}`),
-  challenge: () => doc(db, `${BASE}/config/challenge`)
+  noSpendBest: () => doc(db, `${BASE}/config/noSpendBest`),
+  profiles: () => collection(db, `${BASE}/profiles`),
+  profile: (uid: string) => doc(db, `${BASE}/profiles/${uid}`),
+  lotteries: () => collection(db, `${BASE}/lottery`),
+  lottery: (id: string) => doc(db, `${BASE}/lottery/${id}`)
 };
 
 export const monthQuery = (ym: string) => query(refs.transactions(), where("yearMonth", "==", ym));
@@ -27,7 +31,7 @@ export const monthQuery = (ym: string) => query(refs.transactions(), where("year
 export const withId = <T>(id: string, data: DocumentData) => ({ id, ...data }) as T;
 
 // ── 지출 ──
-export type ExpenseInput = Pick<Transaction, "date" | "category" | "spender" | "amount" | "memo">;
+export type ExpenseInput = Pick<Transaction, "date" | "category" | "spender" | "amount" | "memo" | "items" | "company">;
 
 export function addExpense(input: ExpenseInput, uid: string) {
   return addDoc(refs.transactions(), {
@@ -42,8 +46,10 @@ export function updateExpense(id: string, input: ExpenseInput) {
 }
 export const deleteExpense = (id: string) => deleteDoc(refs.transaction(id));
 
-/** 최근 120일 기록 (자동완성용) */
-export async function loadRecentTransactions(days = 120): Promise<Transaction[]> {
+export const HISTORY_DAYS = 120;
+
+/** 최근 120일 기록 (자동완성 · 무지출 최장 기록용) */
+export async function loadRecentTransactions(days = HISTORY_DAYS): Promise<Transaction[]> {
   const since = todayStr(new Date(Date.now() - days * 86400000));
   const snap = await getDocs(query(refs.transactions(), where("date", ">=", since)));
   return snap.docs.map((d) => withId<Transaction>(d.id, d.data()));
@@ -53,6 +59,13 @@ export async function loadRecentTransactions(days = 120): Promise<Transaction[]>
 export async function loadRangeTransactions(fromYm: string, toYm: string): Promise<Transaction[]> {
   const snap = await getDocs(query(refs.transactions(), where("date", ">=", `${fromYm}-01`), where("date", "<=", `${toYm}-31`)));
   return snap.docs.map((d) => withId<Transaction>(d.id, d.data()));
+}
+
+/** 가장 처음 남긴 기록의 날짜 (무지출 챌린지는 이 날부터 세요) */
+export async function loadFirstRecordDate(): Promise<string | null> {
+  const snap = await getDocs(query(refs.transactions(), orderBy("date"), limit(1)));
+  const d = snap.docs[0]?.data().date;
+  return typeof d === "string" ? d : null;
 }
 
 export async function loadMonthTransactions(ym: string): Promise<Transaction[]> {
@@ -142,10 +155,28 @@ export const deleteGoal = (id: string) => deleteDoc(refs.goal(id));
 export const moveGoalMoney = (id: string, amount: number) =>
   updateDoc(refs.goal(id), { saved: increment(amount), history: arrayUnion({ at: Date.now(), amount }) });
 
-// ── 무지출 챌린지 (시작일을 두 사람이 같이 씀) ──
-export const startNoSpendChallenge = (date: string, uid: string) =>
-  setDoc(refs.challenge(), { noSpendStart: date, startedBy: uid, startedAt: Date.now() }, { merge: true });
-export const stopNoSpendChallenge = () => setDoc(refs.challenge(), { noSpendStart: null }, { merge: true });
+// ── 무지출 최장 기록 (두 사람이 같이 봐요) ──
+export const saveNoSpendBest = (best: { days: number; from: string; to: string }) =>
+  setDoc(refs.noSpendBest(), { ...best, updatedAt: Date.now() });
+
+// ── 프로필 ──
+export const saveProfile = (uid: string, data: Partial<Omit<Profile, "uid">>) =>
+  setDoc(refs.profile(uid), { ...data, updatedAt: Date.now() }, { merge: true });
+export const removeProfilePhoto = (uid: string) => setDoc(refs.profile(uid), { photo: deleteField() }, { merge: true });
+
+// ── 오늘의 복권 ──
+export const lotteryQuery = (fromDate: string) => query(refs.lotteries(), where("date", ">=", fromDate));
+
+/** 오늘 복권이 이미 있으면 그대로, 없으면 새로 뽑아 저장 (다시 뽑기 방지) */
+export async function getOrCreateTicket(uid: string, date: string, draw: () => Omit<LotteryTicket, "id" | "uid" | "date" | "revealed">, name?: string): Promise<LotteryTicket> {
+  const id = `${date}_${uid}`;
+  const snap = await getDoc(refs.lottery(id));
+  if (snap.exists()) return withId<LotteryTicket>(id, snap.data());
+  const ticket = { ...draw(), uid, date, revealed: false, createdAt: Date.now(), ...(name ? { name } : {}) };
+  await setDoc(refs.lottery(id), ticket);
+  return { id, ...ticket };
+}
+export const revealTicket = (id: string) => updateDoc(refs.lottery(id), { revealed: true, revealedAt: Date.now() });
 
 // ── 백업 / 복원 ──
 export async function exportBackup(defaultBudget: Budget) {
@@ -204,6 +235,8 @@ export async function importBackup(b: ParsedBackup) {
       spender: normalizeSpender(item.spender as string),
       amount: Number(item.amount) || 0,
       memo: String(item.memo || ""),
+      items: String(item.items || ""),
+      ...(item.company ? { company: true } : {}),
       ...(item.auto ? { auto: true, recurringId: String(item.recurringId || "") } : {}),
       ...(item.createdBy ? { createdBy: String(item.createdBy) } : {}),
       createdAt: Number(item.createdAt) || Date.now()

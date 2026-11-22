@@ -2,6 +2,13 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 export const toDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 export const todayStr = (now = new Date()) => toDateStr(now);
+
+/** 다음 날 (YYYY-MM-DD) */
+export function nextDay(date: string): string {
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() + 1);
+  return toDateStr(d);
+}
 export const todayYm = (now = new Date()) => toDateStr(now).slice(0, 7);
 
 export function shiftMonth(ym: string, delta: number): string {

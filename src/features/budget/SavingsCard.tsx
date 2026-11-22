@@ -1,6 +1,8 @@
+import { useState } from "react";
 import type { PeriodInfo } from "../../lib/dates";
 import { formatKRW, formatShort } from "../../lib/format";
 import { Card } from "../../ui/controls";
+import { inUnits, UNITS } from "../fun/eggs";
 import type { Summary } from "./calc";
 
 const CIRC = 2 * Math.PI * 38;
@@ -49,6 +51,9 @@ function gapMessage(s: Summary, period: PeriodInfo): { text: string; cls: string
 export function SavingsCard({ s, period, onEditBudget }: { s: Summary; period: PeriodInfo; onEditBudget: () => void }) {
   const empty = s.income === 0 && s.fixedTotal === 0 && s.totalVariableBudget === 0;
   const gap = gapMessage(s, period);
+  // 🤫 저축액을 누를 때마다 원 → 치킨 → 아메리카노 → 국밥 → 삼겹살 → 원
+  const [unit, setUnit] = useState(-1);
+  const cycleUnit = () => setUnit((u) => (u + 1 >= UNITS.length ? -1 : u + 1));
   return (
     <Card>
       {empty && (
@@ -68,7 +73,9 @@ export function SavingsCard({ s, period, onEditBudget }: { s: Summary; period: P
               예산 설정
             </button>
           </div>
-          <p className={`text-2xl font-bold num mt-0.5 truncate ${s.projectedSavings >= 0 ? "text-toss-blue" : "text-toss-red"}`}>{formatKRW(s.projectedSavings)}</p>
+          <p onClick={cycleUnit} className={`text-2xl font-bold num mt-0.5 truncate select-none cursor-default ${s.projectedSavings >= 0 ? "text-toss-blue" : "text-toss-red"}`}>
+            {unit < 0 || s.projectedSavings <= 0 ? formatKRW(s.projectedSavings) : inUnits(s.projectedSavings, unit)}
+          </p>
           {gap.text && <p className={`text-xs mt-1 leading-snug ${gap.cls}`}>{gap.text}</p>}
         </div>
       </div>

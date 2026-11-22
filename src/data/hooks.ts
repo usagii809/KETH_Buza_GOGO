@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { auth } from "../lib/firebase";
 import { normalizeBudget, ZERO_BUDGET, type Budget } from "../lib/categories";
 import { shiftMonth } from "../lib/dates";
-import type { Goal, RecurringRule, Transaction } from "../lib/types";
-import { loadMonthTransactions, loadRangeTransactions, loadRecentTransactions, monthQuery, refs, withId } from "./db";
+import type { Goal, LotteryTicket, Profile, RecurringRule, Transaction } from "../lib/types";
+import type { StreakRecord } from "../features/noSpend/calc";
+import { loadFirstRecordDate, loadMonthTransactions, loadRangeTransactions, lotteryQuery, loadRecentTransactions, monthQuery, refs, withId } from "./db";
 
 /** undefined = 확인 중, null = 로그아웃 */
 export function useAuthUser() {
@@ -86,7 +87,11 @@ export function useSharedData() {
   const [recurringLoaded, setRecurringLoaded] = useState(false);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [history, setHistory] = useState<Transaction[]>([]);
-  const [noSpendStart, setNoSpendStart] = useState<string | null>(null);
+  const [firstRecord, setFirstRecord] = useState<string | null>(null);
+  const [firstRecordLoaded, setFirstRecordLoaded] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [noSpendBest, setNoSpendBest] = useState<StreakRecord | null>(null);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
 
   useEffect(() => {
     const unsubRec = onSnapshot(refs.recurring(), (snap) => {
@@ -96,15 +101,30 @@ export function useSharedData() {
     const unsubGoals = onSnapshot(refs.goals(), (snap) => {
       setGoals(snap.docs.map((d) => withId<Goal>(d.id, d.data())).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)));
     }, (err) => console.warn("저축 목표 구독 참고:", err));
-    const unsubChallenge = onSnapshot(refs.challenge(), (snap) => {
-      const v = snap.exists() ? snap.data().noSpendStart : null;
-      setNoSpendStart(typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
-    }, (err) => console.warn("무지출 챌린지 구독 참고:", err));
-    loadRecentTransactions().then(setHistory).catch((err) => console.warn("최근 기록 조회 참고:", err));
-    return () => { unsubRec(); unsubGoals(); unsubChallenge(); };
+    loadFirstRecordDate()
+      .then((d) => { setFirstRecord(d); setFirstRecordLoaded(true); })
+      .catch((err) => console.warn("첫 기록 조회 참고:", err));
+    const unsubBest = onSnapshot(refs.noSpendBest(), (snap) => {
+      const d = snap.exists() ? snap.data() : null;
+      setNoSpendBest(d && Number(d.days) > 0 && typeof d.from === "string" && typeof d.to === "string" ? { days: Number(d.days), from: d.from, to: d.to } : null);
+    }, (err) => console.warn("무지출 최장 기록 구독 참고:", err));
+    const unsubProfiles = onSnapshot(refs.profiles(), (snap) => {
+      setProfiles(snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as Profile));
+    }, (err) => console.warn("프로필 구독 참고:", err));
+    loadRecentTransactions().then((list) => { setHistory(list); setHistoryLoaded(true); }).catch((err) => console.warn("최근 기록 조회 참고:", err));
+    return () => { unsubRec(); unsubGoals(); unsubBest(); unsubProfiles(); };
   }, []);
 
-  return { recurring, recurringLoaded, goals, history, noSpendStart };
+  return { recurring, recurringLoaded, goals, history, historyLoaded, firstRecord, firstRecordLoaded, noSpendBest, profiles };
+}
+
+/** 이번 달 복권 기록 (오늘 결과 · 이달 치맥 횟수) */
+export function useLottery(monthStart: string) {
+  const [tickets, setTickets] = useState<LotteryTicket[]>([]);
+  useEffect(() => onSnapshot(lotteryQuery(monthStart), (snap) => {
+    setTickets(snap.docs.map((d) => withId<LotteryTicket>(d.id, d.data())));
+  }, (err) => console.warn("복권 구독 참고:", err)), [monthStart]);
+  return tickets;
 }
 
 /** 앱으로 돌아올 때마다 '오늘' 기준을 다시 잡기 위한 시계 */

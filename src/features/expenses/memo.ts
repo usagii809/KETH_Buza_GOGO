@@ -45,3 +45,28 @@ export function suggestMemos(index: MemoSuggestion[], query: string, limit = 6):
   }
   return list.slice(0, limit);
 }
+
+/**
+ * 품목 추천: 같은 가게에서 샀던 품목을 최근순으로 (가게를 안 적었으면 전체에서 자주 산 순)
+ * 입력 중이면 그 글자가 들어간 것만
+ */
+export function suggestItems(txs: Iterable<Transaction>, store: string, query: string, limit = 5): string[] {
+  const s = store.trim().toLowerCase();
+  const q = query.trim().toLowerCase();
+  const stats = new Map<string, { text: string; count: number; last: number }>();
+  for (const t of txs) {
+    const items = String(t.items || "").trim();
+    if (!items) continue;
+    if (s && String(t.memo || "").trim().toLowerCase() !== s) continue;
+    const k = items.toLowerCase();
+    if (q && (!k.includes(q) || k === q)) continue;
+    const e = stats.get(k) || { text: items, count: 0, last: 0 };
+    e.count += 1;
+    const at = Number(t.createdAt) || 0;
+    if (at >= e.last) { e.last = at; e.text = items; }
+    stats.set(k, e);
+  }
+  const list = [...stats.values()];
+  list.sort(s ? (a, b) => b.last - a.last || b.count - a.count : (a, b) => b.count - a.count || b.last - a.last);
+  return list.slice(0, limit).map((e) => e.text);
+}

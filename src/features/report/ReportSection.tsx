@@ -4,6 +4,7 @@ import { store } from "../../lib/storage";
 import type { Goal, Transaction } from "../../lib/types";
 import { useFeedback } from "../../ui/feedback";
 import type { Summary } from "../budget/calc";
+import { confetti } from "../fun/confetti";
 import { buildReport } from "./calc";
 
 interface Props {
@@ -24,8 +25,16 @@ export function ReportSection({ period, s, txs, prevTxs, goals, now, noSpendStar
   const lastMonth = shiftMonth(todayYm(now), -1);
   const showCard = period.state === "past" && txs.length > 0;
 
+  const r = showCard ? buildReport(period, s, txs, prevTxs, now, noSpendStart) : null;
+
+  // 처음 열어볼 때만: 확인 표시 + 계획 달성(🥇)이면 꽃가루
   useEffect(() => {
-    if (showCard) store.set(`reportSeen_${period.key}`, "1");
+    if (!showCard) return;
+    const key = `reportSeen_${period.key}`;
+    if (store.get(key, "")) return;
+    store.set(key, "1");
+    if (r?.emoji === "🥇") confetti();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showCard, period.key]);
 
   if (period.state === "current") {
@@ -39,9 +48,7 @@ export function ReportSection({ period, s, txs, prevTxs, goals, now, noSpendStar
       </button>
     );
   }
-  if (!showCard) return null;
-
-  const r = buildReport(period, s, txs, prevTxs, now, noSpendStart);
+  if (!r) return null;
   const share = async () => {
     try {
       if (navigator.share) { await navigator.share({ text: r.shareText }); return; }

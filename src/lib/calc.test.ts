@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { computeAvailable, computeSummary, compareWithPrev } from "../features/budget/calc";
 import { goalEta } from "../features/goals/calc";
-import { buildMemoIndex, suggestMemos } from "../features/expenses/memo";
-import { challengeDay, countNoSpendDays, noSpendStreak, spentByDate } from "../features/noSpend/calc";
+import { buildMemoIndex, suggestItems, suggestMemos } from "../features/expenses/memo";
+import { challengeDay, countNoSpendDays, longestStreak, noSpendStreak, pickBest, spentByDate, sproutRuns } from "../features/noSpend/calc";
+import { dateEgg, expenseEgg, inUnits, isOurDay, sproutEmoji, STAGES } from "../features/fun/eggs";
 import { buildReport } from "../features/report/calc";
 import { normalizeBudget, normalizeCategory, normalizeSpender, ZERO_BUDGET } from "./categories";
 import { dueDateInMonth, getPeriodInfo } from "./dates";
 import { formatShort } from "./format";
-import type { Transaction } from "./types";
+import { isHousehold, type Transaction } from "./types";
+import { matchTx } from "../features/expenses/filters";
+import { drawTicket, forcedNoSpendDays, FORTUNES, PRIZE_TABLE } from "../features/lottery/ticket";
+import { nameForEmail, sha256Hex } from "./people";
+import type { LotteryTicket } from "./types";
 
 // 스크린샷과 같은 예산 (수입 450만, 고정 202만, 변동 115만)
 const budget = normalizeBudget({
@@ -73,6 +78,23 @@ describe("지난달 비교", () => {
 describe("무지출 챌린지", () => {
   const txs = [tx("2026-11-03", "foodCafe", 4500), tx("2026-11-15", "livingTelecom", 55000, { auto: true }), tx("2026-11-20", "foodCafe", 3000)];
   const map = spentByDate(txs);
+  it("새싹이 연속 일수만큼 자라요", () => {
+    const runs = sproutRuns(nov, map, "2026-11-22", "2026-11-01");
+    expect(runs["2026-11-01"]).toBe(1);
+    expect(runs["2026-11-02"]).toBe(2);
+    expect(runs["2026-11-03"]).toBeUndefined(); // 지출한 날
+    expect(runs["2026-11-19"]).toBe(16);        // 4일~19일 (15일 자동 기록은 무지출)
+    expect(sproutEmoji(1)).toBe("🌱");
+    expect(STAGES.map((x) => x.emoji).join("")).toBe("🌱🌿🌷🌳🍎🏠🏢🌉");
+    expect(sproutEmoji(2)).toBe("🌿");
+    expect(sproutEmoji(7)).toBe("🏢");
+    expect(sproutEmoji(8)).toBe("🌉");   // 8일째 한강뷰
+    expect(sproutEmoji(40)).toBe("🌉");  // 그 뒤로도 한강뷰
+  });
+  it("지난달 끝에서 이어진 연속도 이어서 세요", () => {
+    const runs = sproutRuns(nov, {}, "2026-11-02", "2026-10-29");
+    expect(runs["2026-11-01"]).toBe(4); // 10/29, 30, 31, 11/1
+  });
   it("시작 전에는 0일 (기록이 없던 날을 무지출로 세지 않아요)", () => {
     expect(countNoSpendDays(nov, {}, "2026-11-22", null)).toBe(0);
     expect(noSpendStreak({}, NOW, "2026-11", null)).toBe(0);
@@ -181,5 +203,155 @@ describe("오늘의 한마디", () => {
     expect(pickQuip(0, "2026-11|2026-11-22")).toBe(a);
     expect(pickQuip(0, "2026-11|2026-11-22", 1)).not.toBe(a);
     expect(TIERS[0].quips).toContain(a);
+  });
+});
+
+describe("품목 추천", () => {
+  const h = [
+    tx("2026-11-01", "essentialConsumables", 29800, { memo: "쿠팡", items: "휴지 30롤", createdAt: 1 }),
+    tx("2026-11-05", "foodIngredients", 19100, { memo: "쿠팡", items: "우유, 계란", createdAt: 2 }),
+    tx("2026-11-07", "foodIngredients", 45000, { memo: "이마트", items: "삼겹살", createdAt: 3 })
+  ];
+  it("같은 가게에서 샀던 품목을 최근순으로", () => {
+    expect(suggestItems(h, "쿠팡", "")).toEqual(["우유, 계란", "휴지 30롤"]);
+  });
+  it("입력 중인 글자로 거르기", () => {
+    expect(suggestItems(h, "쿠팡", "휴지")).toEqual(["휴지 30롤"]);
+  });
+  it("가게를 안 적으면 전체에서", () => {
+    expect(suggestItems(h, "", "")).toHaveLength(3);
+  });
+});
+
+describe("이스터 에그", () => {
+  it("숨은 사용처·금액", () => {
+    expect(expenseEgg(777)?.confetti).toBe(true);
+    expect(expenseEgg(12000, "편의점", "로또")?.text).toContain("반띵");
+    expect(expenseEgg(1500000)?.text).toContain("백만");
+    expect(expenseEgg(1004)).toBeNull();
+    expect(expenseEgg(486)).toBeNull();
+    expect(expenseEgg(12345, "이마트", "우유")).toBeNull();
+  });
+  it("감미치킨은 일반 치킨보다 먼저, 띄어 써도 알아봐요", () => {
+    expect(expenseEgg(25000, "감미 치킨", "", () => 0)?.text).toContain("태형이는 끌려갔다");
+    expect(expenseEgg(25000, "BBQ", "치킨")?.text).toContain("0칼로리");
+  });
+  it("기념일 문구", () => {
+    expect(dateEgg("2026-12-25")).toContain("크리스마스");
+    expect(dateEgg("2027-02-12")).toContain("경은이 생일");
+    expect(dateEgg("2027-08-09")).toContain("태형이 생일");
+    expect(dateEgg("2027-06-28")).toContain("결혼기념일");
+    expect(dateEgg("2026-12-12")).toContain("사귄 날");
+    expect(isOurDay("2026-12-12")).toBe(true);
+    expect(isOurDay("2026-12-25")).toBe(false);
+    expect(dateEgg("2026-11-22")).toBeNull();
+  });
+  it("저축액 단위 바꾸기", () => {
+    expect(inUnits(1330000, 0)).toBe("🍗 치킨 66마리");
+    expect(inUnits(1330000, 1)).toBe("☕ 아메리카노 295잔");
+  });
+});
+
+describe("회사 돈 (영업활동비)", () => {
+  const lunch = tx("2026-11-20", "foodDining", 15000, { spender: "태형", company: true, memo: "김밥천국" });
+  const mart = tx("2026-11-21", "foodIngredients", 300000, { memo: "이마트", items: "삼겹살" });
+  const tissue = tx("2026-11-21", "essentialConsumables", 29800, { memo: "쿠팡", items: "휴지 30롤" });
+  const phone = tx("2026-11-15", "livingTelecom", 55000, { auto: true });
+  const all = [lunch, mart, tissue, phone];
+  it("가계부 계산에서 빠져요", () => {
+    const s = computeSummary(budget, all.filter(isHousehold), nov);
+    expect(s.totalVariableSpent).toBe(300000 + 29800 + 55000);
+    expect(s.usage.foodDining).toBe(0);
+  });
+  it("필터: 회사 돈만 / 식비는 회사 돈 빼고 / 생필품 / 자동 / 사람", () => {
+    expect(all.filter((t) => matchTx(t, "COMPANY"))).toEqual([lunch]);
+    expect(all.filter((t) => matchTx(t, "FOOD"))).toEqual([mart]);
+    expect(all.filter((t) => matchTx(t, "ESSENTIALS"))).toEqual([tissue]);
+    expect(all.filter((t) => matchTx(t, "AUTO"))).toEqual([phone]);
+    expect(all.filter((t) => matchTx(t, "태형"))).toEqual([lunch]);
+  });
+  it("검색: 사용처·품목·카테고리", () => {
+    expect(all.filter((t) => matchTx(t, "ALL", "휴지"))).toEqual([tissue]);
+    expect(all.filter((t) => matchTx(t, "ALL", "쿠팡"))).toEqual([tissue]);
+    expect(all.filter((t) => matchTx(t, "ALL", "통신"))).toEqual([phone]);
+  });
+});
+
+describe("무지출 최장 기록", () => {
+  // 11/1부터 기록, 3일·21일·22일에 지출 → 4일~20일 17일 연속이 최장
+  const map = spentByDate([tx("2026-11-03", "foodCafe", 4500), tx("2026-11-21", "foodCafe", 3000), tx("2026-11-22", "foodCafe", 1000)]);
+  it("가장 긴 연속 구간", () => {
+    expect(longestStreak(map, "2026-11-01", "2026-07-25", "2026-11-22")).toEqual({ days: 17, from: "2026-11-04", to: "2026-11-20" });
+  });
+  it("오늘 지출이 없으면 오늘까지 포함", () => {
+    expect(longestStreak({}, "2026-11-20", "2026-07-25", "2026-11-22")).toEqual({ days: 3, from: "2026-11-20", to: "2026-11-22" });
+  });
+  it("시작 전이면 없음", () => {
+    expect(longestStreak(map, null, "2026-07-25", "2026-11-22")).toBeNull();
+  });
+  it("오래된 저장 기록은 유지, 범위 안 기록은 다시 계산한 값으로 바로잡기", () => {
+    const local = { days: 5, from: "2026-11-01", to: "2026-11-05" };
+    const old = { days: 30, from: "2026-03-01", to: "2026-03-30" };
+    const stale = { days: 17, from: "2026-11-04", to: "2026-11-20" };
+    expect(pickBest(old, local, "2026-07-25")).toEqual(old);
+    expect(pickBest(stale, local, "2026-07-25")).toEqual(local); // 나중에 빠뜨린 지출을 적은 경우
+    expect(pickBest(null, local, "2026-07-25")).toEqual(local);
+  });
+});
+
+describe("오늘의 복권", () => {
+  const seq = (...xs: number[]) => { let i = 0; return () => xs[i++ % xs.length]; };
+  it("당첨표: 1등 777은 5%, 2~5등 그림이 다 달라요", () => {
+    expect(PRIZE_TABLE[0]).toMatchObject({ symbol: "7", rank: 1, chance: 0.05 });
+    expect(PRIZE_TABLE.filter((r) => r.tier === "prize").map((r) => r.rank)).toEqual([2, 3, 4, 5]);
+    expect(PRIZE_TABLE.find((r) => r.symbol === "🍒")?.prize).toContain("심부름 1회");
+    expect(PRIZE_TABLE.some((r) => r.prize.includes("커피"))).toBe(false);
+    expect(new Set(PRIZE_TABLE.map((r) => r.symbol)).size).toBe(PRIZE_TABLE.length);
+  });
+  it("1등: 777 치맥", () => {
+    expect(drawTicket(seq(0.001))).toMatchObject({ symbols: ["7", "7", "7"], tier: "jackpot", rank: 1 });
+  });
+  it("2등: 💎💎💎 어깨 안마", () => {
+    expect(drawTicket(seq(0.06))).toMatchObject({ symbols: ["💎", "💎", "💎"], tier: "prize", rank: 2 });
+    expect(drawTicket(seq(0.06)).prize).toContain("어깨 안마");
+  });
+  it("💣💣💣 폭탄", () => {
+    const bombAt = PRIZE_TABLE.slice(0, -1).reduce((a, r) => a + r.chance, 0) + 0.001;
+    expect(drawTicket(seq(bombAt)).tier).toBe("bomb");
+  });
+  it("아깝다: 7이 두 개", () => {
+    expect(drawTicket(seq(0.9, 0.0, 0.0, 0.2)).tier).toBe("almost");
+  });
+  it("꽝 + 오늘의 운세, 꽝일 땐 셋 다 같은 그림이 안 나와요", () => {
+    const t = drawTicket(seq(0.9, 0.3, 0.3, 0.3, 0));
+    expect(t.tier).toBe("lose");
+    expect(new Set(t.symbols).size).toBeGreaterThan(1);
+    expect(FORTUNES).toContain(t.prize);
+  });
+  it("확률이 대략 맞아요 (1등 약 5%, 꽝은 대부분 셋 다 다른 그림)", () => {
+    let jackpot = 0, lose = 0, loseAllDiff = 0;
+    for (let i = 0; i < 20000; i++) {
+      const t = drawTicket();
+      if (t.tier === "jackpot") jackpot++;
+      if (t.tier === "lose") { lose++; if (new Set(t.symbols).size === 3) loseAllDiff++; }
+    }
+    expect(jackpot / 20000).toBeGreaterThan(0.04);
+    expect(jackpot / 20000).toBeLessThan(0.06);
+    expect(loseAllDiff / lose).toBeGreaterThan(0.5);
+  });
+  it("폭탄 다음 날은 강제 무지출 데이 (말일 → 다음 달 1일)", () => {
+    const t = (date: string, tier: LotteryTicket["tier"], revealed = true): LotteryTicket =>
+      ({ id: date, uid: "u2", name: "경은", date, symbols: [], tier, prize: "", revealed });
+    const days = forcedNoSpendDays([t("2026-11-30", "bomb"), t("2026-11-10", "lose"), t("2026-11-12", "bomb", false)]);
+    expect(days).toEqual({ "2026-12-01": "경은" });
+  });
+});
+
+describe("로그인 계정 → 이름", () => {
+  it("이메일은 해시로만 비교해요 (대소문자·공백 무시)", async () => {
+    const table = { [await sha256Hex("someone@example.com")]: "태형" as const };
+    expect(await nameForEmail(" SomeOne@Example.com ", table)).toBe("태형");
+    expect(await nameForEmail("other@example.com", table)).toBeNull();
+    expect(await nameForEmail(null, table)).toBeNull();
   });
 });

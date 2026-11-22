@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #f2f4f6;
+  color: #191f28;
+  -webkit-tap-highlight-color: transparent;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: calc(env(safe-area-inset-bottom) + 96px);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-fill {
+  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.25s ease;
+}
+
+.donut-segment {
+  transition: stroke-dasharray 0.45s cubic-bezier(0.22, 1, 0.36, 1), stroke-dashoffset 0.45s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.25s ease;
+}
+
+.sheet {
+  transition: transform 0.2s ease;
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(24px); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-sheet-up {
+  animation: sheet-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}

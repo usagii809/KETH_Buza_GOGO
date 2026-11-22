@@ -157,7 +157,7 @@ export async function runRecurring(rules: RecurringRule[], uid: string, beforeFi
 }
 
 // ── 저축 목표 ──
-export type GoalInput = Pick<Goal, "name" | "emoji" | "target" | "saved">;
+export type GoalInput = Pick<Goal, "name" | "emoji" | "target" | "saved" | "monthly">;
 export const addGoal = (input: GoalInput) => addDoc(refs.goals(), { ...input, history: [], createdAt: Date.now() });
 export const updateGoal = (id: string, input: GoalInput) => updateDoc(refs.goal(id), { ...input });
 export const deleteGoal = (id: string) => deleteDoc(refs.goal(id));

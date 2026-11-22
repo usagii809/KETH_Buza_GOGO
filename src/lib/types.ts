@@ -55,6 +55,8 @@ export interface Goal {
   emoji: string;
   target: number;
   saved: number;
+  /** 매달 모을 돈 (선택) */
+  monthly?: number;
   history?: GoalHistory[];
   createdAt?: number;
 }

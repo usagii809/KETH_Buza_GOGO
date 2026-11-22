@@ -100,3 +100,21 @@ describe("조사", () => {
     expect(josa("서울", "으로", "로")).toBe("서울로");
   });
 });
+
+describe("매달 모을 돈", () => {
+  it("수입 − 고정 − 매달 모을 돈 = 쓸 수 있는 돈", async () => {
+    const { monthlyPlan, goalEta } = await import("../features/goals/calc");
+    const goals = [
+      { id: "a", name: "여행", emoji: "🏝️", target: 5000000, saved: 1200000, monthly: 300000 },
+      { id: "b", name: "차", emoji: "🚗", target: 1000000, saved: 1000000, monthly: 500000 } // 다 모은 목표는 빼요
+    ];
+    const p = monthlyPlan(goals, 4500000, 2020000, 1030000, 315000, 8)!;
+    expect(p.monthlyTotal).toBe(300000);
+    expect(p.canSpend).toBe(2180000);
+    expect(p.left).toBe(1865000);
+    expect(p.vsBudget).toBe(1150000);
+    expect(p.perDay).toBe(233100);
+    expect(monthlyPlan([{ ...goals[0], monthly: 0 }], 4500000, 2020000, 1030000, 0, 8)).toBeNull();
+    expect(goalEta(goals[0], 0, new Date(2026, 10, 23))).toBe("매달 30만원씩 모으면 2027년 12월에 달성해요");
+  });
+});

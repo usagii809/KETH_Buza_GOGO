@@ -1,6 +1,5 @@
 import { CATEGORIES, type Budget, type CategoryKey, fixedTotalOf, normalizeCategory, variableBudgetOf } from "../../lib/categories";
 import type { PeriodInfo } from "../../lib/dates";
-import { floor100 } from "../../lib/format";
 import type { Transaction } from "../../lib/types";
 
 export type Usage = Record<CategoryKey, number>;
@@ -94,43 +93,58 @@ export function computeSummary(budget: Budget, txs: Transaction[], period: Perio
 
 export type AvailableMode = "day" | "week" | "month";
 
-export interface Available {
-  /** 변동지출 전체 (하루/주: 통신비·생필품·의류 제외) */
-  variable: number;
-  variableExhausted: boolean;
-  food: number;
-  foodExhausted: boolean;
-  foodBudget: number;
-  foodSpent: number;
+/**
+ * 가용 예산: 이번 달 예산 ÷ 이번 달 일수 = 하루 기준 (한 달 내내 고정)
+ * - 하루: 하루 기준 vs 오늘 쓴 돈
+ * - 이번 주: 하루 기준 × 이번 주(월~일, 이번 달 안) 일수 vs 이번 주 쓴 돈
+ * - 이번 달: 하루 기준 × 오늘까지 일수 vs 이번 달 쓴 돈 (끝난 달은 예산 전체 vs 쓴 돈)
+ */
+export interface Allowance {
+  monthBudget: number;
+  monthSpent: number;
+  /** 하루 기준 (100원 단위 내림) */
+  daily: number;
+  /** 기준에 들어간 날 수 */
+  days: number;
+  /** 기준 금액 */
+  limit: number;
+  /** 그 기간에 쓴 돈 */
+  spent: number;
+  /** 기준 − 쓴 돈 (+ 덜 씀 / − 더 씀) */
+  diff: number;
+  /** 이번 주 범위 (일) */
+  from: number;
+  to: number;
 }
 
-export function computeAvailable(budget: Budget, s: Summary, period: PeriodInfo, mode: AvailableMode): Available {
-  const food = CATEGORIES.filter((c) => c.group === "FOOD");
-  const foodBudget = food.reduce((t, c) => t + budget[c.key], 0);
-  const foodSpent = food.reduce((t, c) => t + s.usage[c.key], 0);
-  const foodRemain = foodBudget - foodSpent;
-  const pacedRemain = s.pacedBudget - s.pacedSpent;
+export function computeAllowance(monthBudget: number, txs: Transaction[], period: PeriodInfo, mode: AvailableMode, pick: (t: Transaction) => boolean = () => true): Allowance {
+  const daily = period.dim > 0 ? Math.floor(monthBudget / period.dim / 100) * 100 : 0;
+  const list = txs.filter(pick);
+  const dayOf = (t: Transaction) => Number(String(t.date).slice(8, 10)) || 0;
+  const spentIn = (from: number, to: number) => list.reduce((s, t) => { const d = dayOf(t); return d >= from && d <= to ? s + (Number(t.amount) || 0) : s; }, 0);
+  const monthSpent = spentIn(1, 31);
+  const base = { monthBudget, monthSpent, daily };
 
-  if (mode === "month" || period.state === "past") {
-    return {
-      variable: s.totalVariableBudget - s.totalVariableSpent,
-      variableExhausted: s.totalVariableSpent > s.totalVariableBudget,
-      food: foodRemain,
-      foodExhausted: foodRemain < 0,
-      foodBudget,
-      foodSpent
-    };
+  if (period.state !== "current" || mode === "month") {
+    if (period.state !== "current") {
+      return { ...base, days: period.dim, limit: monthBudget, spent: monthSpent, diff: monthBudget - monthSpent, from: 1, to: period.dim };
+    }
+    const limit = daily * period.day;
+    return { ...base, days: period.day, limit, spent: monthSpent, diff: limit - monthSpent, from: 1, to: period.day };
   }
-  const days = mode === "day" ? 1 : period.weekLeft;
-  const perPeriod = (remain: number) => (period.daysLeft > 0 ? floor100((remain / period.daysLeft) * days) : 0);
-  return {
-    variable: perPeriod(pacedRemain),
-    variableExhausted: pacedRemain <= 0 && s.pacedBudget > 0,
-    food: perPeriod(foodRemain),
-    foodExhausted: foodRemain <= 0 && foodBudget > 0,
-    foodBudget,
-    foodSpent
-  };
+  if (mode === "day") {
+    const spent = spentIn(period.day, period.day);
+    return { ...base, days: 1, limit: daily, spent, diff: daily - spent, from: period.day, to: period.day };
+  }
+  // 이번 주: 월요일 ~ 일요일, 이번 달 안쪽만
+  const dow = new Date(period.y, period.m - 1, period.day).getDay();
+  const monday = period.day - ((dow + 6) % 7);
+  const from = Math.max(1, monday);
+  const to = Math.min(period.dim, monday + 6);
+  const days = to - from + 1;
+  const spent = spentIn(from, to);
+  const limit = daily * days;
+  return { ...base, days, limit, spent, diff: limit - spent, from, to };
 }
 
 /** 지난달 비교: 진행 중인 달은 '같은 날짜까지', 끝난 달은 전체 */

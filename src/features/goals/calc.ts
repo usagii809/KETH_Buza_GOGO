@@ -20,6 +20,9 @@ function monthsLaterLabel(n: number, now: Date) {
 export function goalEta(g: Goal, plannedSavings: number, now = new Date()): string {
   const remain = goalRemain(g);
   if (!g.target || remain <= 0) return "";
+  // 매달 모을 돈을 정해뒀으면 그 계획대로
+  const monthly = Number(g.monthly) || 0;
+  if (monthly > 0) return `매달 ${formatShort(monthly)}씩 모으면 ${monthsLaterLabel(Math.ceil(remain / monthly), now)}에 달성해요`;
   const hist = (g.history || []).filter((h) => h && h.at);
   if (hist.length) {
     const first = Math.min(...hist.map((h) => h.at));
@@ -37,3 +40,29 @@ export function goalEta(g: Goal, plannedSavings: number, now = new Date()): stri
 }
 
 export const GOAL_EMOJIS = ["🏝️", "🏠", "🚗", "💍", "👶", "💰", "📈", "🎁"];
+
+export interface MonthlyPlan {
+  /** 목표들의 '매달 모을 돈' 합계 (다 모은 목표는 빼요) */
+  monthlyTotal: number;
+  /** 수입 − 고정지출 − 매달 모을 돈 = 이번 달 쓸 수 있는 돈 */
+  canSpend: number;
+  spent: number;
+  /** 쓸 수 있는 돈 − 지금까지 쓴 돈 */
+  left: number;
+  /** 쓸 수 있는 돈 − 변동지출 예산 (음수면 예산을 줄여야 목표를 지켜요) */
+  vsBudget: number;
+  /** 남은 날 하루에 쓸 수 있는 돈 (이번 달만) */
+  perDay: number | null;
+}
+
+export function monthlyPlan(goals: Goal[], income: number, fixedTotal: number, variableBudget: number, spent: number, daysLeft: number | null): MonthlyPlan | null {
+  const monthlyTotal = goals.filter((g) => goalRemain(g) > 0).reduce((t, g) => t + (Number(g.monthly) || 0), 0);
+  if (monthlyTotal <= 0 || income <= 0) return null;
+  const canSpend = income - fixedTotal - monthlyTotal;
+  const left = canSpend - spent;
+  return {
+    monthlyTotal, canSpend, spent, left,
+    vsBudget: canSpend - variableBudget,
+    perDay: daysLeft && daysLeft > 0 ? Math.floor(Math.max(0, left) / daysLeft / 100) * 100 : null
+  };
+}

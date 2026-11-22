@@ -1,5 +1,5 @@
 import { setReaction } from "../../data/db";
-import { CATEGORY_MAP, normalizeCategory } from "../../lib/categories";
+import { CATEGORY_MAP, normalizeCategory, normalizeSpender } from "../../lib/categories";
 import { formatKRW } from "../../lib/format";
 import type { Profile } from "../../lib/types";
 import { Avatar } from "../../ui/Avatar";
@@ -69,9 +69,7 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
                 <div className="flex items-start gap-3">
                   <Avatar profile={partner} size={36} className="shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm text-toss-text leading-snug">
-                      <b>{it.who}</b> 님이 <b>{place}</b>에서 <b className="num">{formatKRW(tx.amount)}</b> 썼어요
-                    </p>
+                    <p className="text-sm text-toss-text leading-snug">{recordLine(it.who, normalizeSpender(tx.spender), me?.name, place, tx.amount)}</p>
                     <p className="text-xs text-toss-sub truncate">
                       {tx.items ? `${tx.items} · ` : ""}{cat.short}{tx.company ? " · 🏢 회사 돈" : ""} · {timeAgo(it.at)}
                     </p>
@@ -94,6 +92,20 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
       )}
     </Sheet>
   );
+}
+
+/**
+ * 누가 기록했고, 누구 돈인지
+ * - 경은이 경은 지출 기록 → "경은 님이 이마트에서 52,000원 썼어요"
+ * - 경은이 태형 지출 기록 → "경은 님이 내 지출을 기록했어요 · 이마트 52,000원" (태형 화면)
+ * - 경은이 공동 지출 기록 → "경은 님이 공동 지출을 기록했어요 · 이마트 52,000원"
+ */
+function recordLine(recorder: string, spender: string, myName: string | undefined, place: string, amount: number) {
+  const money = <><b>{place}</b> <b className="num">{formatKRW(amount)}</b></>;
+  if (spender === recorder) return <><b>{recorder}</b> 님이 <b>{place}</b>에서 <b className="num">{formatKRW(amount)}</b> 썼어요</>;
+  const whose = spender === "공동" ? <><span className="px-1 rounded bg-gray-100 font-bold">공동</span> 지출</>
+    : spender === myName ? <><b>내</b> 지출</> : <><b>{spender}</b> 님 지출</>;
+  return <><b>{recorder}</b> 님이 {whose}을 기록했어요 · {money}</>;
 }
 
 function NewDot() {

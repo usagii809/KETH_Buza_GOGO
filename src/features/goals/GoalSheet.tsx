@@ -111,6 +111,7 @@ function EditView({ goal, onClose }: { goal: Goal | null; onClose: () => void })
   const [emoji, setEmoji] = useState(goal?.emoji || GOAL_EMOJIS[0]);
   const [target, setTarget] = useState(goal?.target || 0);
   const [saved, setSaved] = useState(goal?.saved || 0);
+  const [monthly, setMonthly] = useState(goal?.monthly || 0);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,8 +119,8 @@ function EditView({ goal, onClose }: { goal: Goal | null; onClose: () => void })
     if (!n) { toast("목표 이름을 적어주세요"); return; }
     if (target <= 0) { toast("목표 금액을 입력해 주세요"); return; }
     try {
-      if (goal) { await updateGoal(goal.id, { name: n, emoji, target, saved }); toast("목표를 수정했어요"); }
-      else { await addGoal({ name: n, emoji, target, saved }); toast(`${emoji} ${n} 목표를 만들었어요. 같이 모아봐요!`); }
+      if (goal) { await updateGoal(goal.id, { name: n, emoji, target, saved, monthly }); toast("목표를 수정했어요"); }
+      else { await addGoal({ name: n, emoji, target, saved, monthly }); toast(`${emoji} ${n} 목표를 만들었어요. 같이 모아봐요!`); }
       onClose();
     } catch (err) {
       console.error("목표 저장 오류:", err);
@@ -161,6 +162,14 @@ function EditView({ goal, onClose }: { goal: Goal | null; onClose: () => void })
         <div>
           <label htmlFor="goalSaved" className="block text-sm font-medium text-toss-sub mb-1.5">지금까지 모은 돈 <span className="font-normal">(선택)</span></label>
           <MoneyInput id="goalSaved" value={saved} onChange={setSaved} className={money} />
+        </div>
+        <div>
+          <label htmlFor="goalMonthly" className="block text-sm font-medium text-toss-sub mb-1.5">매달 모을 돈 <span className="font-normal">(선택)</span></label>
+          <MoneyInput id="goalMonthly" value={monthly} onChange={setMonthly} className={money} />
+          <p className="text-xs text-toss-sub mt-1.5 leading-relaxed">
+            정해두면 이 돈을 빼고 한 달에 얼마나 쓸 수 있는지 알려드려요
+            {monthly > 0 && target > saved && <><br /><b className="text-toss-blue">{Math.ceil((target - saved) / monthly)}개월 뒤에 목표를 이뤄요</b></>}
+          </p>
         </div>
       </form>
     </Sheet>

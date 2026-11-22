@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CATEGORY_MAP, normalizeCategory, normalizeSpender } from "../../lib/categories";
 import { downloadCsv } from "../../lib/csv";
 import { formatDateHeader } from "../../lib/dates";
@@ -13,6 +13,7 @@ const SPENDER_BADGE: Record<Spender, string> = {
   경은: "bg-rose-50 text-rose-600",
   공동: "bg-gray-100 text-toss-sub"
 };
+const PAGE = 15;
 const sum = (list: Transaction[]) => list.reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
 
 export function TransactionList({ txs, ym, now, onEdit }: { txs: Transaction[]; ym: string; now: Date; onEdit: (tx: Transaction) => void }) {
@@ -20,6 +21,9 @@ export function TransactionList({ txs, ym, now, onEdit }: { txs: Transaction[]; 
   const [filter, setFilter] = useState<FilterKey>("ALL");
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  // 처음엔 최근 15건 정도만, '더 보기'로 20건씩 더
+  const [limit, setLimit] = useState(PAGE);
+  useEffect(() => setLimit(PAGE), [ym, filter, query]);
 
   const filtered = txs.filter((tx) => matchTx(tx, filter, query));
   const household = filtered.filter((tx) => !tx.company);
@@ -32,6 +36,16 @@ export function TransactionList({ txs, ym, now, onEdit }: { txs: Transaction[]; 
     if (last && last.date === tx.date) last.items.push(tx);
     else groups.push({ date: tx.date, items: [tx] });
   });
+
+  // 날짜 묶음이 중간에 잘리지 않게, 묶음 단위로 limit까지
+  const visible: typeof groups = [];
+  let shown = 0;
+  for (const g of groups) {
+    if (visible.length && shown >= limit) break;
+    visible.push(g);
+    shown += g.items.length;
+  }
+  const hidden = filtered.length - shown;
 
   const exportCompany = () => {
     const rows = [...company].sort((a, b) => a.date.localeCompare(b.date)).map((tx) => [
@@ -88,7 +102,7 @@ export function TransactionList({ txs, ym, now, onEdit }: { txs: Transaction[]; 
           <p className="text-base font-bold text-toss-text">{txs.length ? "조건에 맞는 기록이 없어요" : "아직 기록이 없어요"}</p>
           <p className="text-sm text-toss-sub mt-1">{txs.length ? "다른 필터나 검색어로 찾아보세요" : "아래 버튼으로 첫 지출을 남겨보세요"}</p>
         </div>
-      ) : groups.map((g) => {
+      ) : visible.map((g) => {
         const dayHousehold = sum(g.items.filter((tx) => !tx.company));
         const dayCompany = sum(g.items.filter((tx) => tx.company));
         return (
@@ -129,6 +143,16 @@ export function TransactionList({ txs, ym, now, onEdit }: { txs: Transaction[]; 
           </div>
         );
       })}
+
+      {hidden > 0 && (
+        <button type="button" onClick={() => setLimit((l) => l + 20)}
+          className="tx-more w-full mt-3 py-3 rounded-xl bg-toss-bg text-sm font-bold text-toss-sub active:scale-[0.99] transition">
+          더 보기 <span className="font-normal num">· {hidden}건 남았어요</span>
+        </button>
+      )}
+      {hidden <= 0 && limit > PAGE && (
+        <button type="button" onClick={() => setLimit(PAGE)} className="w-full mt-3 py-2 text-xs font-bold text-toss-sub">접기 ▲</button>
+      )}
     </Card>
   );
 }

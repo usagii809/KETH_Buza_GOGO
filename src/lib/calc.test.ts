@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeAvailable, computeSummary, compareWithPrev } from "../features/budget/calc";
+import { computeAllowance, computeSummary, compareWithPrev } from "../features/budget/calc";
 import { goalEta } from "../features/goals/calc";
 import { buildMemoIndex, suggestItems, suggestMemos } from "../features/expenses/memo";
 import { challengeDay, countNoSpendDays, longestStreak, noSpendStreak, pickBest, spentByDate, sproutRuns } from "../features/noSpend/calc";
@@ -51,18 +51,29 @@ describe("예상 저축액", () => {
 });
 
 describe("가용 예산", () => {
-  const s = computeSummary(budget, [tx("2026-11-22", "foodDining", 200000), tx("2026-11-21", "foodIngredients", 300000)], nov);
-  it("하루: 매일 쓰는 항목 잔액 ÷ 남은 9일 (100원 단위 내림)", () => {
-    const a = computeAvailable(budget, s, nov, "day");
-    expect(nov.daysLeft).toBe(9);
-    expect(a.variable).toBe(55500);
-    expect(a.food).toBe(33300);
+  const list = [tx("2026-11-22", "foodDining", 200000), tx("2026-11-21", "foodIngredients", 300000), tx("2026-11-10", "livingTelecom", 55000)];
+  it("하루 기준 = 이번 달 변동 예산 ÷ 30일 (한 달 내내 고정)", () => {
+    const a = computeAllowance(1150000, list, nov, "day");
+    expect(a.daily).toBe(38300);
+    expect(a).toMatchObject({ limit: 38300, spent: 200000, diff: -161700 });
   });
-  it("이번 주: 일요일이면 하루치와 같다", () => {
-    expect(computeAvailable(budget, s, nov, "week").variable).toBe(55500);
+  it("이번 주: 월~일 (16~22일) 7일치 기준 vs 이번 주 쓴 돈", () => {
+    expect(computeAllowance(1150000, list, nov, "week")).toMatchObject({ from: 16, to: 22, days: 7, limit: 268100, spent: 500000, diff: -231900 });
   });
-  it("이번 달: 전체 잔액", () => {
-    expect(computeAvailable(budget, s, nov, "month").variable).toBe(650000);
+  it("이번 달: 오늘까지 22일치 기준 vs 지금까지 쓴 돈", () => {
+    expect(computeAllowance(1150000, list, nov, "month")).toMatchObject({ limit: 842600, spent: 555000, diff: 287600, monthSpent: 555000 });
+  });
+  it("식비만 따로: 80만 ÷ 30 = 26,600", () => {
+    const food = computeAllowance(800000, list, nov, "day", (t) => t.category.startsWith("food"));
+    expect(food).toMatchObject({ daily: 26600, spent: 200000 });
+  });
+  it("월초 주는 이번 달 안쪽만 (11/3 화 → 2~8일)", () => {
+    expect(computeAllowance(1150000, [], getPeriodInfo("2026-11", new Date(2026, 10, 3)), "week")).toMatchObject({ from: 2, to: 8, days: 7 });
+    expect(computeAllowance(1150000, [], getPeriodInfo("2026-11", new Date(2026, 10, 1)), "week")).toMatchObject({ from: 1, to: 1, days: 1 });
+  });
+  it("끝난 달: 예산 전체 vs 쓴 돈", () => {
+    const oct = getPeriodInfo("2026-10", NOW);
+    expect(computeAllowance(1150000, [tx("2026-10-05", "foodDining", 150000)], oct, "day")).toMatchObject({ limit: 1150000, spent: 150000, diff: 1000000 });
   });
 });
 
@@ -319,8 +330,8 @@ describe("오늘의 복권", () => {
     for (const r of PRIZE_TABLE) { if (r.symbol === symbol) return acc + 0.0001; acc += r.chance; }
     throw new Error(symbol);
   };
-  it("당첨표: 1등 🎰🎰🎰 4%, 2~5등, 그림이 다 달라요", () => {
-    expect(PRIZE_TABLE[0]).toMatchObject({ symbol: "🎰", rank: 1, chance: 0.04 });
+  it("당첨표: 1등 🎰🎰🎰 5%, 2~5등, 그림이 다 달라요", () => {
+    expect(PRIZE_TABLE[0]).toMatchObject({ symbol: "🎰", rank: 1, chance: 0.05 });
     expect(PRIZE_TABLE.filter((r) => r.tier === "prize").map((r) => r.rank)).toEqual([2, 3, 4, 5]);
     expect(PRIZE_TABLE.find((r) => r.symbol === "🍒")?.prize).toContain("심부름 1회");
     expect(PRIZE_TABLE.find((r) => r.symbol === "🍀")?.prize).toContain("로또 한 장");
@@ -334,9 +345,9 @@ describe("오늘의 복권", () => {
     expect(t).toMatchObject({ symbols: ["💎", "💎", "💎"], tier: "prize", rank: 2 });
     expect(t.prize).toContain("어깨 안마");
   });
-  it("🤫 숨겨진 하트: 5% · 뽀뽀 해주기 · 당첨표에는 안 보여요", () => {
+  it("🤫 숨겨진 하트: 6% · 뽀뽀 해주기 · 당첨표에는 안 보여요", () => {
     const row = PRIZE_TABLE.find((r) => r.symbol === LOVE_SYMBOL);
-    expect(row).toMatchObject({ tier: "love", chance: 0.05, prize: "💋 뽀뽀 해주기" });
+    expect(row).toMatchObject({ tier: "love", chance: 0.06, prize: "💋 뽀뽀 해주기" });
     expect(VISIBLE_PRIZES.some((r) => r.symbol === LOVE_SYMBOL)).toBe(false);
     expect(drawTicket(seq(at(LOVE_SYMBOL)))).toMatchObject({ symbols: ["❤️", "❤️", "❤️"], tier: "love" });
   });
@@ -352,7 +363,7 @@ describe("오늘의 복권", () => {
     expect(new Set(t.symbols).size).toBeGreaterThan(1);
     expect(t.prize).toBe(LOSE_MESSAGE);
   });
-  it("확률: 1등 약 4%, 하트 약 5%, 하트는 꼭 세 개로만 나와요", () => {
+  it("확률: 1등 약 5%, 하트 약 6%, 꽝(아깝다 포함) 57%, 하트는 꼭 세 개로만 나와요", () => {
     let jackpot = 0, love = 0, lose = 0, loseAllDiff = 0;
     for (let i = 0; i < 30000; i++) {
       const t = drawTicket();
@@ -361,10 +372,11 @@ describe("오늘의 복권", () => {
       else expect(t.symbols).not.toContain(LOVE_SYMBOL);
       if (t.tier === "lose") { lose++; if (new Set(t.symbols).size === 3) loseAllDiff++; }
     }
-    expect(jackpot / 30000).toBeGreaterThan(0.031);
-    expect(jackpot / 30000).toBeLessThan(0.049);
-    expect(love / 30000).toBeGreaterThan(0.04);
-    expect(love / 30000).toBeLessThan(0.06);
+    expect(jackpot / 30000).toBeGreaterThan(0.04);
+    expect(jackpot / 30000).toBeLessThan(0.06);
+    expect(love / 30000).toBeGreaterThan(0.05);
+    expect(love / 30000).toBeLessThan(0.07);
+    expect(PRIZE_TABLE.reduce((t, r) => t + r.chance, 0)).toBeCloseTo(0.43);
     expect(loseAllDiff / lose).toBeGreaterThan(0.5);
   });
   it("폭탄 다음 날은 강제 무지출 데이 (말일 → 다음 달 1일)", () => {

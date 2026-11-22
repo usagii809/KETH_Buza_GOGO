@@ -19,6 +19,7 @@ import { ExpenseSheet } from "./features/expenses/ExpenseSheet";
 import { TransactionList } from "./features/expenses/TransactionList";
 import { GoalSheet } from "./features/goals/GoalSheet";
 import { GoalsCard } from "./features/goals/GoalsCard";
+import { monthlyPlan } from "./features/goals/calc";
 import { longestStreak, pickBest, spentByDate } from "./features/noSpend/calc";
 import { NoSpendCard } from "./features/noSpend/NoSpendCard";
 import { RecurringSheet } from "./features/recurring/RecurringSheet";
@@ -257,9 +258,10 @@ function Dashboard({ user }: { user: User }) {
         <SettlePanel key={`prev_${prevYm}`} ym={prevYm} options={prevOptions} settlement={null} goals={shared.goals} myName={me?.name} standalone onNewGoal={newGoal} />
       )}
       <SavingsCard s={summary} period={period} onEditBudget={() => setSheet({ type: "budget" })} />
-      <GoalsCard goals={shared.goals} planned={planned} now={now} onOpen={(g) => openGoal(g)}
+      <GoalsCard goals={shared.goals} planned={planned} now={now}
+        plan={period.state === "future" ? null : monthlyPlan(shared.goals, summary.income, summary.fixedTotal, summary.totalVariableBudget, summary.totalVariableSpent, period.state === "current" ? period.daysLeft : null)} onOpen={(g) => openGoal(g)}
         onNew={() => setSheet({ type: "goal", goalId: null, mode: "edit" })} />
-      <BudgetCard budget={month.budget} s={summary} period={period} prevTxs={prevTxs} />
+      <BudgetCard budget={month.budget} s={summary} period={period} txs={txs} prevTxs={prevTxs} />
       <TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={prevTxs} bars={bars} />
       {insights && period.state === "current" && <InsightCard data={insights} />}
       <NoSpendCard period={period} txs={txs} prevTxs={prevTxs} now={now} start={noSpendStart} best={best} forcedDays={forcedDays} />

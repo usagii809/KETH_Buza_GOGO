@@ -25,13 +25,13 @@ export interface PrizeRow {
  * 합계 36%가 당첨/폭탄, 나머지는 꽝(대부분 셋 다 다른 그림)
  */
 export const PRIZE_TABLE: PrizeRow[] = [
-  { symbol: JACKPOT_SYMBOL, tier: "jackpot", rank: 1, chance: 0.04, prize: "🍗🍺 치맥 당첨! 오늘은 묻지도 따지지도 않고 치맥 GO!" },
-  { symbol: "💎", tier: "prize", rank: 2, chance: 0.04, prize: "💆 어깨 안마 10분 이용권" },
-  { symbol: "🐷", tier: "prize", rank: 3, chance: 0.05, prize: "🧽 설거지 면제권" },
-  { symbol: "🍀", tier: "prize", rank: 4, chance: 0.06, prize: "🎫 로또 한 장 사주기" },
-  { symbol: "🍒", tier: "prize", rank: 5, chance: 0.07, prize: "🏃 심부름 1회 이용권" },
-  { symbol: LOVE_SYMBOL, tier: "love", rank: 0, chance: 0.05, prize: "💋 뽀뽀 해주기" },
-  { symbol: "💣", tier: "bomb", rank: 0, chance: 0.05, prize: "내일은 강제 무지출 데이! 둘 다 하루 동안 지갑 봉인 🔒" }
+  { symbol: JACKPOT_SYMBOL, tier: "jackpot", rank: 1, chance: 0.05, prize: "🍗🍺 치맥 당첨! 오늘은 묻지도 따지지도 않고 치맥 GO!" },
+  { symbol: "💎", tier: "prize", rank: 2, chance: 0.05, prize: "💆 어깨 안마 10분 이용권" },
+  { symbol: "🐷", tier: "prize", rank: 3, chance: 0.06, prize: "🧽 설거지 면제권" },
+  { symbol: "🍀", tier: "prize", rank: 4, chance: 0.07, prize: "🎫 로또 한 장 사주기" },
+  { symbol: "🍒", tier: "prize", rank: 5, chance: 0.08, prize: "🏃 심부름 1회 이용권" },
+  { symbol: LOVE_SYMBOL, tier: "love", rank: 0, chance: 0.06, prize: "💋 뽀뽀 해주기" },
+  { symbol: "💣", tier: "bomb", rank: 0, chance: 0.06, prize: "내일은 강제 무지출 데이! 둘 다 하루 동안 지갑 봉인 🔒" }
 ];
 
 /** 화면에 보여줄 당첨표 (숨겨진 하트는 빼고) */

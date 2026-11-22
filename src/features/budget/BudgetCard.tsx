@@ -1,15 +1,15 @@
 import { useState } from "react";
-import { CATEGORIES, GROUPS, type Budget } from "../../lib/categories";
+import { CATEGORIES, CATEGORY_MAP, GROUPS, normalizeCategory, type Budget } from "../../lib/categories";
 import type { PeriodInfo } from "../../lib/dates";
 import { formatKRW, formatShort } from "../../lib/format";
 import { store } from "../../lib/storage";
 import type { Transaction } from "../../lib/types";
 import { Card, ProgressBar, Segmented } from "../../ui/controls";
-import { compareWithPrev, computeAvailable, getStatus, pctChange, STATUS, type AvailableMode, type Summary } from "./calc";
+import { compareWithPrev, computeAllowance, getStatus, pctChange, STATUS, type Allowance, type AvailableMode, type Summary } from "./calc";
 
 const TITLES: Record<AvailableMode, string> = { day: "하루 가용 예산", week: "이번 주 가용 예산", month: "이번 달 가용 예산" };
 
-export function BudgetCard({ budget, s, period, prevTxs }: { budget: Budget; s: Summary; period: PeriodInfo; prevTxs: Transaction[] }) {
+export function BudgetCard({ budget, s, period, txs, prevTxs }: { budget: Budget; s: Summary; period: PeriodInfo; txs: Transaction[]; prevTxs: Transaction[] }) {
   const [mode, setMode] = useState<AvailableMode>(() => {
     const v = store.get("periodMode", "day");
     return v === "week" || v === "month" ? v : "day";
@@ -20,12 +20,10 @@ export function BudgetCard({ budget, s, period, prevTxs }: { budget: Budget; s: 
 
   const isPast = period.state === "past";
   const effective: AvailableMode = isPast ? "month" : mode;
-  const a = computeAvailable(budget, s, period, effective);
-  const daysNote = effective === "day" ? `남은 ${period.daysLeft}일 동안 나눠 쓰면 돼요` : `일요일까지 ${period.weekLeft}일 남았어요`;
-
-  const foodPct = a.foodBudget > 0 ? Math.round((a.foodSpent / a.foodBudget) * 100) : 0;
-  const foodStatus = getStatus(a.foodSpent, a.foodBudget, period, true);
-  const foodHint = foodStatus === STATUS.over ? "식비 예산을 넘었어요" : foodStatus === STATUS.fast ? "평소보다 빨리 쓰고 있어요" : `${formatShort(a.foodSpent)} / ${formatShort(a.foodBudget)}`;
+  const foodBudget = CATEGORIES.filter((c) => c.group === "FOOD").reduce((t, c) => t + budget[c.key], 0);
+  const isFood = (t: Transaction) => CATEGORY_MAP[normalizeCategory(t.category)].group === "FOOD";
+  const all = computeAllowance(s.totalVariableBudget, txs, period, effective);
+  const food = computeAllowance(foodBudget, txs, period, effective, isFood);
   const marker = period.state === "current" ? period.elapsedPct : null;
 
   const mom = compareWithPrev(s.usage, prevTxs, period);
@@ -38,31 +36,11 @@ export function BudgetCard({ budget, s, period, prevTxs }: { budget: Budget; s: 
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-5">
-        <div className="bg-toss-bg rounded-2xl p-3.5">
-          <span className="text-sm font-medium text-toss-sub block">변동지출 전체<button type="button" aria-label="계산 방법" onClick={() => toggleHelp("variable")}
-            className={`ml-1 w-4 h-4 inline-flex items-center justify-center rounded-full text-[10px] font-bold align-middle ${help === "variable" ? "bg-toss-blue text-white" : "bg-white text-toss-sub"}`}>?</button></span>
-          <span className={`text-lg font-bold num mt-1 block ${a.variableExhausted || a.variable < 0 ? "text-toss-red" : "text-toss-text"}`}>{formatKRW(a.variable)}</span>
-          <span className="text-xs text-toss-sub num mt-1 block leading-snug">
-            {effective === "month"
-              ? `${formatShort(s.totalVariableBudget)} 중 ${formatShort(s.totalVariableSpent)} 썼어요`
-              : a.variableExhausted ? "이번 달 예산을 다 썼어요 🥲" : `${daysNote} (통신비·생필품·의류 빼고)`}
-          </span>
-        </div>
-        <div className="bg-toss-blueLight/80 rounded-2xl p-3.5">
-          <span className="text-sm font-semibold text-toss-blue block">🍽️ 식비<button type="button" aria-label="계산 방법" onClick={() => toggleHelp("food")}
-            className={`ml-1 w-4 h-4 inline-flex items-center justify-center rounded-full text-[10px] font-bold align-middle ${help === "food" ? "bg-toss-blue text-white" : "bg-white text-toss-sub"}`}>?</button></span>
-          <span className={`text-lg font-bold num mt-1 block ${a.foodExhausted ? "text-toss-red" : "text-toss-text"}`}>{formatKRW(a.food)}</span>
-          <div className="mt-2"><ProgressBar pct={foodPct} barClass={foodStatus.bar} marker={marker} track="bg-white/70" /></div>
-          <span className="text-xs text-toss-sub num mt-1 block leading-snug">{foodHint} · <b className={foodStatus.text}>{foodPct}%</b></span>
-        </div>
+        <AllowanceBox title="변동지출 전체" a={all} mode={effective} period={period} help={help === "variable"} onHelp={() => toggleHelp("variable")} />
+        <AllowanceBox title="🍽️ 식비" a={food} mode={effective} period={period} help={help === "food"} onHelp={() => toggleHelp("food")} blue />
       </div>
 
-      {help && (
-        <CalcHelp kind={help} mode={effective} daysLeft={period.daysLeft} weekLeft={period.weekLeft}
-          budget={help === "food" ? a.foodBudget : effective === "month" ? s.totalVariableBudget : s.pacedBudget}
-          spent={help === "food" ? a.foodSpent : effective === "month" ? s.totalVariableSpent : s.pacedSpent}
-          result={help === "food" ? a.food : a.variable} onClose={() => setHelp(null)} />
-      )}
+      {help && <CalcHelp kind={help} a={help === "food" ? food : all} mode={effective} period={period} onClose={() => setHelp(null)} />}
 
       <div className="pt-4 border-t border-toss-border">
         <div className="flex items-center justify-between mb-1">
@@ -133,32 +111,68 @@ export function BudgetCard({ budget, s, period, prevTxs }: { budget: Budget; s: 
   );
 }
 
-/** ? 를 누르면 나오는 계산식 */
-function CalcHelp({ kind, mode, daysLeft, weekLeft, budget, spent, result, onClose }: {
-  kind: "variable" | "food"; mode: AvailableMode; daysLeft: number; weekLeft: number; budget: number; spent: number; result: number; onClose: () => void;
+const PERIOD_WORD: Record<AvailableMode, string> = { day: "하루", week: "이번 주", month: "이번 달" };
+
+/** 위쪽 두 칸: 기준 금액 · 쓴 돈 · 더/덜 썼는지 */
+function AllowanceBox({ title, a, mode, period, help, onHelp, blue }: {
+  title: string; a: Allowance; mode: AvailableMode; period: PeriodInfo; help: boolean; onHelp: () => void; blue?: boolean;
 }) {
-  const remain = budget - spent;
-  const name = kind === "food" ? "식비" : mode === "month" ? "변동지출" : "매일 쓰는 변동지출";
+  const past = period.state !== "current";
+  const big = mode === "month" ? a.monthBudget : a.limit;
+  const barBase = mode === "month" ? a.monthBudget : a.limit;
+  const pct = barBase > 0 ? Math.round((a.spent / barBase) * 100) : a.spent > 0 ? 100 : 0;
+  const over = a.diff < 0;
+  const spentLabel = mode === "day" ? "오늘" : mode === "week" ? `이번 주 (${a.from}~${a.to}일)` : past ? "이 달" : "지금까지";
+  const basis = mode === "month" ? (past ? "예산보다" : `오늘까지 기준 ${formatShort(a.limit)}보다`) : "";
+  return (
+    <div className={`allowance rounded-2xl p-3.5 ${blue ? "bg-toss-blueLight/80" : "bg-toss-bg"}`}>
+      <span className={`text-sm block ${blue ? "font-semibold text-toss-blue" : "font-medium text-toss-sub"}`}>
+        {title}
+        <button type="button" aria-label="계산 방법" onClick={onHelp}
+          className={`ml-1 w-4 h-4 inline-flex items-center justify-center rounded-full text-[10px] font-bold align-middle ${help ? "bg-toss-blue text-white" : "bg-white text-toss-sub"}`}>?</button>
+      </span>
+      <span className="text-[11px] text-toss-sub block mt-0.5">{PERIOD_WORD[mode]} {mode === "month" ? "예산" : "기준"}</span>
+      <span className="text-lg font-bold num block text-toss-text leading-tight">{formatKRW(big)}</span>
+      <div className="mt-2">
+        <ProgressBar pct={pct} barClass={pct > 100 ? "bg-toss-red" : blue ? "bg-toss-blue" : "bg-gray-500"}
+          marker={mode === "month" && !past ? period.elapsedPct : null} track={blue ? "bg-white/70" : "bg-white"} />
+      </div>
+      <span className="text-xs text-toss-sub num mt-1.5 block leading-snug">{spentLabel} {formatKRW(a.spent)} 썼어요</span>
+      <span className={`allowance-diff text-sm font-bold num block mt-0.5 leading-snug ${over ? "text-toss-red" : "text-toss-green"}`}>
+        {mode === "month" && <span className="block text-[11px] font-medium text-toss-sub">{basis}</span>}
+        {a.diff === 0 ? "딱 맞게 썼어요 👌" : over ? `${formatKRW(-a.diff)} 더 썼어요` : `${formatKRW(a.diff)} 덜 썼어요 👍`}
+      </span>
+    </div>
+  );
+}
+
+/** ? 를 누르면 나오는 계산식 */
+function CalcHelp({ kind, a, mode, period, onClose }: { kind: "variable" | "food"; a: Allowance; mode: AvailableMode; period: PeriodInfo; onClose: () => void }) {
+  const past = period.state !== "current";
+  const name = kind === "food" ? "식비" : "변동지출";
   const line = (label: string, value: string, strong = false) => (
     <div className={`flex justify-between gap-2 ${strong ? "font-bold text-toss-text" : "text-toss-sub"}`}><span>{label}</span><span className="num shrink-0">{value}</span></div>
   );
+  const diffText = a.diff >= 0 ? `${formatKRW(a.diff)} 덜 씀` : `${formatKRW(-a.diff)} 더 씀`;
   return (
     <div className="mb-5 -mt-2 p-3.5 rounded-2xl bg-toss-bg text-sm space-y-1 animate-sheet-up">
       <div className="flex items-center justify-between mb-1">
         <p className="font-bold text-toss-text">{kind === "food" ? "🍽️ 식비" : "변동지출 전체"}는 이렇게 계산해요</p>
         <button type="button" onClick={onClose} aria-label="닫기" className="text-toss-sub px-1">✕</button>
       </div>
-      {line(`이번 달 ${name} 예산`, formatKRW(budget))}
-      {line("− 지금까지 쓴 돈", formatKRW(spent))}
-      {line("= 남은 돈", formatKRW(remain), mode === "month")}
-      {mode !== "month" && <>
-        {line(`÷ 남은 날 (오늘 포함)`, `${daysLeft}일`)}
-        {mode === "week" && line("× 일요일까지 남은 날", `${weekLeft}일`)}
-        {line(mode === "day" ? "= 오늘 쓸 수 있는 돈" : "= 이번 주 쓸 수 있는 돈", formatKRW(result), true)}
-      </>}
+      {line(`이번 달 ${name} 예산`, formatKRW(a.monthBudget))}
+      {line(`÷ ${period.m}월 일수`, `${period.dim}일`)}
+      {line("= 하루 기준 (한 달 내내 같아요)", formatKRW(a.daily), true)}
+      <div className="pt-1.5 mt-1 border-t border-toss-border space-y-1">
+        {mode === "day" && <>{line("오늘 기준", formatKRW(a.limit))}{line("− 오늘 쓴 돈", formatKRW(a.spent))}</>}
+        {mode === "week" && <>{line(`× 이번 주 ${a.from}~${a.to}일`, `${a.days}일`)}{line("= 이번 주 기준", formatKRW(a.limit))}{line("− 이번 주 쓴 돈", formatKRW(a.spent))}</>}
+        {mode === "month" && !past && <>{line(`× 오늘까지 (1~${a.to}일)`, `${a.days}일`)}{line("= 오늘까지 기준", formatKRW(a.limit))}{line("− 지금까지 쓴 돈", formatKRW(a.spent))}</>}
+        {mode === "month" && past && <>{line("이 달 예산", formatKRW(a.limit))}{line("− 이 달에 쓴 돈", formatKRW(a.spent))}</>}
+        {line("= 차이", diffText, true)}
+      </div>
       <p className="text-xs text-toss-sub pt-1.5 leading-relaxed">
-        {kind === "food" ? "식재료 + 외식·배달 + 카페·디저트를 합쳐서 계산해요." : mode === "month" ? "변동지출 예산 전체에서 이번 달에 쓴 돈을 빼요." : "통신비·생필품·의류처럼 한 번에 나가는 항목은 빼고 계산해요."}
-        {mode !== "month" && " 100원 단위 밑은 버려요. 덜 쓴 날이 있으면 다음 날부터 조금씩 늘어나요."}
+        {kind === "food" ? "식재료 + 외식·배달 + 카페·디저트를 합쳐서 계산해요. " : "통신비·생필품처럼 한 번에 나가는 돈도 그날 쓴 돈으로 쳐요. "}
+        {mode === "month" && !past ? `이번 달 예산은 ${formatKRW(a.monthBudget - a.monthSpent)} 남았어요.` : "덜 쓴 날이 있어도 하루 기준은 바뀌지 않아요."}
       </p>
     </div>
   );

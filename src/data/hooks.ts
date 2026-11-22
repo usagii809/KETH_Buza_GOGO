@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { auth } from "../lib/firebase";
 import { normalizeBudget, ZERO_BUDGET, type Budget } from "../lib/categories";
 import { shiftMonth } from "../lib/dates";
-import type { Goal, LotteryTicket, Profile, RecurringRule, Transaction } from "../lib/types";
+import type { Goal, LotteryTicket, Profile, RecurringRule, Settlement, Transaction } from "../lib/types";
 import type { StreakRecord } from "../features/noSpend/calc";
-import { loadFirstRecordDate, loadMonthTransactions, loadRangeTransactions, lotteryQuery, loadRecentTransactions, monthQuery, refs, withId } from "./db";
+import { couponQuery, FEED_DAYS, feedQuery, loadFirstRecordDate, loadMonthTransactions, loadRangeTransactions, lotteryQuery, loadRecentTransactions, monthQuery, refs, withId } from "./db";
 
 /** undefined = 확인 중, null = 로그아웃 */
 export function useAuthUser() {
@@ -136,4 +136,45 @@ export function useNow() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
   return now;
+}
+
+/** 복권 쿠폰 (1등 · 2~5등 · 하트) 전부 */
+export function useCoupons() {
+  const [coupons, setCoupons] = useState<LotteryTicket[]>([]);
+  useEffect(() => onSnapshot(couponQuery(), (snap) => {
+    setCoupons(snap.docs.map((d) => withId<LotteryTicket>(d.id, d.data())).filter((t) => t.revealed));
+  }, (err) => console.warn("쿠폰 구독 참고:", err)), []);
+  return coupons;
+}
+
+/** 새 소식 피드용: 최근 30일 안에 남긴 기록 (실시간) */
+export function useFeedTxs() {
+  const [txs, setTxs] = useState<Transaction[]>([]);
+  useEffect(() => {
+    const since = Date.now() - FEED_DAYS * 86400000;
+    return onSnapshot(feedQuery(since), (snap) => {
+      setTxs(snap.docs.map((d) => withId<Transaction>(d.id, d.data())));
+    }, (err) => console.warn("새 소식 구독 참고:", err));
+  }, []);
+  return txs;
+}
+
+/** 어떤 달의 정산 기록과 그 달 예산 (월말 정산용) */
+export function useSettlement(ym: string) {
+  const [settlement, setSettlement] = useState<Settlement | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [override, setOverride] = useState<Budget | null>(null);
+  useEffect(() => {
+    setLoaded(false);
+    setSettlement(null);
+    setOverride(null);
+    const u1 = onSnapshot(refs.settlement(ym), (snap) => {
+      setSettlement(snap.exists() ? (snap.data() as Settlement) : null);
+      setLoaded(true);
+    }, (err) => { console.warn("정산 구독 참고:", err); setLoaded(true); });
+    const u2 = onSnapshot(refs.month(ym), (snap) => setOverride(snap.exists() ? normalizeBudget(snap.data()) : null),
+      (err) => console.warn("지난달 예산 구독 참고:", err));
+    return () => { u1(); u2(); };
+  }, [ym]);
+  return { settlement, loaded, override };
 }

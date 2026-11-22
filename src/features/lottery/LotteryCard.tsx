@@ -10,11 +10,14 @@ interface Props {
   profiles: Profile[];
   /** 오늘이 강제 무지출 데이면 폭탄을 긁은 사람 이름 */
   bombBy: string | null;
+  /** 내가 가진, 아직 안 쓴 쿠폰 수 */
+  couponCount: number;
   onOpen: () => void;
+  onOpenCoupons: () => void;
 }
 
 /** 대시보드의 '오늘의 복권' 카드: 아직이면 긁으러 가기, 긁었으면 둘의 결과 */
-export function LotteryCard({ uid, today, tickets, profiles, bombBy, onOpen }: Props) {
+export function LotteryCard({ uid, today, tickets, profiles, bombBy, couponCount, onOpen, onOpenCoupons }: Props) {
   const mine = tickets.find((t) => t.uid === uid && t.date === today);
   const partnerTicket = tickets.find((t) => t.uid !== uid && t.date === today);
   const partnerProfile = profiles.find((p) => p.uid !== uid) || null;
@@ -49,6 +52,10 @@ export function LotteryCard({ uid, today, tickets, profiles, bombBy, onOpen }: P
         <h2 className="text-base font-bold text-toss-text">🎟️ 오늘의 복권</h2>
         <span className="flex items-center gap-2">
           {jackpots > 0 && <span className="text-xs font-bold text-toss-red">이번 달 치맥 {jackpots}번 🍗</span>}
+          <button type="button" aria-label="쿠폰함 열기" onClick={(e) => { e.stopPropagation(); onOpenCoupons(); }}
+            className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold active:scale-95 transition">
+            🎫 쿠폰 {couponCount}
+          </button>
           <span className="text-xl leading-none text-toss-muted">›</span>
         </span>
       </div>

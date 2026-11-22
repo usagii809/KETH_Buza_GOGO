@@ -1,7 +1,15 @@
 import type { User } from "firebase/auth";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HISTORY_DAYS, pinMonthBudget, runRecurring, saveNoSpendBest, saveProfile } from "./data/db";
-import { useAuthUser, useLottery, useMonthData, useNow, useRecentMonths, useSharedData } from "./data/hooks";
+import { useAuthUser, useCoupons, useFeedTxs, useLottery, useMonthData, useNow, useRecentMonths, useSettlement, useSharedData } from "./data/hooks";
+import { buildFeed, countUnseen } from "./features/feed/calc";
+import { FeedSheet } from "./features/feed/FeedSheet";
+import { CouponSheet } from "./features/lottery/CouponSheet";
+import { groupCoupons } from "./features/lottery/coupons";
+import { InsightCard } from "./features/report/InsightCard";
+import { buildInsights } from "./features/report/insights";
+import { canSettle, settleOptions } from "./features/settle/calc";
+import { SettlePanel } from "./features/settle/SettlePanel";
 import { LoginView } from "./features/auth/LoginView";
 import { BudgetCard } from "./features/budget/BudgetCard";
 import { BudgetSheet } from "./features/budget/BudgetSheet";
@@ -38,6 +46,8 @@ type OpenSheet =
   | { type: "settings" }
   | { type: "recurring" }
   | { type: "lottery" }
+  | { type: "coupons" }
+  | { type: "feed"; lastSeen: number }
   | { type: "goal"; goalId: string | null; mode: "deposit" | "edit"; prefill?: number }
   | null;
 
@@ -99,6 +109,37 @@ function Dashboard({ user }: { user: User }) {
   const forcedDays = useMemo(() => forcedNoSpendDays(tickets, shared.profiles), [tickets, shared.profiles]);
   const bombBy = forcedDays[today] ?? null;
 
+  // 🎫 쿠폰함
+  const coupons = useCoupons();
+  const myCoupons = useMemo(() => groupCoupons(coupons, user.uid).mine.length, [coupons, user.uid]);
+
+  // 💌 같이 보기: 상대 기록 + 내 기록에 달린 반응
+  const feedTxs = useFeedTxs();
+  const feed = useMemo(() => buildFeed(feedTxs, user.uid, shared.profiles), [feedTxs, user.uid, shared.profiles]);
+  const seenKey = `feedSeen_${user.uid}`;
+  // 처음 쓰는 날엔 지난 소식이 한꺼번에 NEW로 뜨지 않게 지금부터 세요
+  const [feedSeen, setFeedSeen] = useState(() => {
+    const v = Number(store.get(seenKey, "0"));
+    if (v) return v;
+    const t = Date.now() - 86400000;
+    store.set(seenKey, String(t));
+    return t;
+  });
+  const unseen = countUnseen(feed, feedSeen);
+  const feedToasted = useRef(false);
+  useEffect(() => {
+    if (feedToasted.current || unseen === 0) return;
+    feedToasted.current = true;
+    const partnerName = shared.profiles.find((p) => p.uid !== user.uid)?.name || "상대";
+    toast(`💌 ${partnerName} 님 새 소식 ${unseen}건이 있어요`);
+  }, [unseen, shared.profiles, user.uid, toast]);
+  const openFeed = () => {
+    setSheet({ type: "feed", lastSeen: feedSeen });
+    const t = Date.now();
+    store.set(seenKey, String(t));
+    setFeedSeen(t);
+  };
+
   // 🏢 회사 돈은 기록만 하고, 예산·저축·무지출·그래프·성적표 계산에서는 전부 빼요
   const txs = useMemo(() => month.txs.filter(isHousehold), [month.txs]);
   const prevTxs = useMemo(() => month.prevTxs.filter(isHousehold), [month.prevTxs]);
@@ -109,6 +150,20 @@ function Dashboard({ user }: { user: User }) {
   const bars = useMemo(() => buildMonthBars(ym, 6, recentHousehold, txs, todayYm(now)), [ym, recentHousehold, txs, now]);
   // 저축 목표 예상에 쓰는 '이번 달 계획 저축액'
   const planned = period.state === "current" ? summary.plannedSavings : plannedSavingsOf(month.defaultBudget);
+  // 💰 월말 정산: 보고 있는 달(지난 달 화면) + 이번 달 화면에서는 지난달
+  const viewedSettle = useSettlement(ym);
+  const prevYm = shiftMonth(ym, -1);
+  const prevSettle = useSettlement(prevYm);
+  const prevSummary = useMemo(() => computeSummary({ ...month.defaultBudget, ...(prevSettle.override || {}) }, prevTxs, getPeriodInfo(prevYm, now)),
+    [month.defaultBudget, prevSettle.override, prevTxs, prevYm, now]);
+  const prevOptions = settleOptions(prevSummary);
+  const showPrevSettle = period.state === "current" && prevSettle.loaded && !prevSettle.settlement && canSettle(prevOptions, prevTxs.length > 0);
+  const newGoal = () => setSheet({ type: "goal", goalId: null, mode: "edit" });
+
+  // 📊 카테고리 비교 (진행 중인 달은 같은 날짜까지)
+  const insights = useMemo(() => period.state === "future" ? null : buildInsights(ym, txs, recentHousehold, period.state === "current" ? period.day : null),
+    [ym, txs, recentHousehold, period.state, period.day]);
+
   // 자동완성: 최근 120일 + 지금 보는 달 (id 중복 제거)
   const history = useMemo(() => [...new Map([...shared.history, ...month.txs].map((t) => [t.id, t])).values()], [shared.history, month.txs]);
 
@@ -170,11 +225,18 @@ function Dashboard({ user }: { user: User }) {
             )}
           </div>
         </div>
+        <div className="flex items-center gap-2.5">
+        <button type="button" aria-label="같이 보기" onClick={openFeed}
+          className="relative w-11 h-11 shrink-0 rounded-full bg-white border border-toss-border flex items-center justify-center text-xl active:scale-95 transition">
+          💌
+          {unseen > 0 && <span className="feed-badge absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-toss-red text-white text-[11px] font-bold flex items-center justify-center num">{unseen > 9 ? "9+" : unseen}</span>}
+        </button>
         <button type="button" aria-label="내 프로필과 설정" onClick={() => setSheet({ type: "settings" })}
           className="relative w-12 h-12 shrink-0 rounded-full active:scale-95 transition">
           <Avatar profile={me} size={48} className="ring-2 ring-white shadow-sm" />
           {partner && <Avatar profile={partner} size={22} className="absolute -left-1.5 -bottom-0.5 ring-2 ring-white" />}
         </button>
+        </div>
 
       </header>
 
@@ -182,15 +244,24 @@ function Dashboard({ user }: { user: User }) {
 
       <QuipBubble s={summary} period={period} now={now} override={jackpotToday ? "🍗🍺 오늘은 복권 1등! 묻지도 따지지도 않고 치맥 GO!" : bombBy ? `💣 오늘은 강제 무지출 데이! (어제 ${bombBy}의 폭탄) 지갑 봉인 🔒` : null} />
       {period.state === "current" && (
-        <LotteryCard uid={user.uid} today={today} tickets={tickets} profiles={shared.profiles} bombBy={bombBy} onOpen={() => setSheet({ type: "lottery" })} />
+        <LotteryCard uid={user.uid} today={today} tickets={tickets} profiles={shared.profiles} bombBy={bombBy} couponCount={myCoupons}
+          onOpen={() => setSheet({ type: "lottery" })} onOpenCoupons={() => setSheet({ type: "coupons" })} />
       )}
-      <ReportSection period={period} s={summary} txs={txs} prevTxs={prevTxs} goals={shared.goals} now={now} noSpendStart={noSpendStart}
-        onOpenLastMonth={() => setYm(shiftMonth(todayYm(now), -1))} onDepositToGoal={openGoal} />
+      <ReportSection period={period} s={summary} txs={txs} prevTxs={prevTxs} now={now} noSpendStart={noSpendStart}
+        onOpenLastMonth={() => setYm(shiftMonth(todayYm(now), -1))}
+        insights={insights && period.state === "past" ? <InsightCard data={insights} embedded /> : null}
+        settle={period.state === "past" && viewedSettle.loaded && (viewedSettle.settlement || canSettle(settleOptions(summary), txs.length > 0))
+          ? <SettlePanel key={ym} ym={ym} options={settleOptions(summary)} settlement={viewedSettle.settlement} goals={shared.goals} myName={me?.name} onNewGoal={newGoal} />
+          : null} />
+      {showPrevSettle && (
+        <SettlePanel key={`prev_${prevYm}`} ym={prevYm} options={prevOptions} settlement={null} goals={shared.goals} myName={me?.name} standalone onNewGoal={newGoal} />
+      )}
       <SavingsCard s={summary} period={period} onEditBudget={() => setSheet({ type: "budget" })} />
       <GoalsCard goals={shared.goals} planned={planned} now={now} onOpen={(g) => openGoal(g)}
         onNew={() => setSheet({ type: "goal", goalId: null, mode: "edit" })} />
       <BudgetCard budget={month.budget} s={summary} period={period} prevTxs={prevTxs} />
       <TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={prevTxs} bars={bars} />
+      {insights && period.state === "current" && <InsightCard data={insights} />}
       <NoSpendCard period={period} txs={txs} prevTxs={prevTxs} now={now} start={noSpendStart} best={best} forcedDays={forcedDays} />
       <TransactionList txs={month.txs} ym={ym} now={now} onEdit={(tx) => setSheet({ type: "expense", tx })} />
 
@@ -211,7 +282,9 @@ function Dashboard({ user }: { user: User }) {
           onOpenRecurring={() => setSheet({ type: "recurring" })} onClose={closeSheet} />
       )}
       {sheet?.type === "recurring" && <RecurringSheet rules={shared.recurring} onClose={closeSheet} />}
-      {sheet?.type === "lottery" && <LotterySheet uid={user.uid} myName={me?.name} today={today} onClose={closeSheet} />}
+      {sheet?.type === "lottery" && <LotterySheet uid={user.uid} myName={me?.name} today={today} onClose={closeSheet} onOpenCoupons={() => setSheet({ type: "coupons" })} />}
+      {sheet?.type === "coupons" && <CouponSheet uid={user.uid} coupons={coupons} profiles={shared.profiles} onClose={closeSheet} />}
+      {sheet?.type === "feed" && <FeedSheet uid={user.uid} items={feed} profiles={shared.profiles} lastSeen={sheet.lastSeen} onClose={closeSheet} />}
       {sheet?.type === "goal" && (
         <GoalSheet key={sheet.goalId ?? "new"} goal={goal} mode={sheet.mode} prefill={sheet.prefill} planned={planned} now={now} onClose={closeSheet} />
       )}

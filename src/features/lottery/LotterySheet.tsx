@@ -11,10 +11,11 @@ interface Props {
   myName?: string;
   today: string;
   onClose: () => void;
+  onOpenCoupons?: () => void;
 }
 
 /** 하루 한 장 긁는 복권. 열자마자 결과가 서버에 고정돼서 다시 뽑을 수 없어요 */
-export function LotterySheet({ uid, myName, today, onClose }: Props) {
+export function LotterySheet({ uid, myName, today, onClose, onOpenCoupons }: Props) {
   const { toast } = useFeedback();
   const [ticket, setTicket] = useState<LotteryTicket | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -39,7 +40,7 @@ export function LotterySheet({ uid, myName, today, onClose }: Props) {
     revealTicket(ticket.id).catch((err) => console.warn("복권 저장 참고:", err));
     if (ticket.tier === "jackpot") { confetti(); setTimeout(confetti, 900); toast("🎰🎰🎰 잭팟! 오늘은 치맥 GO!"); }
     else if (ticket.tier === "love") { confetti(); setTimeout(confetti, 700); toast("💕 숨겨진 하트 세 개! 뽀뽀 해주기 당첨"); }
-    else if (ticket.tier === "prize") { confetti(); toast(`🎁 ${ticket.rank}등 당첨! 쿠폰을 보여주세요`); }
+    else if (ticket.tier === "prize") { confetti(); toast(`🎁 ${ticket.rank}등 당첨! 쿠폰함에 넣어뒀어요`); }
     else if (ticket.tier === "bomb") toast("💣 펑! 내일은 둘 다 강제 무지출 데이예요");
   };
 
@@ -78,7 +79,12 @@ export function LotterySheet({ uid, myName, today, onClose }: Props) {
                 <p className={`font-bold ${ticket.tier === "love" ? "text-xl text-rose-500" : "text-lg"}`}>{tierTitle(ticket.tier, ticket.rank)}</p>
               )}
               <p className="text-base font-semibold mt-1 whitespace-pre-line leading-relaxed">{ticket.tier === "lose" ? LOSE_MESSAGE : ticket.prize}</p>
-              {(ticket.tier === "prize" || ticket.tier === "love") && <p className="text-xs text-toss-sub mt-1">상대에게 이 화면을 보여주고 오늘 써요</p>}
+              {(ticket.tier === "prize" || ticket.tier === "love" || ticket.tier === "jackpot") && onOpenCoupons && (
+                <button type="button" onClick={onOpenCoupons}
+                  className={`mt-2 px-3 py-1.5 rounded-full text-xs font-bold ${ticket.tier === "jackpot" ? "bg-white/15 text-amber-50" : "bg-white text-indigo-600"}`}>
+                  🎫 쿠폰함에 넣어뒀어요 · 보러 가기 ›
+                </button>
+              )}
               {ticket.tier !== "lose" && (
                 <p className={`text-xs mt-2 ${ticket.tier === "bomb" || ticket.tier === "jackpot" ? "text-white/60" : "text-toss-sub"}`}>
                   {ticket.tier === "almost" ? LOSE_MESSAGE : "내일 또 한 장이 도착해요"}

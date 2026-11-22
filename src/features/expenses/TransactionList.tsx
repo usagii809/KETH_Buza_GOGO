@@ -116,6 +116,9 @@ export function TransactionList({ txs, ym, now, onEdit }: { txs: Transaction[]; 
                         {tx.company && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-indigo-50 text-indigo-600">🏢 회사</span>}
                         <span className="text-xs font-medium text-toss-sub truncate">{cat.label}</span>
                         {tx.auto && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-green-50 text-toss-green">🔁 자동</span>}
+                        {tx.reactions && Object.values(tx.reactions).some((r) => r?.e) && (
+                          <span className="px-1.5 py-0.5 rounded-full text-xs bg-rose-50 leading-none">{Object.values(tx.reactions).map((r) => r?.e).filter(Boolean).join("")}</span>
+                        )}
                       </div>
                     </div>
                     <span className={`text-base font-bold num shrink-0 ${tx.company ? "text-indigo-500" : "text-toss-text"}`}>-{formatKRW(tx.amount)}</span>

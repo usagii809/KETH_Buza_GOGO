@@ -31,19 +31,50 @@ export function buildMemoIndex(txs: Iterable<Transaction>): MemoSuggestion[] {
   }));
 }
 
-/** 입력이 비었으면 자주 쓴 곳, 있으면 포함하는 곳(앞부분 일치 우선) */
+const CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+const JUNG = ["ㅏ","ㅐ","ㅑ","ㅒ","ㅓ","ㅔ","ㅕ","ㅖ","ㅗ","ㅘ","ㅙ","ㅚ","ㅛ","ㅜ","ㅝ","ㅞ","ㅟ","ㅠ","ㅡ","ㅢ","ㅣ"];
+const JONG = ["","ㄱ","ㄲ","ㄳ","ㄴ","ㄵ","ㄶ","ㄷ","ㄹ","ㄺ","ㄻ","ㄼ","ㄽ","ㄾ","ㄿ","ㅀ","ㅁ","ㅂ","ㅄ","ㅅ","ㅆ","ㅇ","ㅈ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+// 겹받침·겹모음은 낱자로 풀어서 비교 (쿺 → ㅋㅜㅍ, 닭 → ㄷㅏㄹㄱ)
+const SPLIT: Record<string, string> = { "ㄳ":"ㄱㅅ","ㄵ":"ㄴㅈ","ㄶ":"ㄴㅎ","ㄺ":"ㄹㄱ","ㄻ":"ㄹㅁ","ㄼ":"ㄹㅂ","ㄽ":"ㄹㅅ","ㄾ":"ㄹㅌ","ㄿ":"ㄹㅍ","ㅀ":"ㄹㅎ","ㅄ":"ㅂㅅ",
+  "ㅘ":"ㅗㅏ","ㅙ":"ㅗㅐ","ㅚ":"ㅗㅣ","ㅝ":"ㅜㅓ","ㅞ":"ㅜㅔ","ㅟ":"ㅜㅣ","ㅢ":"ㅡㅣ" };
+
+/** 한글을 낱자로 풀어요. 쿠팡 → ㅋㅜㅍㅏㅇ */
+export function toJamo(text: string): string {
+  let out = "";
+  for (const ch of text.toLowerCase().replace(/\s+/g, "")) {
+    const c = ch.charCodeAt(0) - 0xac00;
+    if (c >= 0 && c < 11172) {
+      out += CHO[Math.floor(c / 588)] + JUNG[Math.floor((c % 588) / 28)] + JONG[c % 28];
+    } else out += ch;
+  }
+  return [...out].map((j) => SPLIT[j] || j).join("");
+}
+const choseong = (text: string) => [...text.replace(/\s+/g, "")].map((ch) => { const c = ch.charCodeAt(0) - 0xac00; return c >= 0 && c < 11172 ? CHO[Math.floor(c / 588)] : ch.toLowerCase(); }).join("");
+
+/** 0: 안 맞음, 3: 앞부분 일치, 2: 초성 일치(ㅋㅍ), 1: 중간 포함 */
+export function matchScore(target: string, query: string): number {
+  const q = query.trim().toLowerCase();
+  if (!q) return 0;
+  const t = target.toLowerCase();
+  const tj = toJamo(t), qj = toJamo(q);
+  if (tj.startsWith(qj)) return 3;
+  if (/^[ㄱ-ㅎ\s]+$/.test(q) && choseong(t).startsWith(q.replace(/\s+/g, ""))) return 2;
+  if (tj.includes(qj)) return 1;
+  return 0;
+}
+
+/** 두 번 이상 쓴 곳만 추천해요. 입력이 비었으면 자주 쓴 곳, 있으면 글자가 맞는 곳(쿠 → 쿠팡, ㅋㅍ → 쿠팡) */
 export function suggestMemos(index: MemoSuggestion[], query: string, limit = 6): MemoSuggestion[] {
   const q = query.trim().toLowerCase();
-  let list = [...index];
-  if (q) {
-    list = list.filter((e) => e.memo.toLowerCase().includes(q) && e.memo.toLowerCase() !== q);
-    list.sort((a, b) =>
-      Number(b.memo.toLowerCase().startsWith(q)) - Number(a.memo.toLowerCase().startsWith(q)) ||
-      b.total - a.total || b.last - a.last);
-  } else {
-    list.sort((a, b) => b.total - a.total || b.last - a.last);
-  }
-  return list.slice(0, limit);
+  const repeat = index.filter((e) => e.total >= 2);
+  if (!q) return [...repeat].sort((a, b) => b.total - a.total || b.last - a.last).slice(0, limit);
+  return repeat
+    .filter((e) => e.memo.toLowerCase() !== q)
+    .map((e) => ({ e, score: matchScore(e.memo, q) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score || b.e.total - a.e.total || b.e.last - a.e.last)
+    .map((x) => x.e)
+    .slice(0, limit);
 }
 
 /**

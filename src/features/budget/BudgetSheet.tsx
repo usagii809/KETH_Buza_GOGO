@@ -7,10 +7,19 @@ import { MoneyInput, primaryButton } from "../../ui/controls";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
 
-const SECTIONS: { title: string; fields: [BudgetKey, string][] }[] = [
-  { title: "고정지출 · 매달 꼭 나가는 돈", fields: FIXED_FIELDS },
-  ...GROUPS.map((g) => ({ title: `${g.label} 예산`, fields: CATEGORIES.filter((c) => c.group === g.key).map((c) => [c.key, c.label] as [BudgetKey, string]) }))
-];
+const inputCls = "w-36 shrink-0 bg-white text-right text-base font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue placeholder:text-toss-muted placeholder:font-medium";
+
+function Field({ id, label, value, onChange, hint, empty = "0" }: { id: string; label: string; value: number; onChange: (v: number) => void; hint?: string; empty?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <label htmlFor={id} className="text-sm font-medium text-toss-text min-w-0">
+        {label}
+        {hint && <span className="block text-[11px] font-normal text-toss-sub">{hint}</span>}
+      </label>
+      <MoneyInput id={id} value={value} onChange={onChange} placeholder={empty} className={inputCls} />
+    </div>
+  );
+}
 
 export function BudgetSheet({ period, budget, onClose }: { period: PeriodInfo; budget: Budget; onClose: () => void }) {
   const { toast } = useFeedback();
@@ -52,28 +61,44 @@ export function BudgetSheet({ period, budget, onClose }: { period: PeriodInfo; b
             className="w-full bg-toss-blueLight/70 text-toss-text text-lg font-bold num rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
         </div>
 
-        {SECTIONS.map((sec) => (
-          <div key={sec.title} className="pt-3 border-t border-toss-border space-y-2.5">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-bold text-toss-sub">{sec.title}</p>
-              <span className="text-sm font-bold text-toss-blue num">합계 {formatKRW(sec.fields.reduce((t, [k]) => t + draft[k], 0))}</span>
-            </div>
-            {sec.fields.map(([key, label]) => (
-              <div key={key} className="flex items-center justify-between gap-2">
-                <label htmlFor={`edit_${key}`} className="text-sm font-medium text-toss-text min-w-0">{label}</label>
-                <MoneyInput id={`edit_${key}`} value={draft[key]} onChange={set(key)}
-                  className="w-36 shrink-0 bg-toss-bg text-right text-base font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
-              </div>
-            ))}
-          </div>
-        ))}
+        {/* 한눈에 보기: 수입 = 고정 + 변동 + 저축 */}
+        <BudgetFlow income={draft.income} fixed={fixedTotalOf(draft)} variable={variableBudgetOf(draft)} planned={planned} rate={rate} />
 
-        <div className="p-3.5 rounded-2xl bg-toss-bg space-y-1">
-          <div className="flex justify-between text-sm"><span className="text-toss-sub">고정지출 합계</span><span className="font-bold num">{formatKRW(fixedTotalOf(draft))}</span></div>
-          <div className="flex justify-between text-sm"><span className="text-toss-sub">변동지출 예산 합계</span><span className="font-bold num">{formatKRW(variableBudgetOf(draft))}</span></div>
-          <div className="flex justify-between text-sm"><span className="text-toss-sub">이대로면 매달 모이는 돈</span>
-            <span className={`font-bold num ${planned < 0 ? "text-toss-red" : "text-toss-blue"}`}>{formatKRW(planned)}{rate}</span></div>
-        </div>
+        <section className="rounded-2xl bg-toss-bg p-3.5 space-y-2.5">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-base font-bold text-toss-text">📌 고정지출</p>
+              <p className="text-xs text-toss-sub">매달 꼭 나가는 돈 · 가용 예산에서 빠져요</p>
+            </div>
+            <span className="text-base font-bold num text-toss-text">{formatKRW(fixedTotalOf(draft))}</span>
+          </div>
+          {FIXED_FIELDS.map(([key, label]) => <Field key={key} id={`edit_${key}`} label={label} value={draft[key]} onChange={set(key)} />)}
+        </section>
+
+        <section className="rounded-2xl bg-toss-blueLight/60 border border-blue-100 p-3.5 space-y-4">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-base font-bold text-toss-blue">🛒 변동지출 예산</p>
+              <p className="text-xs text-toss-sub">이번 달에 나눠 쓸 돈 · 기록하면 여기서 빠져요</p>
+            </div>
+            <span id="variableTotal" className="text-lg font-bold num text-toss-blue">{formatKRW(variableBudgetOf(draft))}</span>
+          </div>
+          {GROUPS.map((g) => {
+            const cats = CATEGORIES.filter((c) => c.group === g.key);
+            return (
+              <div key={g.key} className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${g.badge}`}>{g.label}</span>
+                  <span className="text-xs font-bold text-toss-sub num">소계 {formatKRW(cats.reduce((t, c) => t + draft[c.key], 0))}</span>
+                </div>
+                {cats.map((c) => (
+                  <Field key={c.key} id={`edit_${c.key}`} label={c.label} value={draft[c.key]} onChange={set(c.key)} empty="기록만"
+                    hint={NO_LIMIT_OK.includes(c.key) && !draft[c.key] ? "비워두면 예산 없이 기록만 해요" : undefined} />
+                ))}
+              </div>
+            );
+          })}
+        </section>
 
         <label className="flex items-start gap-2 pt-1 cursor-pointer select-none">
           <input type="checkbox" checked={alsoDefault} onChange={(e) => setAlsoDefault(e.target.checked)} className="w-4 h-4 mt-0.5 rounded text-toss-blue focus:ring-toss-blue" />
@@ -84,5 +109,35 @@ export function BudgetSheet({ period, budget, onClose }: { period: PeriodInfo; b
         </label>
       </form>
     </Sheet>
+  );
+}
+
+/** 통신비·교통비처럼 정해두기 어려운 항목은 0으로 둬도 돼요 */
+const NO_LIMIT_OK: string[] = ["livingTelecom", "livingTransport"];
+
+/** 수입이 어디로 가는지 막대 하나로 */
+function BudgetFlow({ income, fixed, variable, planned, rate }: { income: number; fixed: number; variable: number; planned: number; rate: string }) {
+  const base = Math.max(income, fixed + variable, 1);
+  const w = (n: number) => `${Math.max(0, (n / base) * 100)}%`;
+  const row = (dot: string, label: string, value: number, cls = "text-toss-text") => (
+    <div className="flex items-center justify-between text-sm">
+      <span className="flex items-center gap-1.5 text-toss-sub"><span className={`w-2.5 h-2.5 rounded-sm ${dot}`} />{label}</span>
+      <span className={`font-bold num ${cls}`}>{value < 0 ? "-" : ""}{formatKRW(Math.abs(value))}</span>
+    </div>
+  );
+  return (
+    <div className="p-3.5 rounded-2xl border border-toss-border space-y-2">
+      <div className="flex h-3 rounded-full overflow-hidden bg-toss-bg">
+        <div className="bg-gray-400" style={{ width: w(fixed) }} />
+        <div className="bg-toss-blue" style={{ width: w(variable) }} />
+        {planned > 0 && <div className="bg-toss-green" style={{ width: w(planned) }} />}
+      </div>
+      {row("bg-gray-400", "📌 고정지출", fixed)}
+      {row("bg-toss-blue", "🛒 변동지출 예산", variable, "text-toss-blue")}
+      <div className="pt-1.5 border-t border-toss-border">
+        {row(planned < 0 ? "bg-toss-red" : "bg-toss-green", planned < 0 ? "💸 수입보다 많이 잡았어요" : "💰 매달 모이는 돈", planned, planned < 0 ? "text-toss-red" : "text-toss-green")}
+        {rate && planned >= 0 && <p className="text-right text-xs text-toss-sub num">수입의{rate.replace(/[()]/g, "")}</p>}
+      </div>
+    </div>
   );
 }

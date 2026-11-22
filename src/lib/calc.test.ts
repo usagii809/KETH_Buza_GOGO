@@ -144,7 +144,20 @@ describe("자동완성", () => {
     ]);
     const s = suggestMemos(idx, "이마");
     expect(s[0]).toMatchObject({ memo: "이마트", category: "foodIngredients" });
-    expect(s).toHaveLength(2);
+    expect(s).toHaveLength(1); // 한 번만 쓴 "홈플러스 이마"는 빼요
+  });
+  it("두 번 이상 쓴 곳만, 쿠·쿺·ㅋㅍ로도 쿠팡을 찾아요", () => {
+    const idx = buildMemoIndex([
+      tx("2026-10-01", "foodIngredients", 1, { memo: "쿠팡" }),
+      tx("2026-10-02", "foodIngredients", 1, { memo: "쿠팡" }),
+      tx("2026-10-03", "foodCafe", 1, { memo: "스타벅스" }),
+      tx("2026-10-04", "foodCafe", 1, { memo: "스타벅스" }),
+      tx("2026-10-05", "livingOther", 1, { memo: "쿠키가게" })
+    ]);
+    expect(suggestMemos(idx, "").map((e) => e.memo).sort()).toEqual(["스타벅스", "쿠팡"]);
+    for (const q of ["ㅋ", "쿠", "쿺", "쿠파", "ㅋㅍ"]) expect(suggestMemos(idx, q).map((e) => e.memo)).toEqual(["쿠팡"]);
+    expect(suggestMemos(idx, "벅스").map((e) => e.memo)).toEqual(["스타벅스"]);
+    expect(suggestMemos(idx, "쿠팡")).toEqual([]);
   });
 });
 

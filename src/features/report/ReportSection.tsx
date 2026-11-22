@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { shiftMonth, todayYm, type PeriodInfo } from "../../lib/dates";
 import { store } from "../../lib/storage";
-import type { Goal, Transaction } from "../../lib/types";
+import type { Transaction } from "../../lib/types";
 import { useFeedback } from "../../ui/feedback";
 import type { Summary } from "../budget/calc";
 import { confetti } from "../fun/confetti";
@@ -12,15 +12,17 @@ interface Props {
   s: Summary;
   txs: Transaction[];
   prevTxs: Transaction[];
-  goals: Goal[];
   now: Date;
   noSpendStart: string | null;
   onOpenLastMonth: () => void;
-  onDepositToGoal: (goal: Goal, amount: number) => void;
+  /** 지난 달 화면 아래쪽에 붙는 정산 칸 */
+  settle?: ReactNode;
+  /** 카테고리 비교 */
+  insights?: ReactNode;
 }
 
 /** 이번 달 화면: "성적표 도착" 배너 / 지난 달 화면: 결산 카드 */
-export function ReportSection({ period, s, txs, prevTxs, goals, now, noSpendStart, onOpenLastMonth, onDepositToGoal }: Props) {
+export function ReportSection({ period, s, txs, prevTxs, now, noSpendStart, onOpenLastMonth, settle, insights }: Props) {
   const { toast } = useFeedback();
   const lastMonth = shiftMonth(todayYm(now), -1);
   const showCard = period.state === "past" && txs.length > 0;
@@ -75,14 +77,10 @@ export function ReportSection({ period, s, txs, prevTxs, goals, now, noSpendStar
           </div>
         ))}
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {s.projectedSavings > 0 && goals.slice(0, 3).map((g) => (
-          <button key={g.id} type="button" onClick={() => onDepositToGoal(g, s.projectedSavings)}
-            className="px-3 py-2 rounded-xl bg-toss-blueLight text-sm font-bold text-toss-blue active:scale-95 transition">
-            {g.emoji} {g.name}에 넣기
-          </button>
-        ))}
-        <button type="button" onClick={share} className="px-3 py-2 rounded-xl bg-toss-bg text-sm font-bold text-toss-sub active:scale-95 transition">공유하기</button>
+      {insights}
+      {settle}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" onClick={share} className="px-3 py-2 rounded-xl bg-toss-bg text-sm font-bold text-toss-sub active:scale-95 transition">성적표 공유하기</button>
       </div>
     </section>
   );

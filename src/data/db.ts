@@ -6,7 +6,7 @@ import {
 import { db } from "../lib/firebase";
 import { BUDGET_KEYS, normalizeBudget, normalizeCategory, normalizeSpender, type Budget } from "../lib/categories";
 import { dueDateInMonth, todayStr, todayYm } from "../lib/dates";
-import type { Goal, LotteryTicket, Profile, RecurringRule, Transaction } from "../lib/types";
+import type { Goal, LotteryTicket, Profile, RecurringRule, Settlement, Transaction } from "../lib/types";
 
 const BASE = "ledgers/shared_household";
 export const refs = {
@@ -23,7 +23,9 @@ export const refs = {
   profiles: () => collection(db, `${BASE}/profiles`),
   profile: (uid: string) => doc(db, `${BASE}/profiles/${uid}`),
   lotteries: () => collection(db, `${BASE}/lottery`),
-  lottery: (id: string) => doc(db, `${BASE}/lottery/${id}`)
+  lottery: (id: string) => doc(db, `${BASE}/lottery/${id}`),
+  // 예산 문서(months)와 섞이지 않게 따로 둬요
+  settlement: (ym: string) => doc(db, `${BASE}/settlements/${ym}`)
 };
 
 export const monthQuery = (ym: string) => query(refs.transactions(), where("yearMonth", "==", ym));
@@ -45,6 +47,14 @@ export function updateExpense(id: string, input: ExpenseInput) {
   return updateDoc(refs.transaction(id), { ...input, yearMonth: input.date.slice(0, 7), updatedAt: Date.now() });
 }
 export const deleteExpense = (id: string) => deleteDoc(refs.transaction(id));
+
+// ── 같이 보기: 반응 ──
+/** 최근 30일 안에 남긴 기록 (새 소식 피드) */
+export const FEED_DAYS = 30;
+export const feedQuery = (since: number) => query(refs.transactions(), where("createdAt", ">=", since));
+/** emoji가 null이면 반응 지우기 */
+export const setReaction = (txId: string, uid: string, emoji: string | null) =>
+  updateDoc(refs.transaction(txId), { [`reactions.${uid}`]: emoji ? { e: emoji, at: Date.now() } : deleteField() });
 
 export const HISTORY_DAYS = 120;
 
@@ -177,6 +187,24 @@ export async function getOrCreateTicket(uid: string, date: string, draw: () => O
   return { id, ...ticket };
 }
 export const revealTicket = (id: string) => updateDoc(refs.lottery(id), { revealed: true, revealedAt: Date.now() });
+
+// ── 복권 쿠폰함 ──
+export const COUPON_TIERS = ["jackpot", "prize", "love"] as const;
+export const couponQuery = () => query(refs.lotteries(), where("tier", "in", [...COUPON_TIERS]));
+export const markCouponUsed = (id: string) => updateDoc(refs.lottery(id), { usedAt: Date.now() });
+
+// ── 월말 정산 ──
+/** 남은 돈을 저축 목표에 넣고, 그 달에 '정산 완료'를 남겨요 (한 번에 저장) */
+export async function settleMonth(ym: string, goal: Pick<Goal, "id" | "name">, amount: number, by?: string) {
+  const at = Date.now();
+  const batch = writeBatch(db);
+  batch.update(refs.goal(goal.id), { saved: increment(amount), history: arrayUnion({ at, amount }) });
+  const settlement: Settlement = { at, goalId: goal.id, goalName: goal.name, amount, ...(by ? { by } : {}) };
+  batch.set(refs.settlement(ym), settlement);
+  await batch.commit();
+}
+export const skipSettlement = (ym: string, by?: string) =>
+  setDoc(refs.settlement(ym), { at: Date.now(), skipped: true, ...(by ? { by } : {}) });
 
 // ── 백업 / 복원 ──
 export async function exportBackup(defaultBudget: Budget) {

@@ -19,6 +19,13 @@ export interface Transaction {
   /** 회사 돈(영업활동비)으로 쓴 내역: 기록만 하고 가계부 계산에서는 빠져요 */
   company?: boolean;
   recurringId?: string;
+  /** 같이 보기 반응: uid → 이모지 */
+  reactions?: Record<string, Reaction>;
+}
+
+export interface Reaction {
+  e: string;
+  at: number;
 }
 
 /** 가계부 계산에 들어가는 지출인지 (회사 돈은 제외) */
@@ -78,4 +85,17 @@ export interface LotteryTicket {
   prize: string;
   revealed: boolean;
   createdAt?: number;
+  /** 쿠폰을 쓴 시각 */
+  usedAt?: number;
+}
+
+/** 월말 정산 기록 (months/{ym}.settlement) */
+export interface Settlement {
+  at: number;
+  by?: string;
+  /** 넘어가기를 눌렀으면 true */
+  skipped?: boolean;
+  goalId?: string;
+  goalName?: string;
+  amount?: number;
 }

@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <!-- 아이폰 노치/다이나믹 아일랜드 대응 및 확대 방지 뷰포트 설정 -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- 아이폰 노치/다이나믹 아일랜드 대응. 입력칸을 16px 이상으로 맞춰 확대 방지 없이도 포커스 시 자동 줌이 생기지 않음 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>태형이와 경은이의 부자 되기 프로젝트!!</title>
 
   <!-- iOS PWA (홈 화면에 추가 시 네이티브 앱처럼 동작) -->
@@ -17,7 +17,7 @@
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-  <!-- Tailwind CSS CDN -->
+  <!-- Tailwind CSS CDN (v3) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -48,39 +48,34 @@
   </script>
 
   <style>
-    /* 아이폰 안전 영역(Safe Area) 패딩 및 스크롤바 정돈 */
     body {
       background-color: #F2F4F6;
       color: #191F28;
       -webkit-tap-highlight-color: transparent;
       padding-top: env(safe-area-inset-top);
-      padding-bottom: calc(env(safe-area-inset-bottom) + 88px);
+      padding-bottom: calc(env(safe-area-inset-bottom) + 96px);
     }
-    .num {
-      font-variant-numeric: tabular-nums;
-    }
+    .num { font-variant-numeric: tabular-nums; }
     .progress-fill {
       transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.25s ease;
     }
     .donut-segment {
       transition: stroke-dasharray 0.45s cubic-bezier(0.22, 1, 0.36, 1), stroke-dashoffset 0.45s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.25s ease;
     }
+    .sheet { transition: transform 0.2s ease; }
     input[type="number"]::-webkit-inner-spin-button,
-    input[type="number"]::-webkit-outer-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   </style>
 </head>
 <body class="min-h-screen antialiased selection:bg-toss-blueLight selection:text-toss-blue">
 
-  <!-- 1. 로그인 화면 (로그아웃 상태일 때만 표시) -->
+  <!-- 1. 로그인 화면 -->
   <div id="loginView" class="hidden min-h-screen flex items-center justify-center px-4 py-10">
     <div class="w-full max-w-md bg-white rounded-3xl p-7 shadow-sm border border-toss-border/60">
       <div class="mb-6">
         <h1 class="text-2xl font-bold text-toss-text">태형이와 경은이의 부자되기 프로젝트!</h1>
-        <p class="text-xs text-toss-sub mt-1.5 leading-relaxed">
-          등록된 부부 계정으로 로그인하면 양쪽 아이폰의 지출 내역과 예산 잔액이 실시간으로 동기화됩니다.
+        <p class="text-sm text-toss-sub mt-1.5 leading-relaxed">
+          등록된 부부 계정으로 로그인하면 두 사람의 지출 내역과 예산이 실시간으로 동기화돼요.
         </p>
       </div>
 
@@ -88,54 +83,50 @@
         <div>
           <label for="loginEmail" class="block text-xs font-semibold text-toss-sub mb-1.5">이메일 아이디</label>
           <input type="email" id="loginEmail" required autocomplete="username" placeholder="example@gmail.com"
-            class="w-full bg-toss-bg text-toss-text text-sm font-medium rounded-2xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-toss-blue transition" />
+            class="w-full bg-toss-bg text-toss-text text-base font-medium rounded-2xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-toss-blue transition" />
         </div>
         <div>
           <label for="loginPassword" class="block text-xs font-semibold text-toss-sub mb-1.5">비밀번호</label>
           <input type="password" id="loginPassword" required autocomplete="current-password" placeholder="비밀번호 입력"
-            class="w-full bg-toss-bg text-toss-text text-sm font-medium rounded-2xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-toss-blue transition" />
+            class="w-full bg-toss-bg text-toss-text text-base font-medium rounded-2xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-toss-blue transition" />
         </div>
 
-        <div id="loginErrorBox" class="hidden p-3.5 rounded-2xl bg-red-50 text-toss-red text-xs font-medium leading-relaxed"></div>
+        <div id="loginErrorBox" class="hidden p-3.5 rounded-2xl bg-red-50 text-toss-red text-sm font-medium leading-relaxed"></div>
 
         <button type="submit" id="loginSubmitBtn"
-          class="w-full py-3.5 rounded-2xl bg-toss-blue hover:bg-toss-blueDark text-white text-sm font-bold shadow-sm active:scale-[0.99] transition">
+          class="w-full py-3.5 rounded-2xl bg-toss-blue hover:bg-toss-blueDark text-white text-base font-bold shadow-sm active:scale-[0.99] transition">
           로그인하기
         </button>
       </form>
     </div>
   </div>
 
-  <!-- 2. 메인 가계부 대시보드 (로그인 완료 시 표시) -->
+  <!-- 2. 메인 대시보드 -->
   <div id="appView" class="hidden max-w-lg mx-auto px-4 pt-3 pb-10">
 
     <!-- 상단 헤더 & 월 선택기 -->
     <header class="flex items-center justify-between py-2 mb-3">
       <div>
-        <div class="flex items-center gap-2">
-          <span class="text-xs font-bold text-toss-blue tracking-tight">태형이와 경은이의 부자 되기 프로젝트!!</span>
-        </div>
-        <!-- 월 이동 컨트롤 -->
+        <span class="text-xs font-bold text-toss-blue tracking-tight">태형이와 경은이의 부자 되기 프로젝트!!</span>
         <div class="flex items-center gap-2 mt-1.5">
           <button id="prevMonthBtn" type="button" aria-label="이전 달"
             class="w-8 h-8 rounded-full bg-white border border-toss-border flex items-center justify-center text-toss-sub hover:bg-gray-100 active:scale-95 transition">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
           </button>
           <h1 id="currentMonthLabel" class="text-xl font-bold text-toss-text tracking-tight num px-1">2026년 11월</h1>
           <button id="nextMonthBtn" type="button" aria-label="다음 달"
             class="w-8 h-8 rounded-full bg-white border border-toss-border flex items-center justify-center text-toss-sub hover:bg-gray-100 active:scale-95 transition">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+          </button>
+          <button id="goThisMonthBtn" type="button"
+            class="hidden ml-1 px-2.5 py-1 rounded-full bg-toss-blueLight text-toss-blue text-xs font-bold active:scale-95 transition">
+            이번 달로
           </button>
         </div>
       </div>
 
-      <!-- 우측 설정/로그아웃/백업 버튼 -->
       <button id="openSettingsModalBtn" type="button" aria-label="설정 및 데이터 백업"
-        class="w-10 h-10 rounded-2xl bg-white border border-toss-border flex items-center justify-center text-toss-sub hover:bg-gray-100 active:scale-95 transition shadow-2xs">
+        class="w-10 h-10 rounded-2xl bg-white border border-toss-border flex items-center justify-center text-toss-sub hover:bg-gray-100 active:scale-95 transition shadow-sm">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -144,221 +135,159 @@
     </header>
 
     <!-- DB 권한/네트워크 경고 배너 -->
-    <div id="dbErrorBanner" class="hidden mb-4 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-xs text-toss-red font-medium leading-relaxed"></div>
+    <div id="dbErrorBanner" class="hidden mb-4 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-sm text-toss-red font-medium leading-relaxed"></div>
 
-    <!-- 2-1. 상단 대시보드 카드 (SVG 원형 그래프 + 저축액 + 남은 예산 + 식비 게이지) -->
-    <section class="bg-white rounded-3xl p-5 shadow-2xs mb-4">
-      <!-- DB 예산 미등록 안내 배너 -->
-      <div id="emptyBudgetPrompt" class="hidden mb-4 p-3.5 rounded-2xl bg-toss-blueLight border border-blue-100 flex items-center justify-between gap-3">
-        <p class="text-xs text-toss-text font-medium leading-relaxed">
-          아직 등록된 예산이 없습니다. 우측 <strong class="text-toss-blue">[예산 수정]</strong>을 눌러 수입과 고정지출·예산을 등록해 주세요.
+    <!-- 2-1. 저축 요약 카드 -->
+    <section class="bg-white rounded-3xl p-5 shadow-sm mb-4">
+      <div id="emptyBudgetPrompt" class="hidden mb-4 p-3.5 rounded-2xl bg-toss-blueLight border border-blue-100">
+        <p class="text-sm text-toss-text font-medium leading-relaxed">
+          아직 등록된 예산이 없어요. <strong class="text-toss-blue">[예산 수정]</strong>을 눌러 수입과 고정지출·예산을 등록해 주세요.
         </p>
       </div>
 
-      <!-- 원형 그래프 대시보드 + 우측 저축 요약 & 범례 -->
-      <div class="flex items-center gap-4 mb-4 pb-4 border-b border-toss-border">
-        <!-- 좌측: SVG 원형(도넛) 그래프 -->
+      <div class="flex items-center gap-4">
+        <!-- 도넛 그래프 (저축 + 변동지출 + 고정지출 = 월수입) -->
         <div class="relative w-28 h-28 shrink-0 flex items-center justify-center">
-          <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-label="월 수입 배분 원형 그래프">
-            <!-- 배경 트랙 -->
+          <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-label="월수입 배분 원형 그래프">
             <circle cx="50" cy="50" r="38" fill="none" stroke="#F2F4F6" stroke-width="11" />
-            <!-- 1) 저축 세그먼트 (Toss Blue #3182F6) -->
-            <circle id="donutSavingsSeg" cx="50" cy="50" r="38" fill="none" stroke="#3182F6" stroke-width="11"
-              stroke-linecap="butt" stroke-dasharray="0 238.76" stroke-dashoffset="0" class="donut-segment" />
-            <!-- 2) 생활비 세그먼트 (Toss Green #00B37E / Amber #FF9F00) -->
-            <circle id="donutLivingSeg" cx="50" cy="50" r="38" fill="none" stroke="#00B37E" stroke-width="11"
-              stroke-linecap="butt" stroke-dasharray="0 238.76" stroke-dashoffset="0" class="donut-segment" />
-            <!-- 3) 고정지출 세그먼트 (Slate #8B95A1) -->
-            <circle id="donutFixedSeg" cx="50" cy="50" r="38" fill="none" stroke="#8B95A1" stroke-width="11"
-              stroke-linecap="butt" stroke-dasharray="0 238.76" stroke-dashoffset="0" class="donut-segment" />
+            <circle id="donutSavingsSeg" cx="50" cy="50" r="38" fill="none" stroke="#3182F6" stroke-width="11" stroke-dasharray="0 238.76" class="donut-segment" />
+            <circle id="donutLivingSeg" cx="50" cy="50" r="38" fill="none" stroke="#00B37E" stroke-width="11" stroke-dasharray="0 238.76" class="donut-segment" />
+            <circle id="donutFixedSeg" cx="50" cy="50" r="38" fill="none" stroke="#8B95A1" stroke-width="11" stroke-dasharray="0 238.76" class="donut-segment" />
           </svg>
-          <!-- 도넛 중앙 저축률 텍스트 -->
           <div class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-            <span class="text-[10px] font-medium text-toss-muted leading-none">저축률</span>
-            <span id="donutCenterRate" class="text-sm font-bold text-toss-text num mt-1">0.0%</span>
+            <span class="text-xs font-medium text-toss-sub leading-none">저축률</span>
+            <span id="donutCenterRate" class="text-base font-bold text-toss-text num mt-1">0.0%</span>
           </div>
         </div>
 
-        <!-- 우측: 이번 달 예상 저축액 + 예산 수정 버튼 + 컬러 범례 -->
         <div class="flex-1 min-w-0">
           <div class="flex items-start justify-between gap-2">
-            <div class="min-w-0">
-              <p class="text-xs font-medium text-toss-sub">이번 달 예상 저축액</p>
-              <p id="netSavingsAmount" class="text-xl sm:text-2xl font-bold text-toss-blue num mt-0.5 truncate">0원</p>
-              <p id="savingsRateText" class="text-[11px] text-toss-muted mt-0.5 num truncate">예산 전액 사용 시 목표 0원</p>
-            </div>
+            <p id="savingsLabel" class="text-sm font-medium text-toss-sub">이번 달 예상 저축액</p>
             <button id="openBudgetModalBtn" type="button"
-              class="text-xs font-semibold text-toss-sub bg-toss-bg hover:bg-gray-200/70 px-2.5 py-1.5 rounded-xl active:scale-95 transition shrink-0">
+              class="text-xs font-semibold text-toss-sub bg-toss-bg hover:bg-gray-200/70 px-2.5 py-1.5 rounded-xl active:scale-95 transition shrink-0 -mt-1">
               예산 수정
             </button>
           </div>
-
-          <!-- 3색 배분 범례 -->
-          <div class="mt-3 pt-2.5 border-t border-toss-border/70 space-y-1">
-            <div class="flex items-center justify-between text-[11px]">
-              <span class="flex items-center gap-1.5 text-toss-sub font-medium">
-                <span class="w-2 h-2 rounded-full bg-toss-blue inline-block"></span>저축
-              </span>
-              <span id="legendSavingsVal" class="font-bold text-toss-text num">0원</span>
-            </div>
-            <div class="flex items-center justify-between text-[11px]">
-              <span class="flex items-center gap-1.5 text-toss-sub font-medium">
-                <span id="legendLivingDot" class="w-2 h-2 rounded-full bg-toss-green inline-block"></span>생활비
-              </span>
-              <span id="legendLivingVal" class="font-bold text-toss-text num">0원</span>
-            </div>
-            <div class="flex items-center justify-between text-[11px]">
-              <span class="flex items-center gap-1.5 text-toss-sub font-medium">
-                <span class="w-2 h-2 rounded-full bg-toss-muted inline-block"></span>고정지출
-              </span>
-              <span id="legendFixedVal" class="font-bold text-toss-text num">0원</span>
-            </div>
-          </div>
+          <p id="netSavingsAmount" class="text-2xl font-bold text-toss-blue num mt-0.5 truncate">0원</p>
+          <p id="savingsGapText" class="text-xs font-medium text-toss-sub mt-1 leading-snug"></p>
         </div>
       </div>
 
-      <!-- 핵심 잔액 2단 박스 -->
-      <div class="grid grid-cols-2 gap-3 mb-4">
-        <div class="bg-toss-bg rounded-2xl p-3.5">
-          <span class="text-xs font-medium text-toss-sub block">남은 예산 총합</span>
-          <span id="remainingVariableAmount" class="text-base font-bold text-toss-text num mt-1 block">0원</span>
-          <span id="totalVariableBudgetSub" class="text-[11px] text-toss-muted num mt-0.5 block">총 생활 예산 0원</span>
+      <!-- 배분 범례 (세 줄의 합 = 월수입) -->
+      <div class="mt-4 pt-3 border-t border-toss-border space-y-1.5">
+        <div class="flex items-center justify-between text-sm">
+          <span class="flex items-center gap-2 text-toss-sub font-medium"><span class="w-2.5 h-2.5 rounded-full bg-toss-blue inline-block"></span>저축</span>
+          <span id="legendSavingsVal" class="font-bold text-toss-text num">0원</span>
         </div>
-        <div class="bg-toss-blueLight/80 rounded-2xl p-3.5">
-          <span class="text-xs font-semibold text-toss-blue block">남은 식비 예산</span>
-          <span id="remainingFoodAmount" class="text-base font-bold text-toss-text num mt-1 block">0원</span>
-          <span id="foodUsageSub" class="text-[11px] text-toss-sub num mt-0.5 block">총 예산 0원 · 사용 0원 (0%)</span>
+        <div class="flex items-center justify-between text-sm">
+          <span class="flex items-center gap-2 text-toss-sub font-medium">
+            <span id="legendLivingDot" class="w-2.5 h-2.5 rounded-full inline-block" style="background:#00B37E"></span>변동지출
+            <span id="legendLivingSub" class="text-xs text-toss-sub font-normal num"></span>
+          </span>
+          <span id="legendLivingVal" class="font-bold text-toss-text num">0원</span>
         </div>
-      </div>
-
-      <!-- 식비 통합 한도 게이지 바 -->
-      <div class="mb-4 pb-4 border-b border-toss-border">
-        <div class="flex justify-between items-center text-xs mb-1.5">
-          <span class="font-semibold text-toss-text">🍽️ 식비 통합 한도 게이지 <span class="text-toss-muted font-normal">(식재료비+외식·배달+카페·디저트)</span></span>
-          <span id="foodGaugePercent" class="font-bold text-toss-blue num">0%</span>
+        <div class="flex items-center justify-between text-sm">
+          <span class="flex items-center gap-2 text-toss-sub font-medium"><span class="w-2.5 h-2.5 rounded-full bg-toss-muted inline-block"></span>고정지출</span>
+          <span id="legendFixedVal" class="font-bold text-toss-text num">0원</span>
         </div>
-        <div class="w-full h-2.5 bg-toss-bg rounded-full overflow-hidden">
-          <div id="foodGaugeBar" class="h-full bg-toss-blue rounded-full progress-fill" style="width: 0%"></div>
-        </div>
-      </div>
-
-      <!-- 세부 항목별 예산 현황 8개 진행 바 -->
-      <div>
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-xs font-bold text-toss-text">세부 항목별 예산 현황</span>
-          <span class="text-[11px] text-toss-muted">고정지출 <span id="fixedSummaryInline" class="font-semibold text-toss-sub num">0원</span> 차감됨</span>
-        </div>
-        <div id="categoryProgressList" class="space-y-3.5">
-          <!-- JS 동적 렌더링 -->
+        <div class="flex items-center justify-between text-xs pt-1.5 border-t border-dashed border-toss-border">
+          <span class="text-toss-sub font-medium">월수입 (세후)</span>
+          <span id="legendIncomeVal" class="font-semibold text-toss-sub num">0원</span>
         </div>
       </div>
     </section>
 
-    <!-- 2-2. 이번 달 지출 내역 리스트 카드 -->
-    <section class="bg-white rounded-3xl p-5 shadow-2xs">
+    <!-- 2-2. 가용 예산 + 항목별 예산 카드 -->
+    <section class="bg-white rounded-3xl p-5 shadow-sm mb-4">
+      <!-- 가용 예산 (하루 / 이번 주 / 이번 달) -->
       <div class="flex items-center justify-between mb-3">
-        <div>
-          <h2 class="text-sm font-bold text-toss-text">지출 내역</h2>
-          <p id="txSummaryCount" class="text-[11px] text-toss-muted mt-0.5 num">총 0건 · 합계 0원</p>
-        </div>
-        <!-- 지출 주체 필터 칩 -->
-        <div class="flex items-center gap-1 bg-toss-bg p-1 rounded-xl">
-          <button type="button" data-filter="ALL" class="filter-btn px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white text-toss-text shadow-2xs">전체</button>
-          <button type="button" data-filter="남편" class="filter-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold text-toss-sub">남편</button>
-          <button type="button" data-filter="아내" class="filter-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold text-toss-sub">아내</button>
-          <button type="button" data-filter="공동" class="filter-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold text-toss-sub">공동</button>
+        <h2 id="availableTitle" class="text-base font-bold text-toss-text">하루 가용 예산</h2>
+        <div id="periodToggle" class="flex items-center gap-1 bg-toss-bg p-1 rounded-xl">
+          <button type="button" data-period="day" class="period-btn px-2.5 py-1 rounded-lg text-xs font-bold">하루</button>
+          <button type="button" data-period="week" class="period-btn px-2.5 py-1 rounded-lg text-xs font-bold">이번 주</button>
+          <button type="button" data-period="month" class="period-btn px-2.5 py-1 rounded-lg text-xs font-bold">이번 달</button>
         </div>
       </div>
 
-      <div id="transactionList" class="divide-y divide-toss-border">
-        <!-- JS 동적 렌더링 -->
+      <div class="grid grid-cols-2 gap-3 mb-5">
+        <div class="bg-toss-bg rounded-2xl p-3.5">
+          <span class="text-sm font-medium text-toss-sub block">변동지출 전체</span>
+          <span id="availVariableAmount" class="text-lg font-bold text-toss-text num mt-1 block">0원</span>
+          <span id="availVariableSub" class="text-xs text-toss-sub num mt-1 block leading-snug"></span>
+        </div>
+        <div class="bg-toss-blueLight/80 rounded-2xl p-3.5">
+          <span class="text-sm font-semibold text-toss-blue block">🍽️ 식비</span>
+          <span id="availFoodAmount" class="text-lg font-bold text-toss-text num mt-1 block">0원</span>
+          <div id="foodGaugeWrap" class="mt-2"></div>
+          <span id="availFoodSub" class="text-xs text-toss-sub num mt-1 block leading-snug"></span>
+        </div>
       </div>
+
+      <!-- 항목별 예산 -->
+      <div class="pt-4 border-t border-toss-border">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-base font-bold text-toss-text">항목별 예산</span>
+          <span id="paceLegend" class="text-xs text-toss-sub flex items-center gap-1">
+            <span class="inline-block w-0.5 h-3 bg-toss-text/50"></span>오늘 위치
+          </span>
+        </div>
+        <p id="momSummary" class="text-xs font-medium mb-3"></p>
+        <div id="categoryProgressList" class="space-y-5"></div>
+      </div>
+    </section>
+
+    <!-- 2-3. 지출 내역 -->
+    <section class="bg-white rounded-3xl p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <h2 class="text-base font-bold text-toss-text">지출 내역</h2>
+          <p id="txSummaryCount" class="text-xs text-toss-sub mt-0.5 num">총 0건 · 합계 0원</p>
+        </div>
+        <div class="flex items-center gap-1 bg-toss-bg p-1 rounded-xl">
+          <button type="button" data-filter="ALL" class="filter-btn px-2.5 py-1 rounded-lg text-xs font-bold">전체</button>
+          <button type="button" data-filter="태형" class="filter-btn px-2.5 py-1 rounded-lg text-xs font-bold">태형</button>
+          <button type="button" data-filter="경은" class="filter-btn px-2.5 py-1 rounded-lg text-xs font-bold">경은</button>
+          <button type="button" data-filter="공동" class="filter-btn px-2.5 py-1 rounded-lg text-xs font-bold">공동</button>
+        </div>
+      </div>
+      <div id="transactionList"></div>
     </section>
 
     <!-- 하단 플로팅 지출 기록 버튼 -->
     <div class="fixed bottom-5 left-0 right-0 z-30 flex justify-center pointer-events-none px-4" style="padding-bottom: env(safe-area-inset-bottom);">
       <button id="openExpenseModalBtn" type="button"
-        class="pointer-events-auto flex items-center gap-2 px-6 py-3.5 rounded-full bg-toss-blue hover:bg-toss-blueDark text-white text-sm font-bold shadow-lg shadow-blue-500/30 active:scale-95 transition">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-        </svg>
+        class="pointer-events-auto flex items-center gap-2 px-6 py-3.5 rounded-full bg-toss-blue hover:bg-toss-blueDark text-white text-base font-bold shadow-lg shadow-blue-500/30 active:scale-95 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
         <span>지출 기록</span>
       </button>
     </div>
-
   </div>
 
-  <!-- 3. 빠른 지출 기록 바텀 시트 모달 (상·하단 고정) -->
-  <div id="expenseModal" class="hidden fixed inset-0 z-50 bg-black/45 backdrop-blur-xs items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[88vh] flex flex-col overflow-hidden shadow-xl">
-      <!-- 고정 상단 헤더 -->
-      <div class="shrink-0 flex items-center justify-between px-5 pt-5 pb-3.5 border-b border-toss-border bg-white">
-        <h3 class="text-base font-bold text-toss-text">빠른 지출 기록</h3>
-        <button id="closeExpenseModalBtn" type="button" aria-label="닫기"
-          class="w-8 h-8 rounded-full bg-toss-bg flex items-center justify-center text-toss-sub hover:bg-gray-200 transition">
-          ✕
-        </button>
+  <!-- 3. 지출 기록/수정 바텀 시트 -->
+  <div id="expenseModal" class="modal-backdrop hidden fixed inset-0 z-50 bg-black/45 backdrop-blur-sm items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="sheet w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-xl">
+      <div class="sheet-drag shrink-0 bg-white border-b border-toss-border">
+        <div class="flex justify-center pt-2.5 sm:hidden"><span class="w-10 h-1.5 rounded-full bg-toss-border"></span></div>
+        <div class="flex items-center justify-between px-5 pt-3 pb-3.5">
+          <h3 id="expenseModalTitle" class="text-lg font-bold text-toss-text">지출 기록</h3>
+          <button type="button" data-close="expenseModal" aria-label="닫기"
+            class="w-8 h-8 rounded-full bg-toss-bg flex items-center justify-center text-toss-sub hover:bg-gray-200 transition">✕</button>
+        </div>
       </div>
 
-      <!-- 중앙 스크롤 폼 영역 -->
       <form id="expenseForm" class="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          <!-- 날짜 & 카테고리 -->
-          <div class="grid grid-cols-2 gap-2.5">
-            <div>
-              <label for="expenseDate" class="block text-xs font-medium text-toss-sub mb-1">날짜</label>
-              <input type="date" id="expenseDate" required
-                class="w-full bg-toss-bg text-toss-text text-sm font-medium rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue num" />
-            </div>
-            <div>
-              <label for="expenseCategory" class="block text-xs font-medium text-toss-sub mb-1">카테고리</label>
-              <select id="expenseCategory" required
-                class="w-full bg-toss-bg text-toss-text text-sm font-medium rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue">
-                <option value="foodIngredients">[식비] 식재료비</option>
-                <option value="foodDining">[식비] 외식 · 배달</option>
-                <option value="foodCafe">[식비] 카페 · 디저트</option>
-                <option value="livingTelecom">[생활] 통신비</option>
-                <option value="livingTransport">[생활] 교통비</option>
-                <option value="livingOther">[생활] 기타 생활비</option>
-                <option value="essentialConsumables">[생필품] 정기 소모품 (세제·휴지·물 등)</option>
-                <option value="essentialReserve">[생필품] 의류비</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- 지출 주체 선택 -->
+        <div class="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          <!-- 금액 -->
           <div>
-            <span class="block text-xs font-medium text-toss-sub mb-1.5">지출 주체</span>
-            <div class="grid grid-cols-3 gap-2" id="spenderToggleGroup">
-              <button type="button" data-spender="남편"
-                class="spender-btn py-2 rounded-xl text-xs font-bold bg-toss-blue text-white transition active:scale-95">
-                남편
-              </button>
-              <button type="button" data-spender="아내"
-                class="spender-btn py-2 rounded-xl text-xs font-bold bg-toss-bg text-toss-sub hover:bg-gray-200 transition active:scale-95">
-                아내
-              </button>
-              <button type="button" data-spender="공동"
-                class="spender-btn py-2 rounded-xl text-xs font-bold bg-toss-bg text-toss-sub hover:bg-gray-200 transition active:scale-95">
-                공동
-              </button>
-            </div>
-          </div>
-
-          <!-- 금액 입력 (천 단위 콤마 실시간 적용) -->
-          <div>
-            <div class="flex items-center justify-between mb-1">
-              <label for="expenseAmount" class="text-xs font-medium text-toss-sub">금액 (원)</label>
-              <button type="button" id="clearAmountBtn" class="text-[11px] font-semibold text-toss-muted hover:text-toss-text">
-                금액 초기화
-              </button>
+            <div class="flex items-center justify-between mb-1.5">
+              <label for="expenseAmount" class="text-sm font-medium text-toss-sub">금액</label>
+              <button type="button" id="clearAmountBtn" class="text-xs font-semibold text-toss-sub hover:text-toss-text">지우기</button>
             </div>
             <div class="relative">
-              <input type="text" id="expenseAmount" inputmode="numeric" placeholder="0" required
-                class="comma-money-input w-full bg-toss-bg text-toss-text text-lg font-bold num rounded-xl pl-3.5 pr-9 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
-              <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-toss-sub">원</span>
+              <input type="text" id="expenseAmount" inputmode="numeric" placeholder="0" required autocomplete="off"
+                class="comma-money-input w-full bg-toss-bg text-toss-text text-2xl font-bold num rounded-xl pl-4 pr-10 py-3 outline-none focus:ring-2 focus:ring-toss-blue" />
+              <span class="absolute right-4 top-1/2 -translate-y-1/2 text-base font-bold text-toss-sub">원</span>
             </div>
-            <!-- 빠른 금액 추가 버튼 -->
             <div class="grid grid-cols-5 gap-1.5 mt-2">
               <button type="button" data-add="1000" class="quick-chip py-2 rounded-xl bg-toss-bg hover:bg-gray-200 text-xs font-semibold text-toss-sub num active:scale-95 transition">+1천</button>
               <button type="button" data-add="5000" class="quick-chip py-2 rounded-xl bg-toss-bg hover:bg-gray-200 text-xs font-semibold text-toss-sub num active:scale-95 transition">+5천</button>
@@ -368,18 +297,43 @@
             </div>
           </div>
 
-          <!-- 메모 입력 -->
+          <!-- 카테고리 칩 -->
           <div>
-            <label for="expenseMemo" class="block text-xs font-medium text-toss-sub mb-1">사용처 / 메모 (선택)</label>
-            <input type="text" id="expenseMemo" maxlength="40" placeholder="예: 마트 장보기, 주말 저녁, 커피"
-              class="w-full bg-toss-bg text-toss-text text-sm font-medium rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
+            <span class="block text-sm font-medium text-toss-sub mb-1.5">카테고리</span>
+            <input type="hidden" id="expenseCategory" value="foodIngredients" />
+            <div id="categoryChipGroup" class="space-y-2"></div>
+          </div>
+
+          <!-- 지출 주체 -->
+          <div>
+            <span class="block text-sm font-medium text-toss-sub mb-1.5">누가 썼나요?</span>
+            <div class="grid grid-cols-3 gap-2">
+              <button type="button" data-spender="태형" class="spender-btn py-2.5 rounded-xl text-sm font-bold transition active:scale-95">태형</button>
+              <button type="button" data-spender="경은" class="spender-btn py-2.5 rounded-xl text-sm font-bold transition active:scale-95">경은</button>
+              <button type="button" data-spender="공동" class="spender-btn py-2.5 rounded-xl text-sm font-bold transition active:scale-95">공동</button>
+            </div>
+          </div>
+
+          <!-- 날짜 & 메모 -->
+          <div class="grid grid-cols-5 gap-2.5">
+            <div class="col-span-2">
+              <label for="expenseDate" class="block text-sm font-medium text-toss-sub mb-1.5">날짜</label>
+              <input type="date" id="expenseDate" required
+                class="w-full bg-toss-bg text-toss-text text-base font-medium rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue num" />
+            </div>
+            <div class="col-span-3">
+              <label for="expenseMemo" class="block text-sm font-medium text-toss-sub mb-1.5">메모 (선택)</label>
+              <input type="text" id="expenseMemo" maxlength="40" placeholder="예: 마트 장보기"
+                class="w-full bg-toss-bg text-toss-text text-base font-medium rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
+            </div>
           </div>
         </div>
 
-        <!-- 고정 하단 등록 버튼 -->
-        <div class="shrink-0 px-5 py-3.5 border-t border-toss-border bg-white">
+        <div class="shrink-0 flex gap-2 px-5 py-3.5 border-t border-toss-border bg-white">
+          <button type="button" id="deleteExpenseBtn"
+            class="hidden px-4 py-3.5 rounded-2xl bg-red-50 hover:bg-red-100 text-toss-red text-sm font-bold transition">삭제</button>
           <button type="submit" id="submitExpenseBtn"
-            class="w-full py-3.5 rounded-2xl bg-toss-blue hover:bg-toss-blueDark text-white text-sm font-bold shadow-2xs active:scale-[0.99] transition">
+            class="flex-1 py-3.5 rounded-2xl bg-toss-blue hover:bg-toss-blueDark text-white text-base font-bold shadow-sm active:scale-[0.99] transition">
             지출 등록하기
           </button>
         </div>
@@ -387,235 +341,133 @@
     </div>
   </div>
 
-  <!-- 4. 예산 수정 모달 (상단 헤더 및 하단 저장 버튼 고정, 콤마 자동 포맷) -->
-  <div id="budgetModal" class="hidden fixed inset-0 z-50 bg-black/45 backdrop-blur-xs items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-xl">
-      <!-- 고정 상단 헤더 -->
-      <div class="shrink-0 flex items-center justify-between px-5 pt-5 pb-3.5 border-b border-toss-border bg-white">
-        <div>
-          <h3 class="text-base font-bold text-toss-text">수입 · 고정지출 · 예산 수정</h3>
-          <p id="budgetModalMonthSub" class="text-[11px] text-toss-muted mt-0.5">2026년 11월 기준</p>
+  <!-- 4. 예산 수정 바텀 시트 -->
+  <div id="budgetModal" class="modal-backdrop hidden fixed inset-0 z-50 bg-black/45 backdrop-blur-sm items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="sheet w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-xl">
+      <div class="sheet-drag shrink-0 bg-white border-b border-toss-border">
+        <div class="flex justify-center pt-2.5 sm:hidden"><span class="w-10 h-1.5 rounded-full bg-toss-border"></span></div>
+        <div class="flex items-center justify-between px-5 pt-3 pb-3.5">
+          <div>
+            <h3 class="text-lg font-bold text-toss-text">수입 · 고정지출 · 예산</h3>
+            <p id="budgetModalMonthSub" class="text-xs text-toss-sub mt-0.5">2026년 11월 기준</p>
+          </div>
+          <button type="button" data-close="budgetModal" aria-label="닫기"
+            class="w-8 h-8 rounded-full bg-toss-bg flex items-center justify-center text-toss-sub hover:bg-gray-200 transition">✕</button>
         </div>
-        <button id="closeBudgetModalBtn" type="button" aria-label="닫기"
-          class="w-8 h-8 rounded-full bg-toss-bg flex items-center justify-center text-toss-sub hover:bg-gray-200 transition">
-          ✕
-        </button>
       </div>
 
-      <!-- 중앙 스크롤 영역 -->
       <form id="budgetEditForm" class="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          <!-- 월 세후 수입 -->
           <div>
-            <label for="edit_income" class="block text-xs font-bold text-toss-blue mb-1">세후 월수입 (원)</label>
+            <label for="edit_income" class="block text-sm font-bold text-toss-blue mb-1.5">세후 월수입</label>
             <input type="text" id="edit_income" inputmode="numeric" placeholder="0"
-              class="comma-money-input w-full bg-toss-blueLight/70 text-toss-text text-base font-bold num rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
+              class="comma-money-input w-full bg-toss-blueLight/70 text-toss-text text-lg font-bold num rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
           </div>
 
-          <!-- 고정 지출액 3개 -->
-          <div class="pt-3 border-t border-toss-border space-y-2.5">
-            <div class="flex items-center justify-between">
-              <p class="text-xs font-bold text-toss-sub">고정 지출액 (월 고정 차감)</p>
-              <span class="text-xs font-bold text-toss-blue num">합계 <span id="editFixedSubtotal">0원</span></span>
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <label for="edit_fixedLoan" class="text-xs font-medium text-toss-text">대출금</label>
-              <input type="text" id="edit_fixedLoan" inputmode="numeric" placeholder="0"
-                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <label for="edit_fixedMaintenance" class="text-xs font-medium text-toss-text">관리비</label>
-              <input type="text" id="edit_fixedMaintenance" inputmode="numeric" placeholder="0"
-                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <label for="edit_fixedEvents" class="text-xs font-medium text-toss-text">경조사비</label>
-              <input type="text" id="edit_fixedEvents" inputmode="numeric" placeholder="0"
-                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
-            </div>
+          <!-- 섹션은 JS에서 BUDGET_SECTIONS 기준으로 생성 -->
+          <div id="budgetSectionsWrap" class="space-y-4"></div>
+
+          <!-- 계획 미리보기 -->
+          <div class="p-3.5 rounded-2xl bg-toss-bg space-y-1">
+            <div class="flex justify-between text-sm"><span class="text-toss-sub">변동지출 예산 합계</span><span id="editVariableSubtotal" class="font-bold num">0원</span></div>
+            <div class="flex justify-between text-sm"><span class="text-toss-sub">계획 저축액</span><span id="editPlannedSavings" class="font-bold text-toss-blue num">0원</span></div>
           </div>
 
-          <!-- 식비 세부 예산 3개 -->
-          <div class="pt-3 border-t border-toss-border space-y-2.5">
-            <div class="flex items-center justify-between">
-              <p class="text-xs font-bold text-toss-sub">식비 세부 예산</p>
-              <span class="text-xs font-bold text-toss-blue num">식비 합계 <span id="editFoodSubtotal">0원</span></span>
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <label for="edit_foodIngredients" class="text-xs font-medium text-toss-text">[식비] 식재료비</label>
-              <input type="text" id="edit_foodIngredients" inputmode="numeric" placeholder="0"
-                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <label for="edit_foodDining" class="text-xs font-medium text-toss-text">[식비] 외식 · 배달</label>
-              <input type="text" id="edit_foodDining" inputmode="numeric" placeholder="0"
-                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <label for="edit_foodCafe" class="text-xs font-medium text-toss-text">[식비] 카페 · 디저트</label>
-              <input type="text" id="edit_foodCafe" inputmode="numeric" placeholder="0"
-                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
-            </div>
-          </div>
-
-          <!-- 생활비 세부 예산 3개 (통신비 / 교통비 / 기타 생활비 분리) -->
-          <div class="pt-3 border-t border-toss-border space-y-2.5">
-            <div class="flex items-center justify-between">
-              <p class="text-xs font-bold text-toss-sub">생활비 세부 예산</p>
-              <span class="text-xs font-bold text-toss-sub num">소계 <span id="editLivingOnlySubtotal">0원</span></span>
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <label for="edit_livingTelecom" class="text-xs font-medium text-toss-text">[생활] 통신비</label>
-              <input type="text" id="edit_livingTelecom" inputmode="numeric" placeholder="0"
-                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <label for="edit_livingTransport" class="text-xs font-medium text-toss-text">[생활] 교통비</label>
-              <input type="text" id="edit_livingTransport" inputmode="numeric" placeholder="0"
-                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <label for="edit_livingOther" class="text-xs font-medium text-toss-text">[생활] 기타 생활비</label>
-              <input type="text" id="edit_livingOther" inputmode="numeric" placeholder="0"
-                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
-            </div>
-          </div>
-
-          <!-- 생필품 · 의류 예산 2개 -->
-          <div class="pt-3 border-t border-toss-border space-y-2.5">
-            <div class="flex items-center justify-between">
-              <p class="text-xs font-bold text-toss-sub">생필품 · 의류 예산</p>
-              <span class="text-xs font-bold text-toss-text num">생활 예산 총합 <span id="editLivingSubtotal">0원</span></span>
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <label for="edit_essentialConsumables" class="text-xs font-medium text-toss-text">[생필품] 정기 소모품 (세제·휴지·물 등)</label>
-              <input type="text" id="edit_essentialConsumables" inputmode="numeric" placeholder="0"
-                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
-            </div>
-            <div class="flex items-center justify-between gap-2">
-              <label for="edit_essentialReserve" class="text-xs font-medium text-toss-text">[생필품] 의류비</label>
-              <input type="text" id="edit_essentialReserve" inputmode="numeric" placeholder="0"
-                class="comma-money-input w-36 bg-toss-bg text-right text-sm font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
-            </div>
-          </div>
-
-          <!-- 매월 기본 예산 동시 반영 여부 -->
-          <label class="flex items-center gap-2 pt-2 cursor-pointer select-none">
-            <input type="checkbox" id="saveAsDefaultCheckbox" checked class="w-4 h-4 rounded text-toss-blue focus:ring-toss-blue" />
-            <span class="text-xs font-medium text-toss-sub">공통 기본 예산으로 저장해 다음 달에도 자동 적용</span>
+          <label class="flex items-start gap-2 pt-1 cursor-pointer select-none">
+            <input type="checkbox" id="saveAsDefaultCheckbox" class="w-4 h-4 mt-0.5 rounded text-toss-blue focus:ring-toss-blue" />
+            <span class="text-sm font-medium text-toss-sub leading-snug">
+              기본 예산으로도 저장
+              <span class="block text-xs font-normal">예산을 따로 정하지 않은 다음 달부터 이 값이 적용돼요.</span>
+            </span>
           </label>
         </div>
 
-        <!-- 고정 하단 푸터 -->
         <div class="shrink-0 flex gap-2 px-5 py-3.5 border-t border-toss-border bg-white">
-          <button type="button" id="resetZeroBudgetBtn" class="px-3.5 py-3 rounded-xl bg-toss-bg text-xs font-bold text-toss-sub hover:bg-gray-200 transition">
-            초기화
-          </button>
-          <button type="submit" id="saveBudgetSubmitBtn" class="flex-1 py-3 rounded-xl bg-toss-blue hover:bg-toss-blueDark text-white text-sm font-bold shadow-2xs transition">
-            DB에 저장
-          </button>
+          <button type="button" id="resetZeroBudgetBtn" class="px-4 py-3 rounded-xl bg-toss-bg text-sm font-bold text-toss-sub hover:bg-gray-200 transition">비우기</button>
+          <button type="submit" id="saveBudgetSubmitBtn" class="flex-1 py-3 rounded-xl bg-toss-blue hover:bg-toss-blueDark text-white text-base font-bold shadow-sm transition">저장</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- 5. 설정 · 데이터 백업/복원 · 로그아웃 모달 (상단 헤더 및 하단 푸터 고정) -->
-  <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/45 backdrop-blur-xs items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-xl">
-      <!-- 고정 상단 헤더 -->
-      <div class="shrink-0 flex items-center justify-between px-5 pt-5 pb-3.5 border-b border-toss-border bg-white">
-        <div>
-          <h3 class="text-base font-bold text-toss-text">설정 및 데이터 관리</h3>
-          <p id="currentUserEmailLabel" class="text-[11px] text-toss-muted mt-0.5">로그인 계정 확인 중...</p>
+  <!-- 5. 설정 · 백업/복원 · 로그아웃 -->
+  <div id="settingsModal" class="modal-backdrop hidden fixed inset-0 z-50 bg-black/45 backdrop-blur-sm items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="sheet w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[85vh] flex flex-col overflow-hidden shadow-xl">
+      <div class="sheet-drag shrink-0 bg-white border-b border-toss-border">
+        <div class="flex justify-center pt-2.5 sm:hidden"><span class="w-10 h-1.5 rounded-full bg-toss-border"></span></div>
+        <div class="flex items-center justify-between px-5 pt-3 pb-3.5">
+          <div>
+            <h3 class="text-lg font-bold text-toss-text">설정 및 데이터 관리</h3>
+            <p id="currentUserEmailLabel" class="text-xs text-toss-sub mt-0.5">로그인 계정 확인 중...</p>
+          </div>
+          <button type="button" data-close="settingsModal" aria-label="닫기"
+            class="w-8 h-8 rounded-full bg-toss-bg flex items-center justify-center text-toss-sub hover:bg-gray-200 transition">✕</button>
         </div>
-        <button id="closeSettingsModalBtn" type="button" aria-label="닫기"
-          class="w-8 h-8 rounded-full bg-toss-bg flex items-center justify-center text-toss-sub hover:bg-gray-200 transition">
-          ✕
-        </button>
       </div>
 
-      <!-- 중앙 스크롤 영역 -->
       <div class="flex-1 overflow-y-auto px-5 py-4 space-y-2.5">
-        <button id="exportCsvBtn" type="button"
-          class="w-full py-3 px-4 rounded-2xl bg-toss-bg hover:bg-gray-200/70 text-left flex items-center justify-between transition">
+        <button id="exportCsvBtn" type="button" class="w-full py-3 px-4 rounded-2xl bg-toss-bg hover:bg-gray-200/70 text-left flex items-center justify-between transition">
           <div>
-            <p class="text-xs font-bold text-toss-text">이번 달 내역 CSV 엑셀 다운로드</p>
-            <p class="text-[11px] text-toss-muted">엑셀/구글 시트에서 열어볼 수 있는 파일 저장</p>
+            <p class="text-sm font-bold text-toss-text">이번 달 내역 CSV 다운로드</p>
+            <p class="text-xs text-toss-sub">엑셀/구글 시트에서 열 수 있어요</p>
           </div>
-          <span class="text-xs font-bold text-toss-blue">CSV</span>
+          <span class="text-sm font-bold text-toss-blue">CSV</span>
         </button>
 
-        <button id="exportJsonBtn" type="button"
-          class="w-full py-3 px-4 rounded-2xl bg-toss-bg hover:bg-gray-200/70 text-left flex items-center justify-between transition">
+        <button id="exportJsonBtn" type="button" class="w-full py-3 px-4 rounded-2xl bg-toss-bg hover:bg-gray-200/70 text-left flex items-center justify-between transition">
           <div>
-            <p class="text-xs font-bold text-toss-text">전체 예산·내역 JSON 백업 파일 저장</p>
-            <p class="text-[11px] text-toss-muted">기기에 안전하게 보관할 수 있는 백업본 생성</p>
+            <p class="text-sm font-bold text-toss-text">전체 백업 파일 저장 (JSON)</p>
+            <p class="text-xs text-toss-sub">기본 예산 · 월별 예산 · 모든 내역</p>
           </div>
-          <span class="text-xs font-bold text-toss-blue">백업</span>
+          <span class="text-sm font-bold text-toss-blue">백업</span>
         </button>
 
         <label class="w-full py-3 px-4 rounded-2xl bg-toss-bg hover:bg-gray-200/70 flex items-center justify-between cursor-pointer transition">
           <div>
-            <p class="text-xs font-bold text-toss-text">JSON 백업 파일 클라우드 일괄 복원</p>
-            <p class="text-[11px] text-toss-muted">백업한 JSON 파일을 불러와 DB에 일괄 업로드</p>
+            <p class="text-sm font-bold text-toss-text">백업 파일로 복원</p>
+            <p class="text-xs text-toss-sub">같은 내역은 덮어써서 중복되지 않아요</p>
           </div>
-          <span class="text-xs font-bold text-toss-green">복원</span>
+          <span class="text-sm font-bold text-toss-green">복원</span>
           <input type="file" id="importJsonInput" accept=".json,application/json" class="hidden" />
         </label>
       </div>
 
-      <!-- 고정 하단 푸터 -->
       <div class="shrink-0 px-5 py-3.5 border-t border-toss-border bg-white">
-        <button id="logoutBtn" type="button"
-          class="w-full py-3 rounded-2xl bg-red-50 hover:bg-red-100 text-toss-red text-xs font-bold transition">
-          로그아웃
-        </button>
+        <button id="logoutBtn" type="button" class="w-full py-3 rounded-2xl bg-red-50 hover:bg-red-100 text-toss-red text-sm font-bold transition">로그아웃</button>
       </div>
     </div>
   </div>
 
-  <!-- 6. 커스텀 확인 모달 (alert/confirm 대체) -->
-  <div id="confirmModal" class="hidden fixed inset-0 z-50 bg-black/45 backdrop-blur-xs items-center justify-center p-4">
+  <!-- 6. 확인 모달 -->
+  <div id="confirmModal" class="modal-backdrop hidden fixed inset-0 z-[60] bg-black/45 backdrop-blur-sm items-center justify-center p-4">
     <div class="w-full max-w-xs bg-white rounded-3xl p-5 shadow-xl text-center">
-      <h4 id="confirmModalTitle" class="text-base font-bold text-toss-text">확인</h4>
-      <p id="confirmModalMessage" class="text-xs text-toss-sub mt-2 leading-relaxed"></p>
+      <h4 id="confirmModalTitle" class="text-lg font-bold text-toss-text">확인</h4>
+      <p id="confirmModalMessage" class="text-sm text-toss-sub mt-2 leading-relaxed whitespace-pre-line"></p>
       <div class="grid grid-cols-2 gap-2 mt-5">
-        <button id="confirmCancelBtn" type="button" class="py-2.5 rounded-xl bg-toss-bg text-xs font-bold text-toss-sub">취소</button>
-        <button id="confirmOkBtn" type="button" class="py-2.5 rounded-xl bg-toss-red text-xs font-bold text-white">확인</button>
+        <button id="confirmCancelBtn" type="button" class="py-3 rounded-xl bg-toss-bg text-sm font-bold text-toss-sub">취소</button>
+        <button id="confirmOkBtn" type="button" class="py-3 rounded-xl bg-toss-red text-sm font-bold text-white">확인</button>
       </div>
     </div>
   </div>
 
-  <!-- 7. 하단 토스트 알림 -->
-  <div id="toastBanner" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-opacity duration-200">
-    <div id="toastText" class="px-4 py-2.5 rounded-2xl bg-gray-900/90 text-white text-xs font-semibold shadow-lg whitespace-nowrap"></div>
+  <!-- 7. 토스트 -->
+  <div id="toastBanner" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-[70] pointer-events-none opacity-0 transition-opacity duration-200">
+    <div id="toastText" class="px-4 py-2.5 rounded-2xl bg-gray-900/90 text-white text-sm font-semibold shadow-lg whitespace-nowrap"></div>
   </div>
 
   <!-- Firebase v10 Modular SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
-      getAuth,
-      setPersistence,
-      browserLocalPersistence,
-      signInWithEmailAndPassword,
-      signOut,
-      onAuthStateChanged
+      getAuth, setPersistence, browserLocalPersistence,
+      signInWithEmailAndPassword, signOut, onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
     import {
-      getFirestore,
-      doc,
-      collection,
-      setDoc,
-      addDoc,
-      deleteDoc,
-      getDocs,
-      query,
-      where,
-      onSnapshot
+      getFirestore, doc, collection, setDoc, addDoc, updateDoc, deleteDoc,
+      getDocs, query, where, onSnapshot, writeBatch, deleteField
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    // 1. Firebase 프로젝트 설정
+    // 1. Firebase 설정 (apiKey 노출 자체는 정상. 보호는 Firestore 규칙이 담당)
     const firebaseConfig = {
       apiKey: "AIzaSyAL_8BaNFTt41TYh2Y7xJyRTKMBjteP3Vo",
       authDomain: "keth-buza-gogo.firebaseapp.com",
@@ -628,96 +480,118 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
+    setPersistence(auth, browserLocalPersistence).catch((err) => console.warn("인증 지속성 설정 참고:", err));
 
-    // 아이폰 PWA 재실행 시에도 로그인 유지
-    setPersistence(auth, browserLocalPersistence).catch((err) => {
-      console.warn("인증 지속성 설정 참고:", err);
-    });
+    const ROOT = ["ledgers", "shared_household"];
+    const txCol = () => collection(db, ...ROOT, "transactions");
+    const monthsCol = () => collection(db, ...ROOT, "months");
+    const monthDoc = (ym) => doc(db, ...ROOT, "months", ym);
+    const defaultDoc = () => doc(db, ...ROOT, "config", "defaultBudget");
 
-    // 2. 개인 금융 정보 비노출을 위한 0원 초기 스키마 및 8개 세부 예산 카테고리 정의
+    // 2. 예산 스키마 & 카테고리
     const ZERO_BUDGET = {
       income: 0,
-      fixedLoan: 0,
-      fixedMaintenance: 0,
-      fixedEvents: 0,
-      foodIngredients: 0,
-      foodDining: 0,
-      foodCafe: 0,
-      livingTelecom: 0,
-      livingTransport: 0,
-      livingOther: 0,
-      essentialConsumables: 0,
-      essentialReserve: 0
+      fixedLoan: 0, fixedMaintenance: 0, fixedEvents: 0,
+      foodIngredients: 0, foodDining: 0, foodCafe: 0,
+      livingTelecom: 0, livingTransport: 0, livingOther: 0,
+      essentialConsumables: 0, essentialClothing: 0
     };
 
+    // paced: 매일 조금씩 쓰는 항목(오늘 위치와 비교) / false: 한 번에 나가는 항목(통신비 등)
     const CATEGORIES = [
-      { key: "foodIngredients", label: "식재료비", badge: "식비", group: "FOOD", isFood: true },
-      { key: "foodDining", label: "외식 · 배달", badge: "식비", group: "FOOD", isFood: true },
-      { key: "foodCafe", label: "카페 · 디저트", badge: "식비", group: "FOOD", isFood: true },
-      { key: "livingTelecom", label: "통신비", badge: "생활", group: "LIVING", isFood: false },
-      { key: "livingTransport", label: "교통비", badge: "생활", group: "LIVING", isFood: false },
-      { key: "livingOther", label: "기타 생활비", badge: "생활", group: "LIVING", isFood: false },
-      { key: "essentialConsumables", label: "정기 소모품 (세제·휴지·물 등)", badge: "생필품", group: "ESSENTIALS", isFood: false },
-      { key: "essentialReserve", label: "의류비", badge: "생필품", group: "ESSENTIALS", isFood: false }
+      { key: "foodIngredients", label: "식재료비", short: "식재료", badge: "식비", group: "FOOD", paced: true },
+      { key: "foodDining", label: "외식 · 배달", short: "외식·배달", badge: "식비", group: "FOOD", paced: true },
+      { key: "foodCafe", label: "카페 · 디저트", short: "카페·디저트", badge: "식비", group: "FOOD", paced: true },
+      { key: "livingTelecom", label: "통신비", short: "통신비", badge: "생활", group: "LIVING", paced: false },
+      { key: "livingTransport", label: "교통비", short: "교통비", badge: "생활", group: "LIVING", paced: true },
+      { key: "livingOther", label: "기타 생활비", short: "기타 생활", badge: "생활", group: "LIVING", paced: true },
+      { key: "essentialConsumables", label: "정기 소모품 (세제·휴지·물 등)", short: "정기 소모품", badge: "생필품", group: "ESSENTIALS", paced: false },
+      { key: "essentialClothing", label: "의류비", short: "의류", badge: "생필품", group: "ESSENTIALS", paced: false }
+    ];
+    const GROUPS = [
+      { key: "FOOD", label: "식비", badgeStyle: "bg-blue-50 text-toss-blue" },
+      { key: "LIVING", label: "생활", badgeStyle: "bg-gray-100 text-toss-sub" },
+      { key: "ESSENTIALS", label: "생필품 · 의류", badgeStyle: "bg-amber-50 text-amber-700" }
+    ];
+    const CATEGORY_MAP = Object.fromEntries(CATEGORIES.map((c) => [c.key, c]));
+
+    // 예전 키 하위 호환
+    const LEGACY_CATEGORY = { miscLiving: "livingOther", misc_living: "livingOther", essentialReserve: "essentialClothing" };
+    function normalizeCategory(key) {
+      const k = LEGACY_CATEGORY[key] || key;
+      return CATEGORY_MAP[k] ? k : "livingOther";
+    }
+    function normalizeSpender(s) {
+      if (s === "남편") return "태형";
+      if (s === "아내") return "경은";
+      return s || "공동";
+    }
+
+    const BUDGET_SECTIONS = [
+      { title: "고정지출 (매월 고정 차감)", sumId: "editFixedSubtotal",
+        fields: [["fixedLoan", "대출금"], ["fixedMaintenance", "관리비"], ["fixedEvents", "경조사비"]] },
+      ...GROUPS.map((g) => ({
+        title: `${g.label} 예산`, sumId: `editSubtotal_${g.key}`,
+        fields: CATEGORIES.filter((c) => c.group === g.key).map((c) => [c.key, c.label])
+      }))
     ];
 
-    const CATEGORY_MAP = Object.fromEntries(CATEGORIES.map((c) => [c.key, c]));
-    CATEGORY_MAP.miscLiving = CATEGORY_MAP.livingOther;
-    CATEGORY_MAP.misc_living = CATEGORY_MAP.livingOther;
-
-    // 3. 애플리케이션 상태 변수
+    // 3. 상태
     let currentUser = null;
     let currentYearMonth = getTodayYearMonth();
     let defaultBudgetData = { ...ZERO_BUDGET };
     let monthOverrideData = null;
+    let monthOverrideLoaded = false;
     let activeBudget = { ...ZERO_BUDGET };
     let monthTransactions = [];
-    let selectedSpender = "남편";
+    let prevMonthTransactions = [];
     let selectedFilter = "ALL";
+    let editingTxId = null;
     let unsubDefaultBudget = null;
     let unsubMonthOverride = null;
     let unsubTransactions = null;
     let pendingConfirmAction = null;
 
-    // 4. 유틸리티 함수
+    // 기기별로 기억하는 값 (각자 폰이라 마지막 선택 = 대부분 본인)
+    const store = {
+      get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
+      set(k, v) { try { localStorage.setItem(k, v); } catch { /* 저장 불가 환경 무시 */ } }
+    };
+    let periodMode = store.get("periodMode", "day");
+    let selectedSpender = normalizeSpender(store.get("lastSpender", "공동"));
+    let selectedCategory = normalizeCategory(store.get("lastCategory", "foodIngredients"));
+
+    // 4. 유틸
+    const $ = (id) => document.getElementById(id);
+
     function getTodayDateString() {
       const now = new Date();
-      const y = now.getFullYear();
-      const m = String(now.getMonth() + 1).padStart(2, "0");
-      const d = String(now.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     }
-
-    function getTodayYearMonth() {
-      return getTodayDateString().slice(0, 7);
+    function getTodayYearMonth() { return getTodayDateString().slice(0, 7); }
+    function shiftMonth(ym, delta) {
+      const [y, m] = ym.split("-").map(Number);
+      const d = new Date(y, m - 1 + delta, 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     }
-
     function formatKRW(amount) {
       const num = Math.round(Number(amount) || 0);
       return `${num.toLocaleString("ko-KR")}원`;
     }
-
     function parseFormattedNumber(val) {
       if (val === null || val === undefined) return 0;
       const digits = String(val).replace(/[^\d]/g, "");
       return digits ? parseInt(digits, 10) : 0;
     }
-
     function formatInputWithCommas(num) {
       const n = Number(num) || 0;
       return n > 0 ? n.toLocaleString("ko-KR") : "";
     }
-
     function escapeHTML(str) {
-      return String(str || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
+      return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
+    const floor100 = (n) => Math.floor(Math.max(0, n) / 100) * 100;
 
-    // 기존 miscLiving / misc_living 예산 데이터 하위 호환 매핑
     function normalizeBudgetDoc(raw) {
       const normalized = { ...ZERO_BUDGET };
       if (!raw || typeof raw !== "object") return normalized;
@@ -725,28 +599,65 @@
         if (raw[k] !== undefined) normalized[k] = Number(raw[k]) || 0;
       });
       const legacyMisc = Number(raw.miscLiving ?? raw.misc_living) || 0;
-      if (normalized.livingOther === 0 && legacyMisc > 0) {
-        normalized.livingOther = legacyMisc;
+      if (raw.livingOther === undefined && legacyMisc > 0) normalized.livingOther = legacyMisc;
+      if (raw.essentialClothing === undefined && raw.essentialReserve !== undefined) {
+        normalized.essentialClothing = Number(raw.essentialReserve) || 0;
       }
       return normalized;
     }
 
-    // 게이지 색상 구간 판별: 0~49%(파랑), 50~79%(주황), 80% 이상(빨강)
-    function getGaugeColorClasses(pct) {
-      if (pct >= 80) {
-        return { bar: "bg-toss-red", text: "text-toss-red" };
+    // 보고 있는 달의 기간 정보 (오늘 위치, 남은 일수 등)
+    function getPeriodInfo(ym) {
+      const [y, m] = ym.split("-").map(Number);
+      const dim = new Date(y, m, 0).getDate();
+      const todayYm = getTodayYearMonth();
+      const now = new Date();
+      let state, day;
+      if (ym < todayYm) { state = "past"; day = dim; }
+      else if (ym > todayYm) { state = "future"; day = 0; }
+      else { state = "current"; day = now.getDate(); }
+
+      const daysLeft = state === "past" ? 0 : state === "future" ? dim : dim - day + 1; // 오늘 포함
+      let weekLeft = 0; // 이번 주 일요일까지 남은 일수(오늘 포함)
+      if (state === "current") {
+        const dow = now.getDay();
+        weekLeft = Math.min(dow === 0 ? 1 : 8 - dow, daysLeft);
+      } else if (state === "future") {
+        const firstDow = new Date(y, m - 1, 1).getDay();
+        weekLeft = Math.min(firstDow === 0 ? 1 : 8 - firstDow, dim);
       }
-      if (pct >= 50) {
-        return { bar: "bg-toss-amber", text: "text-toss-amber" };
-      }
-      return { bar: "bg-toss-blue", text: "text-toss-blue" };
+      const elapsedPct = state === "past" ? 100 : state === "future" ? 0 : Math.round((day / dim) * 100);
+      return { y, m, dim, state, day, daysLeft, weekLeft, elapsedPct };
+    }
+
+    // 상태 색: 초과 = 빨강, 오늘 위치보다 10%p 이상 빠르게 씀 = 주황, 그 외 정상
+    const STATUS = {
+      over: { bar: "bg-toss-red", text: "text-toss-red", hex: "#F04452", label: "초과" },
+      fast: { bar: "bg-toss-amber", text: "text-toss-amber", hex: "#FF9F00", label: "빠름" },
+      ok: { bar: "bg-toss-blue", text: "text-toss-blue", hex: "#3182F6", label: "" }
+    };
+    function getStatus(spent, budget, period, paced) {
+      if (budget <= 0) return spent > 0 ? STATUS.over : STATUS.ok;
+      const pct = (spent / budget) * 100;
+      if (pct > 100) return STATUS.over;
+      if (paced && period.state !== "past" && pct > period.elapsedPct + 10) return STATUS.fast;
+      return STATUS.ok;
+    }
+    function progressBarHTML(pct, status, period, showMarker, heightClass = "h-2") {
+      const marker = showMarker && period.state === "current"
+        ? `<div class="absolute top-0 bottom-0 w-0.5 bg-toss-text/50" style="left: calc(${period.elapsedPct}% - 1px)"></div>`
+        : "";
+      return `
+        <div class="relative w-full ${heightClass} bg-toss-bg rounded-full overflow-hidden">
+          <div class="h-full ${status.bar} rounded-full progress-fill" style="width: ${Math.min(pct, 100)}%"></div>
+          ${marker}
+        </div>`;
     }
 
     let toastTimer = null;
     function showToast(msg) {
-      const banner = document.getElementById("toastBanner");
-      const text = document.getElementById("toastText");
-      text.textContent = msg;
+      $("toastText").textContent = msg;
+      const banner = $("toastBanner");
       banner.classList.remove("opacity-0");
       banner.classList.add("opacity-100");
       if (toastTimer) clearTimeout(toastTimer);
@@ -756,392 +667,591 @@
       }, 2400);
     }
 
-    function openConfirmModal(title, message, onConfirm) {
-      document.getElementById("confirmModalTitle").textContent = title;
-      document.getElementById("confirmModalMessage").textContent = message;
-      pendingConfirmAction = onConfirm;
-      const modal = document.getElementById("confirmModal");
-      modal.classList.remove("hidden");
-      modal.classList.add("flex");
+    // 5. 모달 공통 (바깥 탭 / ESC / 아래로 스와이프로 닫기)
+    const openModals = [];
+    function openModal(id) {
+      const m = $(id);
+      m.classList.remove("hidden");
+      m.classList.add("flex");
+      if (!openModals.includes(id)) openModals.push(id);
+      document.body.classList.add("overflow-hidden");
+    }
+    function closeModal(id) {
+      const m = $(id);
+      m.classList.add("hidden");
+      m.classList.remove("flex");
+      const sheet = m.querySelector(".sheet");
+      if (sheet) sheet.style.transform = "";
+      const idx = openModals.indexOf(id);
+      if (idx >= 0) openModals.splice(idx, 1);
+      if (id === "confirmModal") pendingConfirmAction = null;
+      if (!openModals.length) document.body.classList.remove("overflow-hidden");
+    }
+    function enableSwipeToClose(modalId) {
+      const modal = $(modalId);
+      const sheet = modal.querySelector(".sheet");
+      const handle = modal.querySelector(".sheet-drag");
+      if (!sheet || !handle) return;
+      let startY = null;
+      let dy = 0;
+      handle.addEventListener("touchstart", (e) => {
+        startY = e.touches[0].clientY; dy = 0; sheet.style.transition = "none";
+      }, { passive: true });
+      handle.addEventListener("touchmove", (e) => {
+        if (startY === null) return;
+        dy = Math.max(0, e.touches[0].clientY - startY);
+        sheet.style.transform = `translateY(${dy}px)`;
+      }, { passive: true });
+      handle.addEventListener("touchend", () => {
+        sheet.style.transition = "";
+        if (dy > 90) closeModal(modalId);
+        else sheet.style.transform = "";
+        startY = null;
+      });
     }
 
-    function closeConfirmModal() {
-      pendingConfirmAction = null;
-      const modal = document.getElementById("confirmModal");
-      modal.classList.add("hidden");
-      modal.classList.remove("flex");
+    function openConfirmModal(title, message, onConfirm, { okText = "확인", danger = true } = {}) {
+      $("confirmModalTitle").textContent = title;
+      $("confirmModalMessage").textContent = message;
+      const ok = $("confirmOkBtn");
+      ok.textContent = okText;
+      ok.className = `py-3 rounded-xl text-sm font-bold text-white ${danger ? "bg-toss-red" : "bg-toss-blue"}`;
+      pendingConfirmAction = onConfirm;
+      openModal("confirmModal");
     }
 
     function showDbError(err) {
-      const banner = document.getElementById("dbErrorBanner");
-      if (err && err.code === "permission-denied") {
-        banner.textContent = "DB 접근 권한 오류: Firebase Console의 Firestore 규칙에 현재 로그인 계정의 UID가 등록되어 있는지 확인해 주세요.";
-      } else {
-        banner.textContent = `클라우드 동기화 알림: ${err?.message || "네트워크 상태를 확인해 주세요."}`;
-      }
+      const banner = $("dbErrorBanner");
+      banner.textContent = err && err.code === "permission-denied"
+        ? "DB 접근 권한 오류: Firebase Console의 Firestore 규칙에 현재 로그인 계정의 UID가 등록되어 있는지 확인해 주세요."
+        : `클라우드 동기화 알림: ${err?.message || "네트워크 상태를 확인해 주세요."}`;
       banner.classList.remove("hidden");
     }
+    function clearDbError() { $("dbErrorBanner").classList.add("hidden"); }
 
-    function clearDbError() {
-      document.getElementById("dbErrorBanner").classList.add("hidden");
-    }
-
-    // 5. 실시간 Firestore 구독 관리
+    // 6. Firestore 구독
     function mergeAndRenderBudget() {
-      if (monthOverrideData) {
-        activeBudget = { ...defaultBudgetData, ...monthOverrideData };
-      } else {
-        activeBudget = { ...defaultBudgetData };
-      }
+      activeBudget = monthOverrideData ? { ...defaultBudgetData, ...monthOverrideData } : { ...defaultBudgetData };
       renderDashboard();
     }
 
     function subscribeSharedDefaultBudget() {
       if (!currentUser) return;
-      if (unsubDefaultBudget) {
-        unsubDefaultBudget();
-        unsubDefaultBudget = null;
-      }
-
-      const defaultDocRef = doc(db, "ledgers", "shared_household", "config", "defaultBudget");
-      unsubDefaultBudget = onSnapshot(defaultDocRef, (snap) => {
+      if (unsubDefaultBudget) { unsubDefaultBudget(); unsubDefaultBudget = null; }
+      unsubDefaultBudget = onSnapshot(defaultDoc(), (snap) => {
         clearDbError();
         defaultBudgetData = snap.exists() ? normalizeBudgetDoc(snap.data()) : { ...ZERO_BUDGET };
         mergeAndRenderBudget();
-      }, (err) => {
-        console.error("기본 예산 구독 오류:", err);
-        showDbError(err);
-      });
+      }, (err) => { console.error("기본 예산 구독 오류:", err); showDbError(err); });
     }
 
     function subscribeMonthStream(yearMonth) {
       if (!currentUser) return;
+      if (unsubMonthOverride) { unsubMonthOverride(); unsubMonthOverride = null; }
+      if (unsubTransactions) { unsubTransactions(); unsubTransactions = null; }
 
-      if (unsubMonthOverride) {
-        unsubMonthOverride();
-        unsubMonthOverride = null;
-      }
-      if (unsubTransactions) {
-        unsubTransactions();
-        unsubTransactions = null;
-      }
+      // 달을 바꾸는 순간 이전 달 데이터가 잠깐 보이지 않도록 비움
       monthOverrideData = null;
+      monthOverrideLoaded = false;
+      monthTransactions = [];
+      prevMonthTransactions = [];
+      mergeAndRenderBudget();
 
-      // 5-1. 해당 월 개별 예산 오버라이드 구독
-      const monthDocRef = doc(db, "ledgers", "shared_household", "months", yearMonth);
-      unsubMonthOverride = onSnapshot(monthDocRef, (snap) => {
+      unsubMonthOverride = onSnapshot(monthDoc(yearMonth), (snap) => {
         clearDbError();
         monthOverrideData = snap.exists() ? normalizeBudgetDoc(snap.data()) : null;
+        monthOverrideLoaded = true;
         mergeAndRenderBudget();
-      }, (err) => {
-        console.error("월별 예산 구독 오류:", err);
-        showDbError(err);
-      });
+      }, (err) => { console.error("월별 예산 구독 오류:", err); showDbError(err); });
 
-      // 5-2. 해당 월 지출 내역 실시간 구독
-      const txColRef = collection(db, "ledgers", "shared_household", "transactions");
-      const q = query(txColRef, where("yearMonth", "==", yearMonth));
-      unsubTransactions = onSnapshot(q, (snapshot) => {
+      unsubTransactions = onSnapshot(query(txCol(), where("yearMonth", "==", yearMonth)), (snapshot) => {
         clearDbError();
         const items = [];
-        snapshot.forEach((docSnap) => {
-          items.push({ id: docSnap.id, ...docSnap.data() });
-        });
-        items.sort((a, b) => {
-          if (a.date !== b.date) return b.date.localeCompare(a.date);
-          return (b.createdAt || 0) - (a.createdAt || 0);
-        });
+        snapshot.forEach((d) => items.push({ id: d.id, ...d.data() }));
+        items.sort((a, b) => (a.date !== b.date ? b.date.localeCompare(a.date) : (b.createdAt || 0) - (a.createdAt || 0)));
         monthTransactions = items;
         renderDashboard();
-      }, (err) => {
-        console.error("지출 내역 구독 오류:", err);
-        showDbError(err);
-      });
+      }, (err) => { console.error("지출 내역 구독 오류:", err); showDbError(err); });
+
+      // 지난달 비교용 (1회 조회)
+      const requested = yearMonth;
+      getDocs(query(txCol(), where("yearMonth", "==", shiftMonth(yearMonth, -1))))
+        .then((snap) => {
+          if (currentYearMonth !== requested) return;
+          prevMonthTransactions = [];
+          snap.forEach((d) => prevMonthTransactions.push({ id: d.id, ...d.data() }));
+          renderDashboard();
+        })
+        .catch((err) => console.warn("지난달 내역 조회 참고:", err));
     }
 
-    // 6. SVG 원형(도넛) 그래프 업데이트 로직
-    function updateDonutChart(income, fixedTotal, livingVal, savingsVal, totalVariableBudget, totalVariableSpent) {
-      const radius = 38;
-      const circumference = 2 * Math.PI * radius; // ≈ 238.76
+    function goToMonth(ym) {
+      currentYearMonth = ym;
+      subscribeMonthStream(currentYearMonth);
+    }
 
-      const savSeg = document.getElementById("donutSavingsSeg");
-      const livSeg = document.getElementById("donutLivingSeg");
-      const fixSeg = document.getElementById("donutFixedSeg");
-      const livDot = document.getElementById("legendLivingDot");
-
-      // 생활비 세그먼트 색상 (예산 대비 80% 이상 시 빨강, 50% 이상 시 주황, 정상 시 초록)
-      const livingUsagePct = totalVariableBudget > 0 ? Math.round((totalVariableSpent / totalVariableBudget) * 100) : 0;
-      let livingColorHex = "#00B37E";
-      let livingDotClass = "w-2 h-2 rounded-full bg-toss-green inline-block";
-      if (livingUsagePct >= 80) {
-        livingColorHex = "#F04452";
-        livingDotClass = "w-2 h-2 rounded-full bg-toss-red inline-block";
-      } else if (livingUsagePct >= 50) {
-        livingColorHex = "#FF9F00";
-        livingDotClass = "w-2 h-2 rounded-full bg-toss-amber inline-block";
-      }
-      livSeg.setAttribute("stroke", livingColorHex);
-      livDot.className = livingDotClass;
+    // 7. 도넛 그래프 (세 조각 합계 = 월수입)
+    function updateDonutChart(income, fixedTotal, variableVal, savingsVal, livingHex) {
+      const circumference = 2 * Math.PI * 38;
+      const savSeg = $("donutSavingsSeg");
+      const livSeg = $("donutLivingSeg");
+      const fixSeg = $("donutFixedSeg");
+      livSeg.setAttribute("stroke", livingHex);
 
       const safeSav = Math.max(0, savingsVal);
-      const safeLiv = Math.max(0, livingVal);
+      const safeLiv = Math.max(0, variableVal);
       const safeFix = Math.max(0, fixedTotal);
       const baseTotal = Math.max(income, safeSav + safeLiv + safeFix);
 
       if (baseTotal <= 0) {
-        savSeg.setAttribute("stroke-dasharray", `0 ${circumference}`);
-        livSeg.setAttribute("stroke-dasharray", `0 ${circumference}`);
-        fixSeg.setAttribute("stroke-dasharray", `0 ${circumference}`);
+        [savSeg, livSeg, fixSeg].forEach((s) => s.setAttribute("stroke-dasharray", `0 ${circumference}`));
         return;
       }
-
       const savLen = (safeSav / baseTotal) * circumference;
       const livLen = (safeLiv / baseTotal) * circumference;
       const fixLen = (safeFix / baseTotal) * circumference;
-
       savSeg.setAttribute("stroke-dasharray", `${savLen} ${circumference}`);
       savSeg.setAttribute("stroke-dashoffset", "0");
-
       livSeg.setAttribute("stroke-dasharray", `${livLen} ${circumference}`);
       livSeg.setAttribute("stroke-dashoffset", `${-savLen}`);
-
       fixSeg.setAttribute("stroke-dasharray", `${fixLen} ${circumference}`);
       fixSeg.setAttribute("stroke-dashoffset", `${-(savLen + livLen)}`);
     }
 
-    // 7. 화면 렌더링 로직
-    function updateMonthHeaderLabel() {
-      const [y, m] = currentYearMonth.split("-");
-      document.getElementById("currentMonthLabel").textContent = `${y}년 ${parseInt(m, 10)}월`;
+    // 8. 렌더링
+    function sumByCategory(txs, cutoffDay = null) {
+      const map = {};
+      CATEGORIES.forEach((c) => { map[c.key] = 0; });
+      txs.forEach((tx) => {
+        if (cutoffDay !== null && Number(String(tx.date || "").slice(8, 10)) > cutoffDay) return;
+        map[normalizeCategory(tx.category)] += Number(tx.amount) || 0;
+      });
+      return map;
+    }
+
+    function updateMonthHeader(period) {
+      $("currentMonthLabel").textContent = `${period.y}년 ${period.m}월`;
+      $("goThisMonthBtn").classList.toggle("hidden", period.state === "current");
     }
 
     function renderDashboard() {
-      updateMonthHeaderLabel();
+      const period = getPeriodInfo(currentYearMonth);
+      updateMonthHeader(period);
 
-      // 카테고리별 사용 금액 집계 (기존 miscLiving / misc_living 내역도 livingOther로 합산)
-      const usageMap = {};
-      CATEGORIES.forEach((c) => { usageMap[c.key] = 0; });
-      monthTransactions.forEach((tx) => {
-        const mappedKey = (tx.category === "miscLiving" || tx.category === "misc_living")
-          ? "livingOther"
-          : tx.category;
-        if (Object.prototype.hasOwnProperty.call(usageMap, mappedKey)) {
-          usageMap[mappedKey] += Number(tx.amount) || 0;
-        }
-      });
+      const usageMap = sumByCategory(monthTransactions);
+      const budgetOf = (key) => Number(activeBudget[key]) || 0;
 
-      const income = Number(activeBudget.income) || 0;
-      const fixedTotal = (Number(activeBudget.fixedLoan) || 0)
-        + (Number(activeBudget.fixedMaintenance) || 0)
-        + (Number(activeBudget.fixedEvents) || 0);
-      const totalVariableBudget = CATEGORIES.reduce((sum, c) => sum + (Number(activeBudget[c.key]) || 0), 0);
-      const totalVariableSpent = Object.values(usageMap).reduce((sum, v) => sum + v, 0);
+      const income = budgetOf("income");
+      const fixedTotal = budgetOf("fixedLoan") + budgetOf("fixedMaintenance") + budgetOf("fixedEvents");
+      const totalVariableBudget = CATEGORIES.reduce((s, c) => s + budgetOf(c.key), 0);
+      const totalVariableSpent = Object.values(usageMap).reduce((s, v) => s + v, 0);
 
-      // DB 예산 미입력 안내 배너
-      const emptyBanner = document.getElementById("emptyBudgetPrompt");
-      if (income === 0 && fixedTotal === 0 && totalVariableBudget === 0) {
-        emptyBanner.classList.remove("hidden");
+      $("emptyBudgetPrompt").classList.toggle("hidden", !(income === 0 && fixedTotal === 0 && totalVariableBudget === 0));
+
+      // ── 1) 저축 요약 ──
+      // 진행 중인 달: 항목마다 max(예산, 실제 지출)을 예상 지출로 → 예산 안에서 쓰면 계획대로, 초과분만큼 감소
+      // 끝난 달: 실제 지출 기준 확정값
+      const projectedVariable = CATEGORIES.reduce((s, c) => {
+        const spent = usageMap[c.key] || 0;
+        return s + (period.state === "past" ? spent : Math.max(budgetOf(c.key), spent));
+      }, 0);
+      const plannedSavings = income - fixedTotal - totalVariableBudget;
+      const projectedSavings = income - fixedTotal - projectedVariable;
+      const gap = projectedSavings - plannedSavings;
+      const savingsRate = income > 0 ? ((projectedSavings / income) * 100).toFixed(1) : "0.0";
+
+      $("savingsLabel").textContent = period.state === "past" ? `${period.m}월 저축액` : `${period.m}월 예상 저축액`;
+      const netEl = $("netSavingsAmount");
+      netEl.textContent = formatKRW(projectedSavings);
+      netEl.className = `text-2xl font-bold num mt-0.5 truncate ${projectedSavings >= 0 ? "text-toss-blue" : "text-toss-red"}`;
+
+      const gapEl = $("savingsGapText");
+      if (income === 0) {
+        gapEl.textContent = "";
+      } else if (gap < 0) {
+        gapEl.textContent = `계획(${formatKRW(plannedSavings)})보다 ${formatKRW(-gap)} ${period.state === "past" ? "덜 모았어요" : "초과 지출 중"}`;
+        gapEl.className = "text-xs font-semibold text-toss-red mt-1 leading-snug";
+      } else if (gap > 0) {
+        gapEl.textContent = `계획보다 ${formatKRW(gap)} 더 모았어요 🎉`;
+        gapEl.className = "text-xs font-semibold text-toss-green mt-1 leading-snug";
       } else {
-        emptyBanner.classList.add("hidden");
+        gapEl.textContent = period.state === "past" ? "계획한 만큼 모았어요" : "계획대로 가는 중 · 아낀 만큼 더 쌓여요";
+        gapEl.className = "text-xs font-medium text-toss-sub mt-1 leading-snug";
       }
 
-      // 1) 이번 달 예상 저축액 & 원형 그래프 업데이트
-      const currentExpectedSavings = income - fixedTotal - totalVariableSpent;
-      const targetFullBudgetSavings = income - fixedTotal - totalVariableBudget;
-      const savingsRate = income > 0 ? ((currentExpectedSavings / income) * 100).toFixed(1) : "0.0";
+      const centerEl = $("donutCenterRate");
+      centerEl.textContent = `${savingsRate}%`;
+      centerEl.className = `text-base font-bold num mt-1 ${projectedSavings >= 0 ? "text-toss-text" : "text-toss-red"}`;
 
-      const netSavingsEl = document.getElementById("netSavingsAmount");
-      netSavingsEl.textContent = formatKRW(currentExpectedSavings);
-      netSavingsEl.className = `text-xl sm:text-2xl font-bold num mt-0.5 truncate ${currentExpectedSavings >= 0 ? "text-toss-blue" : "text-toss-red"}`;
+      // 변동지출 색: 전체 초과 = 빨강 / 매일 쓰는 항목이 오늘 위치보다 빠름 = 주황 / 정상 = 초록
+      const pacedCats = CATEGORIES.filter((c) => c.paced);
+      const pacedBudget = pacedCats.reduce((s, c) => s + budgetOf(c.key), 0);
+      const pacedSpent = pacedCats.reduce((s, c) => s + (usageMap[c.key] || 0), 0);
+      let livingHex = "#00B37E";
+      if (totalVariableBudget > 0 && totalVariableSpent > totalVariableBudget) livingHex = STATUS.over.hex;
+      else if (getStatus(pacedSpent, pacedBudget, period, true) === STATUS.fast) livingHex = STATUS.fast.hex;
 
-      document.getElementById("savingsRateText").textContent =
-        `예산 전액 사용 시 목표 ${formatKRW(targetFullBudgetSavings)}`;
+      updateDonutChart(income, fixedTotal, projectedVariable, projectedSavings, livingHex);
+      $("legendLivingDot").style.background = livingHex;
+      $("legendSavingsVal").textContent = formatKRW(projectedSavings);
+      $("legendLivingVal").textContent = formatKRW(projectedVariable);
+      $("legendLivingSub").textContent = period.state === "past" ? "" : `사용 ${formatKRW(totalVariableSpent)}`;
+      $("legendFixedVal").textContent = formatKRW(fixedTotal);
+      $("legendIncomeVal").textContent = formatKRW(income);
 
-      const centerRateEl = document.getElementById("donutCenterRate");
-      centerRateEl.textContent = `${savingsRate}%`;
-      centerRateEl.className = `text-sm font-bold num mt-1 ${currentExpectedSavings >= 0 ? "text-toss-text" : "text-toss-red"}`;
+      // ── 2) 가용 예산 (하루 / 이번 주 / 이번 달) ──
+      renderAvailable(period, usageMap, budgetOf, { totalVariableBudget, totalVariableSpent, pacedBudget, pacedSpent });
 
-      // 도넛 차트에는 실제 지출액이 없으면 예산 배분 기준, 지출이 발생하면 실제 반영 기준 표시
-      const effectiveLivingForChart = Math.max(totalVariableBudget, totalVariableSpent);
-      updateDonutChart(income, fixedTotal, effectiveLivingForChart, currentExpectedSavings, totalVariableBudget, totalVariableSpent);
+      // ── 3) 항목별 예산 (그룹별 + 오늘 위치 + 지난달 비교) ──
+      renderCategoryList(period, usageMap, budgetOf);
 
-      document.getElementById("legendSavingsVal").textContent = formatKRW(currentExpectedSavings);
-      document.getElementById("legendLivingVal").textContent =
-        totalVariableSpent > 0 ? `${formatKRW(totalVariableSpent)} / ${formatKRW(totalVariableBudget)}` : formatKRW(totalVariableBudget);
-      document.getElementById("legendFixedVal").textContent = formatKRW(fixedTotal);
-
-      // 2) 남은 예산 총합
-      const remainingVariable = totalVariableBudget - totalVariableSpent;
-      const remVarEl = document.getElementById("remainingVariableAmount");
-      remVarEl.textContent = formatKRW(remainingVariable);
-      remVarEl.className = `text-base font-bold num mt-1 block ${remainingVariable < 0 ? "text-toss-red" : "text-toss-text"}`;
-      document.getElementById("totalVariableBudgetSub").textContent = `총 생활 예산 ${formatKRW(totalVariableBudget)}`;
-
-      // 3) 남은 식비 예산 & 식비 통합 한도 게이지 (0~49% 파랑, 50~79% 주황, 80% 이상 빨강)
-      const foodCats = CATEGORIES.filter((c) => c.isFood);
-      const totalFoodBudget = foodCats.reduce((sum, c) => sum + (Number(activeBudget[c.key]) || 0), 0);
-      const totalFoodSpent = foodCats.reduce((sum, c) => sum + (usageMap[c.key] || 0), 0);
-      const remainingFood = totalFoodBudget - totalFoodSpent;
-      const foodPct = totalFoodBudget > 0 ? Math.round((totalFoodSpent / totalFoodBudget) * 100) : 0;
-
-      const remFoodEl = document.getElementById("remainingFoodAmount");
-      remFoodEl.textContent = formatKRW(remainingFood);
-      remFoodEl.className = `text-base font-bold num mt-1 block ${remainingFood < 0 ? "text-toss-red" : "text-toss-text"}`;
-      document.getElementById("foodUsageSub").textContent =
-        `총 예산 ${formatKRW(totalFoodBudget)} · 사용 ${formatKRW(totalFoodSpent)} (${foodPct}%)`;
-
-      const foodGaugeColor = getGaugeColorClasses(foodPct);
-      const foodBar = document.getElementById("foodGaugeBar");
-      const foodPctEl = document.getElementById("foodGaugePercent");
-      foodBar.style.width = `${Math.min(foodPct, 100)}%`;
-      foodBar.className = `h-full ${foodGaugeColor.bar} rounded-full progress-fill`;
-      foodPctEl.textContent = `${foodPct}%`;
-      foodPctEl.className = `font-bold ${foodGaugeColor.text} num`;
-
-      document.getElementById("fixedSummaryInline").textContent = formatKRW(fixedTotal);
-
-      // 4) 세부 항목별 예산 현황 8개 진행 바 (0~49% 파랑, 50~79% 주황, 80% 이상 빨강)
-      const catListEl = document.getElementById("categoryProgressList");
-      catListEl.innerHTML = CATEGORIES.map((cat) => {
-        const budget = Number(activeBudget[cat.key]) || 0;
-        const spent = usageMap[cat.key] || 0;
-        const remain = budget - spent;
-        const pct = budget > 0 ? Math.round((spent / budget) * 100) : 0;
-
-        let badgeStyle = "bg-blue-50 text-toss-blue";
-        if (cat.group === "LIVING") badgeStyle = "bg-gray-100 text-toss-sub";
-        if (cat.group === "ESSENTIALS") badgeStyle = "bg-amber-50 text-amber-700";
-
-        const gaugeColor = getGaugeColorClasses(pct);
-
-        return `
-          <div>
-            <div class="flex items-center justify-between text-xs mb-1.5">
-              <div class="flex items-center gap-1.5 min-w-0">
-                <span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${badgeStyle}">${cat.badge}</span>
-                <span class="font-semibold text-toss-text truncate">${cat.label}</span>
-              </div>
-              <span class="font-bold num shrink-0 ml-2 ${remain < 0 ? "text-toss-red" : "text-toss-text"}">
-                잔액 ${formatKRW(remain)}
-              </span>
-            </div>
-            <div class="w-full h-2 bg-toss-bg rounded-full overflow-hidden">
-              <div class="h-full ${gaugeColor.bar} rounded-full progress-fill" style="width: ${Math.min(pct, 100)}%"></div>
-            </div>
-            <div class="flex justify-between items-center text-[11px] text-toss-muted num mt-1">
-              <span>사용 ${formatKRW(spent)} / 예산 ${formatKRW(budget)}</span>
-              <span class="font-bold ${gaugeColor.text}">${pct}%</span>
-            </div>
-          </div>
-        `;
-      }).join("");
-
-      // 5) 지출 내역 리스트 렌더링
+      // ── 4) 지출 내역 ──
       renderTransactionList();
     }
 
-    function renderTransactionList() {
-      const filtered = monthTransactions.filter((tx) => {
-        if (selectedFilter === "ALL") return true;
-        return (tx.spender || "공동") === selectedFilter;
+    function renderAvailable(period, usageMap, budgetOf, t) {
+      const isPast = period.state === "past";
+      $("periodToggle").classList.toggle("hidden", isPast);
+      document.querySelectorAll(".period-btn").forEach((b) => {
+        const active = b.dataset.period === periodMode;
+        b.className = `period-btn px-2.5 py-1 rounded-lg text-xs font-bold ${active ? "bg-white text-toss-text shadow-sm" : "text-toss-sub"}`;
       });
 
-      const totalFilteredAmount = filtered.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
-      document.getElementById("txSummaryCount").textContent =
-        `총 ${filtered.length}건 · 합계 ${formatKRW(totalFilteredAmount)}`;
+      const mode = isPast ? "month" : periodMode;
+      const titles = { day: "하루 가용 예산", week: "이번 주 가용 예산", month: "이번 달 가용 예산" };
+      $("availableTitle").textContent = isPast ? "남은 예산 (마감)" : titles[mode];
 
-      const listEl = document.getElementById("transactionList");
+      const foodCats = CATEGORIES.filter((c) => c.group === "FOOD");
+      const foodBudget = foodCats.reduce((s, c) => s + budgetOf(c.key), 0);
+      const foodSpent = foodCats.reduce((s, c) => s + (usageMap[c.key] || 0), 0);
+      const foodRemain = foodBudget - foodSpent;
+      const varRemain = t.totalVariableBudget - t.totalVariableSpent;
+      const pacedRemain = t.pacedBudget - t.pacedSpent;
+
+      const days = mode === "day" ? 1 : period.weekLeft;
+      const perPeriod = (remain) => (period.daysLeft > 0 ? floor100((remain / period.daysLeft) * days) : 0);
+      const daysNote = mode === "day"
+        ? `남은 ${period.daysLeft}일(오늘 포함)로 나눈 금액`
+        : `일요일까지 ${period.weekLeft}일 기준`;
+
+      // 변동지출 전체
+      const varEl = $("availVariableAmount");
+      const varSub = $("availVariableSub");
+      if (mode === "month") {
+        varEl.textContent = formatKRW(varRemain);
+        varEl.className = `text-lg font-bold num mt-1 block ${varRemain < 0 ? "text-toss-red" : "text-toss-text"}`;
+        varSub.textContent = `예산 ${formatKRW(t.totalVariableBudget)} 중 ${formatKRW(t.totalVariableSpent)} 사용`;
+      } else {
+        varEl.textContent = formatKRW(perPeriod(pacedRemain));
+        varEl.className = `text-lg font-bold num mt-1 block ${pacedRemain <= 0 && t.pacedBudget > 0 ? "text-toss-red" : "text-toss-text"}`;
+        varSub.textContent = pacedRemain <= 0 && t.pacedBudget > 0
+          ? "이미 예산을 다 썼어요"
+          : `${daysNote} · 통신비·생필품·의류 제외`;
+      }
+
+      // 식비
+      const foodEl = $("availFoodAmount");
+      const foodSub = $("availFoodSub");
+      const foodPct = foodBudget > 0 ? Math.round((foodSpent / foodBudget) * 100) : 0;
+      const foodStatus = getStatus(foodSpent, foodBudget, period, true);
+      $("foodGaugeWrap").innerHTML = progressBarHTML(foodPct, foodStatus, period, true, "h-2");
+      if (mode === "month") {
+        foodEl.textContent = formatKRW(foodRemain);
+        foodEl.className = `text-lg font-bold num mt-1 block ${foodRemain < 0 ? "text-toss-red" : "text-toss-text"}`;
+      } else {
+        foodEl.textContent = formatKRW(perPeriod(foodRemain));
+        foodEl.className = `text-lg font-bold num mt-1 block ${foodRemain <= 0 && foodBudget > 0 ? "text-toss-red" : "text-toss-text"}`;
+      }
+      foodSub.innerHTML = `사용 ${formatKRW(foodSpent)} / ${formatKRW(foodBudget)} · <b class="${foodStatus.text}">${foodPct}%${foodStatus.label ? " " + foodStatus.label : ""}</b>`;
+    }
+
+    function renderCategoryList(period, usageMap, budgetOf) {
+      $("paceLegend").classList.toggle("hidden", period.state !== "current");
+
+      // 지난달 비교: 진행 중인 달은 '같은 기간(같은 날짜까지)', 끝난 달은 전체
+      const momEl = $("momSummary");
+      let prevMap = null;
+      if (period.state !== "future" && prevMonthTransactions.length > 0) {
+        prevMap = sumByCategory(prevMonthTransactions, period.state === "current" ? period.day : null);
+        const curTotal = Object.values(usageMap).reduce((s, v) => s + v, 0);
+        const prevTotal = Object.values(prevMap).reduce((s, v) => s + v, 0);
+        const diff = curTotal - prevTotal;
+        const scope = period.state === "current" ? "지난달 같은 기간" : "지난달";
+        if (diff < 0) { momEl.textContent = `${scope}보다 ${formatKRW(-diff)} 덜 썼어요 👍`; momEl.className = "text-xs font-semibold text-toss-green mb-3"; }
+        else if (diff > 0) { momEl.textContent = `${scope}보다 ${formatKRW(diff)} 더 썼어요`; momEl.className = "text-xs font-semibold text-toss-red mb-3"; }
+        else { momEl.textContent = `${scope}과 똑같이 썼어요`; momEl.className = "text-xs font-medium text-toss-sub mb-3"; }
+      } else {
+        momEl.textContent = "";
+        momEl.className = "mb-2";
+      }
+
+      $("categoryProgressList").innerHTML = GROUPS.map((g) => {
+        const cats = CATEGORIES.filter((c) => c.group === g.key);
+        const gBudget = cats.reduce((s, c) => s + budgetOf(c.key), 0);
+        const gSpent = cats.reduce((s, c) => s + (usageMap[c.key] || 0), 0);
+
+        const rows = cats.map((cat) => {
+          const budget = budgetOf(cat.key);
+          const spent = usageMap[cat.key] || 0;
+          const remain = budget - spent;
+          const pct = budget > 0 ? Math.round((spent / budget) * 100) : (spent > 0 ? 100 : 0);
+          const status = getStatus(spent, budget, period, cat.paced);
+
+          let mom = "";
+          if (prevMap) {
+            const prev = prevMap[cat.key] || 0;
+            if (prev > 0) {
+              const d = Math.round(((spent - prev) / prev) * 100);
+              if (d !== 0) mom = `<span class="${d > 0 ? "text-toss-red" : "text-toss-green"}">지난달 ${d > 0 ? "▲" : "▼"}${Math.abs(d)}%</span>`;
+            } else if (spent > 0) {
+              mom = `<span class="text-toss-sub">지난달 0원</span>`;
+            }
+          }
+
+          return `
+            <div>
+              <div class="flex items-center justify-between text-sm mb-1.5">
+                <span class="font-semibold text-toss-text truncate min-w-0">${cat.label}</span>
+                <span class="font-bold num shrink-0 ml-2 ${remain < 0 ? "text-toss-red" : "text-toss-text"}">잔액 ${formatKRW(remain)}</span>
+              </div>
+              ${progressBarHTML(pct, status, period, cat.paced)}
+              <div class="flex justify-between items-center text-xs text-toss-sub num mt-1 gap-2">
+                <span class="truncate">${formatKRW(spent)} / ${formatKRW(budget)} ${mom ? "· " + mom : ""}</span>
+                <span class="font-bold shrink-0 ${status.text}">${pct}%${status.label ? " " + status.label : ""}</span>
+              </div>
+            </div>`;
+        }).join("");
+
+        return `
+          <div>
+            <div class="flex items-center justify-between mb-2.5">
+              <span class="px-2 py-0.5 rounded-md text-xs font-bold ${g.badgeStyle}">${g.label}</span>
+              <span class="text-xs text-toss-sub num">${formatKRW(gSpent)} / ${formatKRW(gBudget)}</span>
+            </div>
+            <div class="space-y-3.5">${rows}</div>
+          </div>`;
+      }).join("");
+    }
+
+    const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+    function formatDateHeader(dateStr) {
+      const today = getTodayDateString();
+      const y = new Date(); y.setDate(y.getDate() - 1);
+      const yesterday = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+      const d = new Date(`${dateStr}T00:00:00`);
+      const base = `${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEKDAYS[d.getDay()]})`;
+      if (dateStr === today) return `오늘 · ${base}`;
+      if (dateStr === yesterday) return `어제 · ${base}`;
+      return base;
+    }
+
+    function renderTransactionList() {
+      document.querySelectorAll(".filter-btn").forEach((b) => {
+        const active = b.dataset.filter === selectedFilter;
+        b.className = `filter-btn px-2.5 py-1 rounded-lg text-xs font-bold ${active ? "bg-white text-toss-text shadow-sm" : "text-toss-sub"}`;
+      });
+
+      const filtered = monthTransactions.filter((tx) => selectedFilter === "ALL" || normalizeSpender(tx.spender) === selectedFilter);
+      const total = filtered.reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+      $("txSummaryCount").textContent = `총 ${filtered.length}건 · 합계 ${formatKRW(total)}`;
+
+      const listEl = $("transactionList");
       if (filtered.length === 0) {
-        listEl.innerHTML = `
-          <div class="py-10 text-center">
-            <p class="text-xs font-medium text-toss-muted">기록된 지출 내역이 없습니다.</p>
-          </div>
-        `;
+        listEl.innerHTML = `<div class="py-10 text-center"><p class="text-sm font-medium text-toss-sub">기록된 지출 내역이 없어요.</p></div>`;
         return;
       }
 
-      listEl.innerHTML = filtered.map((tx) => {
-        const cat = CATEGORY_MAP[tx.category] || { label: "기타", badge: "기타" };
-        const spender = tx.spender || "공동";
-        let spenderBadgeClass = "bg-gray-100 text-toss-sub";
-        if (spender === "남편" || spender === "태형") spenderBadgeClass = "bg-blue-50 text-toss-blue";
-        if (spender === "아내" || spender === "경은") spenderBadgeClass = "bg-rose-50 text-rose-600";
+      // 날짜별 묶음
+      const groups = [];
+      filtered.forEach((tx) => {
+        const last = groups[groups.length - 1];
+        if (last && last.date === tx.date) last.items.push(tx);
+        else groups.push({ date: tx.date, items: [tx] });
+      });
 
-        const memoText = tx.memo ? escapeHTML(tx.memo) : cat.label;
-        const shortDate = (tx.date || "").slice(5).replace("-", ".");
-
-        return `
-          <div class="py-3 flex items-center justify-between gap-3">
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-1.5 mb-0.5">
-                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${spenderBadgeClass}">${escapeHTML(spender)}</span>
-                <span class="text-[11px] font-semibold text-toss-sub truncate">${cat.label}</span>
+      listEl.innerHTML = groups.map((g) => {
+        const daySum = g.items.reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+        const rows = g.items.map((tx) => {
+          const cat = CATEGORY_MAP[normalizeCategory(tx.category)];
+          const spender = normalizeSpender(tx.spender);
+          let spenderBadge = "bg-gray-100 text-toss-sub";
+          if (spender === "태형") spenderBadge = "bg-blue-50 text-toss-blue";
+          if (spender === "경은") spenderBadge = "bg-rose-50 text-rose-600";
+          const title = tx.memo ? escapeHTML(tx.memo) : cat.label;
+          return `
+            <button type="button" data-edit-id="${escapeHTML(tx.id)}" class="tx-row w-full text-left py-3 px-2 -mx-2 flex items-center justify-between gap-3 rounded-xl hover:bg-toss-bg active:bg-toss-bg transition">
+              <div class="min-w-0 flex-1">
+                <p class="text-base font-bold text-toss-text truncate">${title}</p>
+                <div class="flex items-center gap-1.5 mt-0.5">
+                  <span class="px-1.5 py-0.5 rounded text-xs font-bold ${spenderBadge}">${escapeHTML(spender)}</span>
+                  <span class="text-xs font-medium text-toss-sub truncate">${cat.label}</span>
+                </div>
               </div>
-              <p class="text-sm font-bold text-toss-text truncate">${memoText}</p>
-              <p class="text-[11px] text-toss-muted num mt-0.5">${shortDate}</p>
+              <span class="text-base font-bold text-toss-text num shrink-0">-${formatKRW(tx.amount)}</span>
+            </button>`;
+        }).join("");
+        return `
+          <div class="pt-4 first:pt-0">
+            <div class="flex items-center justify-between text-xs font-semibold text-toss-sub pb-1 border-b border-toss-border">
+              <span>${formatDateHeader(g.date)}</span>
+              <span class="num">-${formatKRW(daySum)}</span>
             </div>
-            <div class="flex items-center gap-2.5 shrink-0">
-              <span class="text-sm font-bold text-toss-text num">-${formatKRW(tx.amount)}</span>
-              <button type="button" data-delete-id="${tx.id}" aria-label="내역 삭제"
-                class="delete-tx-btn w-7 h-7 rounded-lg bg-toss-bg hover:bg-red-50 text-toss-muted hover:text-toss-red flex items-center justify-center text-xs transition">
-                ✕
-              </button>
-            </div>
-          </div>
-        `;
+            <div class="divide-y divide-toss-border/70">${rows}</div>
+          </div>`;
       }).join("");
+    }
 
-      document.querySelectorAll(".delete-tx-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-delete-id");
-          openConfirmModal("지출 내역 삭제", "이 지출 내역을 삭제하시겠습니까? 부부 화면에서도 즉시 삭제됩니다.", async () => {
-            try {
-              await deleteDoc(doc(db, "ledgers", "shared_household", "transactions", id));
-              showToast("지출 내역이 삭제되었습니다.");
-            } catch (err) {
-              console.error("삭제 오류:", err);
-              showDbError(err);
-              showToast("삭제 중 오류가 발생했습니다.");
-            }
-          });
-        });
+    // 9. 지출 기록 / 수정 시트
+    function renderCategoryChips() {
+      $("categoryChipGroup").innerHTML = GROUPS.map((g) => `
+        <div class="flex items-center gap-2">
+          <span class="w-12 shrink-0 text-xs font-bold ${g.badgeStyle.split(" ").find((c) => c.startsWith("text-"))}">${g.label.split(" ")[0]}</span>
+          <div class="flex-1 grid grid-cols-3 gap-1.5">
+            ${CATEGORIES.filter((c) => c.group === g.key).map((c) => `
+              <button type="button" data-cat="${c.key}" class="cat-chip py-2 rounded-xl text-sm font-semibold transition active:scale-95">${c.short}</button>
+            `).join("")}
+          </div>
+        </div>`).join("");
+    }
+    function syncExpenseSelections() {
+      $("expenseCategory").value = selectedCategory;
+      document.querySelectorAll(".cat-chip").forEach((b) => {
+        const on = b.dataset.cat === selectedCategory;
+        b.className = `cat-chip py-2 rounded-xl text-sm font-semibold transition active:scale-95 ${on ? "bg-toss-blue text-white" : "bg-toss-bg text-toss-sub hover:bg-gray-200"}`;
+      });
+      document.querySelectorAll(".spender-btn").forEach((b) => {
+        const on = b.dataset.spender === selectedSpender;
+        b.className = `spender-btn py-2.5 rounded-xl text-sm font-bold transition active:scale-95 ${on ? "bg-toss-blue text-white" : "bg-toss-bg text-toss-sub hover:bg-gray-200"}`;
       });
     }
 
-    // 8. 이벤트 바인딩
-    document.addEventListener("DOMContentLoaded", () => {
-      document.getElementById("expenseDate").value = getTodayDateString();
+    // 보고 있는 달이 이번 달이 아니면 그 달의 같은 날짜(말일로 보정)를 기본값으로
+    function defaultDateForViewedMonth() {
+      const today = getTodayDateString();
+      if (currentYearMonth === today.slice(0, 7)) return today;
+      const { dim } = getPeriodInfo(currentYearMonth);
+      const d = Math.min(new Date().getDate(), dim);
+      return `${currentYearMonth}-${String(d).padStart(2, "0")}`;
+    }
 
-      // 모든 금액 입력란에 실시간 천 단위 콤마 포맷 적용
+    function openExpenseSheet(tx = null) {
+      editingTxId = tx ? tx.id : null;
+      $("expenseModalTitle").textContent = tx ? "지출 수정" : "지출 기록";
+      $("submitExpenseBtn").textContent = tx ? "수정 완료" : "지출 등록하기";
+      $("deleteExpenseBtn").classList.toggle("hidden", !tx);
+
+      if (tx) {
+        selectedCategory = normalizeCategory(tx.category);
+        selectedSpender = normalizeSpender(tx.spender);
+        $("expenseAmount").value = formatInputWithCommas(tx.amount);
+        $("expenseDate").value = tx.date || defaultDateForViewedMonth();
+        $("expenseMemo").value = tx.memo || "";
+      } else {
+        selectedCategory = normalizeCategory(store.get("lastCategory", "foodIngredients"));
+        selectedSpender = normalizeSpender(store.get("lastSpender", "공동"));
+        $("expenseAmount").value = "";
+        $("expenseDate").value = defaultDateForViewedMonth();
+        $("expenseMemo").value = "";
+      }
+      syncExpenseSelections();
+      openModal("expenseModal");
+      // 새 기록일 때만 금액칸에 바로 포커스 (탭 이벤트 안에서 동기 호출해야 iOS 키패드가 뜸)
+      if (!tx) $("expenseAmount").focus();
+    }
+
+    // 첫 지출이 생기는 달은 그 시점의 예산을 월별 문서로 고정 → 나중에 기본 예산을 바꿔도 지난달 결과가 변하지 않음
+    async function pinMonthBudgetIfNeeded(ym) {
+      if (ym !== currentYearMonth || !monthOverrideLoaded || monthOverrideData) return;
+      const hasBudget = Object.values(activeBudget).some((v) => Number(v) > 0);
+      if (!hasBudget) return;
+      const snapshot = {};
+      Object.keys(ZERO_BUDGET).forEach((k) => { snapshot[k] = Number(activeBudget[k]) || 0; });
+      await setDoc(monthDoc(ym), { ...snapshot, pinnedAt: Date.now() }, { merge: true });
+    }
+
+    // 10. 예산 수정 시트
+    function renderBudgetSections() {
+      $("budgetSectionsWrap").innerHTML = BUDGET_SECTIONS.map((sec) => `
+        <div class="pt-3 border-t border-toss-border space-y-2.5">
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-bold text-toss-sub">${sec.title}</p>
+            <span class="text-sm font-bold text-toss-blue num">합계 <span id="${sec.sumId}">0원</span></span>
+          </div>
+          ${sec.fields.map(([key, label]) => `
+            <div class="flex items-center justify-between gap-2">
+              <label for="edit_${key}" class="text-sm font-medium text-toss-text min-w-0">${label}</label>
+              <input type="text" id="edit_${key}" inputmode="numeric" placeholder="0"
+                class="comma-money-input w-36 shrink-0 bg-toss-bg text-right text-base font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue" />
+            </div>`).join("")}
+        </div>`).join("");
+    }
+    function readBudgetInputs() {
+      const v = {};
+      Object.keys(ZERO_BUDGET).forEach((k) => { v[k] = parseFormattedNumber($(`edit_${k}`)?.value); });
+      return v;
+    }
+    function updateBudgetModalSubtotals() {
+      const v = readBudgetInputs();
+      BUDGET_SECTIONS.forEach((sec) => {
+        $(sec.sumId).textContent = formatKRW(sec.fields.reduce((s, [k]) => s + v[k], 0));
+      });
+      const fixed = v.fixedLoan + v.fixedMaintenance + v.fixedEvents;
+      const variable = CATEGORIES.reduce((s, c) => s + v[c.key], 0);
+      const planned = v.income - fixed - variable;
+      $("editVariableSubtotal").textContent = formatKRW(variable);
+      const rate = v.income > 0 ? ` (${((planned / v.income) * 100).toFixed(1)}%)` : "";
+      const pEl = $("editPlannedSavings");
+      pEl.textContent = `${formatKRW(planned)}${rate}`;
+      pEl.className = `font-bold num ${planned < 0 ? "text-toss-red" : "text-toss-blue"}`;
+    }
+
+    // 11. 이벤트 바인딩
+    function init() {
+      renderCategoryChips();
+      renderBudgetSections();
+      ["expenseModal", "budgetModal", "settingsModal"].forEach(enableSwipeToClose);
+
+      // 바깥 탭 / 닫기 버튼 / ESC
+      document.querySelectorAll(".modal-backdrop").forEach((m) => {
+        m.addEventListener("click", (e) => { if (e.target === m) closeModal(m.id); });
+      });
+      document.querySelectorAll("[data-close]").forEach((b) => {
+        b.addEventListener("click", () => closeModal(b.dataset.close));
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && openModals.length) closeModal(openModals[openModals.length - 1]);
+      });
+
+      // 앱을 다시 열면(PWA 복귀) 오늘 기준 숫자 다시 계산
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && currentUser) renderDashboard();
+      });
+
+      // 금액 입력 콤마
       document.querySelectorAll(".comma-money-input").forEach((input) => {
         input.addEventListener("input", () => {
           const num = parseFormattedNumber(input.value);
           input.value = num > 0 ? num.toLocaleString("ko-KR") : "";
+          if (input.id.startsWith("edit_")) updateBudgetModalSubtotals();
         });
       });
 
-      // 로그인 폼 제출
-      document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      // 로그인
+      $("loginForm").addEventListener("submit", async (e) => {
         e.preventDefault();
-        const email = document.getElementById("loginEmail").value.trim();
-        const password = document.getElementById("loginPassword").value;
-        const errBox = document.getElementById("loginErrorBox");
-        const submitBtn = document.getElementById("loginSubmitBtn");
-
+        const errBox = $("loginErrorBox");
+        const submitBtn = $("loginSubmitBtn");
         errBox.classList.add("hidden");
         submitBtn.disabled = true;
         submitBtn.textContent = "로그인 중...";
-
         try {
-          await signInWithEmailAndPassword(auth, email, password);
-          showToast("태형이와 경은이의 부자 되기 프로젝트에 연결되었습니다.");
+          await signInWithEmailAndPassword(auth, $("loginEmail").value.trim(), $("loginPassword").value);
+          showToast("부자 되기 프로젝트에 연결되었어요.");
         } catch (err) {
           console.error("로그인 실패:", err);
-          let msg = "이메일 또는 비밀번호를 다시 확인해 주세요.";
-          if (err.code === "auth/too-many-requests") {
-            msg = "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.";
-          }
-          errBox.textContent = msg;
+          errBox.textContent = err.code === "auth/too-many-requests"
+            ? "로그인 시도가 너무 많아요. 잠시 후 다시 시도해 주세요."
+            : "이메일 또는 비밀번호를 다시 확인해 주세요.";
           errBox.classList.remove("hidden");
         } finally {
           submitBtn.disabled = false;
@@ -1149,373 +1259,303 @@
         }
       });
 
-      // 이전 달 / 다음 달 이동
-      document.getElementById("prevMonthBtn").addEventListener("click", () => {
-        const [y, m] = currentYearMonth.split("-").map(Number);
-        const d = new Date(y, m - 2, 1);
-        currentYearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        subscribeMonthStream(currentYearMonth);
-      });
+      // 월 이동
+      $("prevMonthBtn").addEventListener("click", () => goToMonth(shiftMonth(currentYearMonth, -1)));
+      $("nextMonthBtn").addEventListener("click", () => goToMonth(shiftMonth(currentYearMonth, 1)));
+      $("goThisMonthBtn").addEventListener("click", () => goToMonth(getTodayYearMonth()));
 
-      document.getElementById("nextMonthBtn").addEventListener("click", () => {
-        const [y, m] = currentYearMonth.split("-").map(Number);
-        const d = new Date(y, m, 1);
-        currentYearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        subscribeMonthStream(currentYearMonth);
-      });
-
-      // 플로팅 [+ 지출 기록] 모달 열기/닫기
-      const expenseModal = document.getElementById("expenseModal");
-      const amountInput = document.getElementById("expenseAmount");
-
-      document.getElementById("openExpenseModalBtn").addEventListener("click", () => {
-        expenseModal.classList.remove("hidden");
-        expenseModal.classList.add("flex");
-      });
-
-      document.getElementById("closeExpenseModalBtn").addEventListener("click", () => {
-        expenseModal.classList.add("hidden");
-        expenseModal.classList.remove("flex");
-      });
-
-      // 지출 주체 토글 (남편 / 아내 / 공동)
-      document.querySelectorAll(".spender-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          selectedSpender = btn.getAttribute("data-spender");
-          document.querySelectorAll(".spender-btn").forEach((b) => {
-            if (b === btn) {
-              b.className = "spender-btn py-2 rounded-xl text-xs font-bold bg-toss-blue text-white transition active:scale-95";
-            } else {
-              b.className = "spender-btn py-2 rounded-xl text-xs font-bold bg-toss-bg text-toss-sub hover:bg-gray-200 transition active:scale-95";
-            }
-          });
+      // 가용 예산 기간 토글
+      document.querySelectorAll(".period-btn").forEach((b) => {
+        b.addEventListener("click", () => {
+          periodMode = b.dataset.period;
+          store.set("periodMode", periodMode);
+          renderDashboard();
         });
       });
 
-      // 빠른 금액 추가 칩 및 초기화 (콤마 포맷 유지)
+      // 내역 필터
+      document.querySelectorAll(".filter-btn").forEach((b) => {
+        b.addEventListener("click", () => { selectedFilter = b.dataset.filter; renderTransactionList(); });
+      });
+
+      // 내역 탭 → 수정
+      $("transactionList").addEventListener("click", (e) => {
+        const row = e.target.closest(".tx-row");
+        if (!row) return;
+        const tx = monthTransactions.find((t) => t.id === row.dataset.editId);
+        if (tx) openExpenseSheet(tx);
+      });
+
+      // 지출 시트
+      $("openExpenseModalBtn").addEventListener("click", () => openExpenseSheet());
+      $("categoryChipGroup").addEventListener("click", (e) => {
+        const chip = e.target.closest(".cat-chip");
+        if (!chip) return;
+        selectedCategory = chip.dataset.cat;
+        syncExpenseSelections();
+      });
+      document.querySelectorAll(".spender-btn").forEach((b) => {
+        b.addEventListener("click", () => { selectedSpender = b.dataset.spender; syncExpenseSelections(); });
+      });
       document.querySelectorAll(".quick-chip").forEach((chip) => {
         chip.addEventListener("click", () => {
-          const addVal = Number(chip.getAttribute("data-add")) || 0;
-          const currentVal = parseFormattedNumber(amountInput.value);
-          amountInput.value = formatInputWithCommas(currentVal + addVal);
+          const amountInput = $("expenseAmount");
+          amountInput.value = formatInputWithCommas(parseFormattedNumber(amountInput.value) + (Number(chip.dataset.add) || 0));
         });
       });
+      $("clearAmountBtn").addEventListener("click", () => { $("expenseAmount").value = ""; $("expenseAmount").focus(); });
 
-      document.getElementById("clearAmountBtn").addEventListener("click", () => {
-        amountInput.value = "";
-        amountInput.focus();
-      });
-
-      // 빠른 지출 등록 폼 제출
-      document.getElementById("expenseForm").addEventListener("submit", async (e) => {
+      $("expenseForm").addEventListener("submit", async (e) => {
         e.preventDefault();
         if (!currentUser) return;
 
-        const dateVal = document.getElementById("expenseDate").value || getTodayDateString();
-        const categoryVal = document.getElementById("expenseCategory").value;
-        const amountVal = parseFormattedNumber(amountInput.value);
-        const memoVal = document.getElementById("expenseMemo").value.trim();
+        const dateVal = $("expenseDate").value || getTodayDateString();
+        const amountVal = parseFormattedNumber($("expenseAmount").value);
+        if (amountVal <= 0) { showToast("1원 이상의 금액을 입력해 주세요."); return; }
 
-        if (amountVal <= 0) {
-          showToast("1원 이상의 금액을 입력해 주세요.");
-          return;
-        }
+        const data = {
+          date: dateVal,
+          yearMonth: dateVal.slice(0, 7),
+          category: selectedCategory,
+          spender: selectedSpender,
+          amount: amountVal,
+          memo: $("expenseMemo").value.trim()
+        };
 
-        const btn = document.getElementById("submitExpenseBtn");
+        const btn = $("submitExpenseBtn");
+        const isEdit = !!editingTxId;
         btn.disabled = true;
-        btn.textContent = "등록 중...";
-
+        btn.textContent = isEdit ? "수정 중..." : "등록 중...";
         try {
-          const txYearMonth = dateVal.slice(0, 7);
-          await addDoc(collection(db, "ledgers", "shared_household", "transactions"), {
-            date: dateVal,
-            yearMonth: txYearMonth,
-            category: categoryVal,
-            spender: selectedSpender,
-            amount: amountVal,
-            memo: memoVal,
-            createdAt: Date.now()
-          });
-
-          amountInput.value = "";
-          document.getElementById("expenseMemo").value = "";
-          expenseModal.classList.add("hidden");
-          expenseModal.classList.remove("flex");
-          showToast(`${formatKRW(amountVal)} 지출이 등록되었습니다.`);
-
-          if (txYearMonth !== currentYearMonth) {
-            currentYearMonth = txYearMonth;
-            subscribeMonthStream(currentYearMonth);
+          if (isEdit) {
+            await updateDoc(doc(db, ...ROOT, "transactions", editingTxId), { ...data, updatedAt: Date.now() });
+          } else {
+            await pinMonthBudgetIfNeeded(data.yearMonth).catch((err) => console.warn("월 예산 고정 참고:", err));
+            await addDoc(txCol(), { ...data, createdAt: Date.now() });
+            store.set("lastCategory", selectedCategory);
+            store.set("lastSpender", selectedSpender);
+          }
+          closeModal("expenseModal");
+          if (data.yearMonth !== currentYearMonth) {
+            goToMonth(data.yearMonth);
+            showToast(`${Number(data.yearMonth.slice(5))}월 내역으로 이동했어요.`);
+          } else {
+            showToast(isEdit ? "수정되었어요." : `${formatKRW(amountVal)} 지출을 기록했어요.`);
           }
         } catch (err) {
-          console.error("지출 등록 오류:", err);
+          console.error("지출 저장 오류:", err);
           showDbError(err);
-          showToast("지출 등록 중 오류가 발생했습니다.");
+          showToast("저장 중 오류가 발생했어요.");
         } finally {
           btn.disabled = false;
-          btn.textContent = "지출 등록하기";
+          btn.textContent = isEdit ? "수정 완료" : "지출 등록하기";
         }
       });
 
-      // 내역 필터 칩 (전체 / 남편 / 아내 / 공동)
-      document.querySelectorAll(".filter-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          selectedFilter = btn.getAttribute("data-filter");
-          document.querySelectorAll(".filter-btn").forEach((b) => {
-            if (b === btn) {
-              b.className = "filter-btn px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white text-toss-text shadow-2xs";
-            } else {
-              b.className = "filter-btn px-2.5 py-1 rounded-lg text-[11px] font-semibold text-toss-sub";
-            }
-          });
-          renderTransactionList();
-        });
-      });
-
-      // 예산 수정 모달 실시간 소계 계산 (콤마 파싱 적용)
-      function updateBudgetModalSubtotals() {
-        const loan = parseFormattedNumber(document.getElementById("edit_fixedLoan").value);
-        const maint = parseFormattedNumber(document.getElementById("edit_fixedMaintenance").value);
-        const events = parseFormattedNumber(document.getElementById("edit_fixedEvents").value);
-        document.getElementById("editFixedSubtotal").textContent = formatKRW(loan + maint + events);
-
-        const f1 = parseFormattedNumber(document.getElementById("edit_foodIngredients").value);
-        const f2 = parseFormattedNumber(document.getElementById("edit_foodDining").value);
-        const f3 = parseFormattedNumber(document.getElementById("edit_foodCafe").value);
-        const foodSum = f1 + f2 + f3;
-        document.getElementById("editFoodSubtotal").textContent = formatKRW(foodSum);
-
-        const l1 = parseFormattedNumber(document.getElementById("edit_livingTelecom").value);
-        const l2 = parseFormattedNumber(document.getElementById("edit_livingTransport").value);
-        const l3 = parseFormattedNumber(document.getElementById("edit_livingOther").value);
-        const livingOnlySum = l1 + l2 + l3;
-        document.getElementById("editLivingOnlySubtotal").textContent = formatKRW(livingOnlySum);
-
-        const e1 = parseFormattedNumber(document.getElementById("edit_essentialConsumables").value);
-        const e2 = parseFormattedNumber(document.getElementById("edit_essentialReserve").value);
-        document.getElementById("editLivingSubtotal").textContent = formatKRW(foodSum + livingOnlySum + e1 + e2);
-      }
-
-      Object.keys(ZERO_BUDGET).forEach((key) => {
-        const inputEl = document.getElementById(`edit_${key}`);
-        if (inputEl) inputEl.addEventListener("input", updateBudgetModalSubtotals);
-      });
-
-      // 예산 수정 모달 열기/닫기
-      const budgetModal = document.getElementById("budgetModal");
-      document.getElementById("openBudgetModalBtn").addEventListener("click", () => {
-        const [y, m] = currentYearMonth.split("-");
-        document.getElementById("budgetModalMonthSub").textContent = `${y}년 ${parseInt(m, 10)}월 기준`;
-
-        Object.keys(ZERO_BUDGET).forEach((key) => {
-          const inputEl = document.getElementById(`edit_${key}`);
-          if (inputEl) {
-            inputEl.value = formatInputWithCommas(activeBudget[key] ?? 0);
+      $("deleteExpenseBtn").addEventListener("click", () => {
+        const id = editingTxId;
+        if (!id) return;
+        openConfirmModal("지출 내역 삭제", "이 내역을 삭제할까요?\n두 사람 화면 모두에서 바로 사라져요.", async () => {
+          try {
+            await deleteDoc(doc(db, ...ROOT, "transactions", id));
+            closeModal("expenseModal");
+            showToast("삭제되었어요.");
+          } catch (err) {
+            console.error("삭제 오류:", err);
+            showDbError(err);
+            showToast("삭제 중 오류가 발생했어요.");
           }
+        }, { okText: "삭제" });
+      });
+
+      // 예산 시트
+      $("openBudgetModalBtn").addEventListener("click", () => {
+        const period = getPeriodInfo(currentYearMonth);
+        $("budgetModalMonthSub").textContent = `${period.y}년 ${period.m}월 예산`;
+        Object.keys(ZERO_BUDGET).forEach((k) => {
+          const el = $(`edit_${k}`);
+          if (el) el.value = formatInputWithCommas(activeBudget[k] ?? 0);
         });
+        // 지난달을 고칠 때는 기본 예산까지 바뀌지 않도록 기본값 해제
+        $("saveAsDefaultCheckbox").checked = period.state !== "past";
         updateBudgetModalSubtotals();
-
-        budgetModal.classList.remove("hidden");
-        budgetModal.classList.add("flex");
+        openModal("budgetModal");
       });
 
-      document.getElementById("closeBudgetModalBtn").addEventListener("click", () => {
-        budgetModal.classList.add("hidden");
-        budgetModal.classList.remove("flex");
-      });
-
-      document.getElementById("resetZeroBudgetBtn").addEventListener("click", () => {
-        Object.keys(ZERO_BUDGET).forEach((key) => {
-          const inputEl = document.getElementById(`edit_${key}`);
-          if (inputEl) inputEl.value = "";
-        });
+      $("resetZeroBudgetBtn").addEventListener("click", () => {
+        Object.keys(ZERO_BUDGET).forEach((k) => { const el = $(`edit_${k}`); if (el) el.value = ""; });
         updateBudgetModalSubtotals();
-        showToast("모든 입력칸이 초기화되었습니다.");
+        showToast("입력칸을 모두 비웠어요. 저장해야 반영돼요.");
       });
 
-      // 예산 수정 DB 저장 (콤마 제거 후 순수 정수로 저장)
-      document.getElementById("budgetEditForm").addEventListener("submit", async (e) => {
+      $("budgetEditForm").addEventListener("submit", async (e) => {
         e.preventDefault();
         if (!currentUser) return;
-
-        const payload = {};
-        Object.keys(ZERO_BUDGET).forEach((key) => {
-          payload[key] = parseFormattedNumber(document.getElementById(`edit_${key}`).value);
-        });
-        payload.updatedAt = Date.now();
-
-        const saveBtn = document.getElementById("saveBudgetSubmitBtn");
+        const payload = {
+          ...readBudgetInputs(),
+          updatedAt: Date.now(),
+          // 예전 키 정리
+          essentialReserve: deleteField(),
+          miscLiving: deleteField(),
+          misc_living: deleteField()
+        };
+        const saveBtn = $("saveBudgetSubmitBtn");
         saveBtn.disabled = true;
-        saveBtn.textContent = "DB 저장 중...";
-
+        saveBtn.textContent = "저장 중...";
         try {
-          if (document.getElementById("saveAsDefaultCheckbox").checked) {
-            await setDoc(doc(db, "ledgers", "shared_household", "config", "defaultBudget"), payload, { merge: true });
-          }
-          await setDoc(doc(db, "ledgers", "shared_household", "months", currentYearMonth), payload, { merge: true });
-
-          budgetModal.classList.add("hidden");
-          budgetModal.classList.remove("flex");
-          showToast("예산 설정이 저장되었습니다.");
+          if ($("saveAsDefaultCheckbox").checked) await setDoc(defaultDoc(), payload, { merge: true });
+          await setDoc(monthDoc(currentYearMonth), payload, { merge: true });
+          closeModal("budgetModal");
+          showToast("예산을 저장했어요.");
         } catch (err) {
           console.error("예산 저장 오류:", err);
           showDbError(err);
-          showToast("DB 저장 중 오류가 발생했습니다.");
+          showToast("저장 중 오류가 발생했어요.");
         } finally {
           saveBtn.disabled = false;
-          saveBtn.textContent = "DB에 저장";
+          saveBtn.textContent = "저장";
         }
       });
 
-      // 설정 및 백업 모달
-      const settingsModal = document.getElementById("settingsModal");
-      document.getElementById("openSettingsModalBtn").addEventListener("click", () => {
-        document.getElementById("currentUserEmailLabel").textContent =
-          `로그인 계정: ${currentUser?.email || "인증됨"}`;
-        settingsModal.classList.remove("hidden");
-        settingsModal.classList.add("flex");
+      // 설정 시트
+      $("openSettingsModalBtn").addEventListener("click", () => {
+        $("currentUserEmailLabel").textContent = `로그인 계정: ${currentUser?.email || "인증됨"}`;
+        openModal("settingsModal");
       });
 
-      document.getElementById("closeSettingsModalBtn").addEventListener("click", () => {
-        settingsModal.classList.add("hidden");
-        settingsModal.classList.remove("flex");
-      });
-
-      // CSV 내보내기
-      document.getElementById("exportCsvBtn").addEventListener("click", () => {
+      $("exportCsvBtn").addEventListener("click", () => {
         const headers = ["날짜", "지출주체", "카테고리", "금액", "메모"];
-        const rows = monthTransactions.map((tx) => {
-          const catLabel = CATEGORY_MAP[tx.category]?.label || tx.category;
-          return [
-            tx.date || "",
-            tx.spender || "공동",
-            catLabel,
-            Number(tx.amount) || 0,
-            `"${String(tx.memo || "").replace(/"/g, '""')}"`
-          ].join(",");
-        });
-        const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `태형경은가계부_${currentYearMonth}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showToast("CSV 파일이 다운로드되었습니다.");
+        const rows = monthTransactions.map((tx) => [
+          tx.date || "",
+          normalizeSpender(tx.spender),
+          CATEGORY_MAP[normalizeCategory(tx.category)].label,
+          Number(tx.amount) || 0,
+          `"${String(tx.memo || "").replace(/"/g, '""')}"`
+        ].join(","));
+        const csv = "﻿" + [headers.join(","), ...rows].join("\n");
+        downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8;" }), `태형경은가계부_${currentYearMonth}.csv`);
+        showToast("CSV 파일을 저장했어요.");
       });
 
-      // 전체 JSON 백업 다운로드
-      document.getElementById("exportJsonBtn").addEventListener("click", async () => {
+      $("exportJsonBtn").addEventListener("click", async () => {
         if (!currentUser) return;
         try {
-          const txSnap = await getDocs(collection(db, "ledgers", "shared_household", "transactions"));
-          const allTx = [];
-          txSnap.forEach((d) => allTx.push({ id: d.id, ...d.data() }));
-
-          const backupObj = {
-            exportedAt: new Date().toISOString(),
-            defaultBudget: defaultBudgetData,
-            transactions: allTx
-          };
-          const blob = new Blob([JSON.stringify(backupObj, null, 2)], { type: "application/json" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `태형경은가계부_전체백업_${getTodayDateString()}.json`;
-          a.click();
-          URL.revokeObjectURL(url);
-          showToast("전체 JSON 백업 파일이 저장되었습니다.");
+          const [txSnap, monthSnap] = await Promise.all([getDocs(txCol()), getDocs(monthsCol())]);
+          const transactions = [];
+          txSnap.forEach((d) => transactions.push({ id: d.id, ...d.data() }));
+          const months = {};
+          monthSnap.forEach((d) => { months[d.id] = normalizeBudgetDoc(d.data()); });
+          const backup = { version: 2, exportedAt: new Date().toISOString(), defaultBudget: defaultBudgetData, months, transactions };
+          downloadBlob(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }), `태형경은가계부_전체백업_${getTodayDateString()}.json`);
+          showToast("전체 백업 파일을 저장했어요.");
         } catch (err) {
           console.error("JSON 백업 오류:", err);
-          showToast("백업 파일 생성 중 오류가 발생했습니다.");
+          showToast("백업 파일 생성 중 오류가 발생했어요.");
         }
       });
 
-      // JSON 백업 복원(클라우드 일괄 업로드)
-      document.getElementById("importJsonInput").addEventListener("change", async (e) => {
+      $("importJsonInput").addEventListener("change", async (e) => {
         const file = e.target.files?.[0];
+        e.target.value = "";
         if (!file || !currentUser) return;
 
-        try {
-          const text = await file.text();
-          const parsed = JSON.parse(text);
+        let parsed;
+        try { parsed = JSON.parse(await file.text()); }
+        catch { showToast("올바른 JSON 백업 파일인지 확인해 주세요."); return; }
 
-          if (parsed.defaultBudget && typeof parsed.defaultBudget === "object") {
-            const cleanBudget = normalizeBudgetDoc(parsed.defaultBudget);
-            await setDoc(doc(db, "ledgers", "shared_household", "config", "defaultBudget"), cleanBudget, { merge: true });
-          }
+        const txs = Array.isArray(parsed.transactions) ? parsed.transactions.filter((t) => t && t.date && Number(t.amount) > 0) : [];
+        const months = parsed.months && typeof parsed.months === "object"
+          ? Object.entries(parsed.months).filter(([ym]) => /^\d{4}-\d{2}$/.test(ym)) : [];
+        const hasDefault = parsed.defaultBudget && typeof parsed.defaultBudget === "object";
 
-          if (Array.isArray(parsed.transactions)) {
-            for (const item of parsed.transactions) {
-              if (!item.date || !item.amount) continue;
-              const rawCat = (item.category === "miscLiving" || item.category === "misc_living") ? "livingOther" : item.category;
-              const catKey = CATEGORY_MAP[rawCat] ? rawCat : "livingOther";
-              await addDoc(collection(db, "ledgers", "shared_household", "transactions"), {
-                date: String(item.date),
-                yearMonth: String(item.date).slice(0, 7),
-                category: catKey,
-                spender: item.spender || "공동",
-                amount: Number(item.amount) || 0,
-                memo: String(item.memo || ""),
-                createdAt: Number(item.createdAt) || Date.now()
+        openConfirmModal(
+          "백업 복원",
+          `내역 ${txs.length}건, 월별 예산 ${months.length}개${hasDefault ? ", 기본 예산" : ""}을 복원할까요?\n같은 내역은 덮어써서 중복되지 않아요.`,
+          async () => {
+            try {
+              const ops = [];
+              if (hasDefault) ops.push((b) => b.set(defaultDoc(), normalizeBudgetDoc(parsed.defaultBudget), { merge: true }));
+              months.forEach(([ym, budget]) => ops.push((b) => b.set(monthDoc(ym), normalizeBudgetDoc(budget), { merge: true })));
+              txs.forEach((item) => {
+                const ref = item.id ? doc(db, ...ROOT, "transactions", String(item.id)) : doc(txCol());
+                ops.push((b) => b.set(ref, {
+                  date: String(item.date),
+                  yearMonth: String(item.date).slice(0, 7),
+                  category: normalizeCategory(item.category),
+                  spender: normalizeSpender(item.spender),
+                  amount: Number(item.amount) || 0,
+                  memo: String(item.memo || ""),
+                  createdAt: Number(item.createdAt) || Date.now()
+                }));
               });
+              for (let i = 0; i < ops.length; i += 400) {
+                const batch = writeBatch(db);
+                ops.slice(i, i + 400).forEach((fn) => fn(batch));
+                await batch.commit();
+              }
+              closeModal("settingsModal");
+              showToast("백업 데이터를 복원했어요.");
+            } catch (err) {
+              console.error("JSON 복원 오류:", err);
+              showDbError(err);
+              showToast("복원 중 오류가 발생했어요.");
             }
-          }
-
-          settingsModal.classList.add("hidden");
-          settingsModal.classList.remove("flex");
-          showToast("백업 데이터가 클라우드 DB에 복원되었습니다.");
-        } catch (err) {
-          console.error("JSON 복원 오류:", err);
-          showToast("올바른 JSON 백업 파일인지 확인해 주세요.");
-        } finally {
-          e.target.value = "";
-        }
+          },
+          { okText: "복원", danger: false }
+        );
       });
 
-      // 확인 모달 버튼
-      document.getElementById("confirmCancelBtn").addEventListener("click", closeConfirmModal);
-      document.getElementById("confirmOkBtn").addEventListener("click", async () => {
+      // 확인 모달
+      $("confirmCancelBtn").addEventListener("click", () => closeModal("confirmModal"));
+      $("confirmOkBtn").addEventListener("click", async () => {
         const fn = pendingConfirmAction;
-        closeConfirmModal();
+        closeModal("confirmModal");
         if (typeof fn === "function") await fn();
       });
 
       // 로그아웃
-      document.getElementById("logoutBtn").addEventListener("click", async () => {
+      $("logoutBtn").addEventListener("click", async () => {
         try {
-          if (unsubDefaultBudget) unsubDefaultBudget();
-          if (unsubMonthOverride) unsubMonthOverride();
-          if (unsubTransactions) unsubTransactions();
           await signOut(auth);
-          settingsModal.classList.add("hidden");
-          settingsModal.classList.remove("flex");
-          showToast("로그아웃되었습니다.");
-        } catch (err) {
-          showToast("로그아웃 중 오류가 발생했습니다.");
+          closeModal("settingsModal");
+          showToast("로그아웃되었어요.");
+        } catch {
+          showToast("로그아웃 중 오류가 발생했어요.");
         }
       });
-    });
+    }
 
-    // 9. 인증 상태 감지 및 실시간 스트림 연결
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function unsubscribeAll() {
+      [unsubDefaultBudget, unsubMonthOverride, unsubTransactions].forEach((fn) => fn && fn());
+      unsubDefaultBudget = unsubMonthOverride = unsubTransactions = null;
+    }
+
+    // 모듈 스크립트는 문서 파싱 후 실행되므로 바로 초기화
+    init();
+
+    // 12. 인증 상태
     onAuthStateChanged(auth, (user) => {
-      const loginView = document.getElementById("loginView");
-      const appView = document.getElementById("appView");
-
       if (user) {
         currentUser = user;
-        loginView.classList.add("hidden");
-        appView.classList.remove("hidden");
+        $("loginView").classList.add("hidden");
+        $("appView").classList.remove("hidden");
+        currentYearMonth = getTodayYearMonth();
         subscribeSharedDefaultBudget();
         subscribeMonthStream(currentYearMonth);
       } else {
         currentUser = null;
-        if (unsubDefaultBudget) unsubDefaultBudget();
-        if (unsubMonthOverride) unsubMonthOverride();
-        if (unsubTransactions) unsubTransactions();
-        appView.classList.add("hidden");
-        loginView.classList.remove("hidden");
+        unsubscribeAll();
+        $("appView").classList.add("hidden");
+        $("loginView").classList.remove("hidden");
       }
     });
   </script>

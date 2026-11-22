@@ -22,7 +22,7 @@ export interface PrizeRow {
 /**
  * 당첨표. 확률을 바꾸고 싶으면 chance만 고치면 돼요.
  * 🤫 ❤️❤️❤️은 숨겨진 이스터 에그라서 화면의 당첨표(?)에는 안 보여요.
- * 합계 36%가 당첨/폭탄, 나머지는 꽝(대부분 셋 다 다른 그림)
+ * 합계 43%가 당첨/폭탄, 나머지 57%는 꽝 (그중 70%는 두 개가 같은 '아깝다')
  */
 export const PRIZE_TABLE: PrizeRow[] = [
   { symbol: JACKPOT_SYMBOL, tier: "jackpot", rank: 1, chance: 0.05, prize: "🍗🍺 치맥 당첨! 오늘은 묻지도 따지지도 않고 치맥 GO!" },
@@ -57,14 +57,32 @@ export function drawTicket(rand: () => number = Math.random): DrawResult {
     acc += row.chance;
     if (r < acc) return { symbols: [row.symbol, row.symbol, row.symbol], tier: row.tier, rank: row.rank, prize: row.prize };
   }
-  // 꽝: 무작위 세 칸 (셋 다 같은 그림은 나오지 않게, 하트는 안 나오게)
-  const s: string[] = [pick(LOSE_POOL, rand), pick(LOSE_POOL, rand), pick(LOSE_POOL, rand)];
-  if (s[0] === s[1] && s[1] === s[2]) s[2] = LOSE_POOL[(LOSE_POOL.indexOf(s[2] as (typeof LOSE_POOL)[number]) + 1) % LOSE_POOL.length];
-  if (s.filter((x) => x === JACKPOT_SYMBOL).length === 2) {
-    return { symbols: s, tier: "almost", rank: 0, prize: "아깝다! 🎰이 두 개… 치맥이 코앞이었어요 🍺" };
+  // 꽝: 70%는 두 칸이 같은 그림(아깝다!), 30%는 셋 다 다른 그림. 하트는 안 나와요
+  if (rand() < PAIR_RATE) {
+    const a = pick(LOSE_POOL, rand);
+    const b = pick(LOSE_POOL.filter((x) => x !== a), rand);
+    const s: string[] = [a, a, a];
+    s[Math.floor(rand() * 3) % 3] = b; // 다른 그림이 어느 칸에 올지도 무작위
+    return { symbols: s, tier: "almost", rank: 0, prize: ALMOST_TEXT[a] };
   }
-  return { symbols: s, tier: "lose", rank: 0, prize: LOSE_MESSAGE };
+  const first = pick(LOSE_POOL, rand);
+  const second = pick(LOSE_POOL.filter((x) => x !== first), rand);
+  const third = pick(LOSE_POOL.filter((x) => x !== first && x !== second), rand);
+  return { symbols: [first, second, third], tier: "lose", rank: 0, prize: LOSE_MESSAGE };
 }
+
+/** 꽝 중에서 두 칸이 같은 그림으로 나오는 비율 */
+export const PAIR_RATE = 0.7;
+
+/** 두 개 같을 때 한마디 */
+export const ALMOST_TEXT: Record<(typeof LOSE_POOL)[number], string> = {
+  "🎰": "🎰이 두 개… 치맥이 코앞이었어요 🍺",
+  "💎": "💎이 두 개… 어깨 안마가 코앞이었어요 💆",
+  "🐷": "🐷이 두 개… 설거지 면제가 코앞이었어요 🧽",
+  "🍀": "🍀가 두 개… 로또가 코앞이었어요 🎫",
+  "🍒": "🍒가 두 개… 심부름권이 코앞이었어요 🏃",
+  "💣": "💣이 두 개… 휴, 폭탄은 아슬아슬하게 피했어요 😮‍💨"
+};
 
 export function tierTitle(tier: LotteryTier, rank = 0): string {
   switch (tier) {

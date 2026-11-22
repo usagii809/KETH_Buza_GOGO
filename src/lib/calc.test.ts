@@ -354,22 +354,26 @@ describe("오늘의 복권", () => {
   it("💣💣💣 폭탄", () => {
     expect(drawTicket(seq(at("💣"))).tier).toBe("bomb");
   });
-  it("아깝다: 🎰이 두 개", () => {
-    expect(drawTicket(seq(0.9, 0.0, 0.0, 0.2))).toMatchObject({ symbols: ["🎰", "🎰", "💎"], tier: "almost" });
+  it("아깝다: 두 개가 같은 그림 (다른 그림 자리도 무작위)", () => {
+    expect(drawTicket(seq(0.9, 0.0, 0.0, 0.0, 0.9))).toMatchObject({ symbols: ["🎰", "🎰", "💎"], tier: "almost" });
+    const t = drawTicket(seq(0.9, 0.1, 0.2, 0.0, 0.0));
+    expect(t).toMatchObject({ symbols: ["🎰", "💎", "💎"], tier: "almost" });
+    expect(t.prize).toContain("어깨 안마가 코앞");
   });
   it("꽝이면 내일 또 도전 멘트, 셋 다 같은 그림은 안 나와요", () => {
-    const t = drawTicket(seq(0.9, 0.3, 0.3, 0.3, 0));
+    const t = drawTicket(seq(0.9, 0.9, 0.3, 0.3, 0.3));
     expect(t.tier).toBe("lose");
-    expect(new Set(t.symbols).size).toBeGreaterThan(1);
+    expect(t.symbols).toEqual(["💎", "🐷", "🍀"]);
     expect(t.prize).toBe(LOSE_MESSAGE);
   });
   it("확률: 1등 약 5%, 하트 약 6%, 꽝(아깝다 포함) 57%, 하트는 꼭 세 개로만 나와요", () => {
-    let jackpot = 0, love = 0, lose = 0, loseAllDiff = 0;
+    let jackpot = 0, love = 0, lose = 0, loseAllDiff = 0, almost = 0;
     for (let i = 0; i < 30000; i++) {
       const t = drawTicket();
       if (t.tier === "jackpot") jackpot++;
       if (t.tier === "love") { love++; expect(t.symbols).toEqual(["❤️", "❤️", "❤️"]); }
       else expect(t.symbols).not.toContain(LOVE_SYMBOL);
+      if (t.tier === "almost") { almost++; expect(new Set(t.symbols).size).toBe(2); }
       if (t.tier === "lose") { lose++; if (new Set(t.symbols).size === 3) loseAllDiff++; }
     }
     expect(jackpot / 30000).toBeGreaterThan(0.04);
@@ -377,7 +381,10 @@ describe("오늘의 복권", () => {
     expect(love / 30000).toBeGreaterThan(0.05);
     expect(love / 30000).toBeLessThan(0.07);
     expect(PRIZE_TABLE.reduce((t, r) => t + r.chance, 0)).toBeCloseTo(0.43);
-    expect(loseAllDiff / lose).toBeGreaterThan(0.5);
+    expect(loseAllDiff).toBe(lose); // 꽝은 셋 다 다른 그림
+    // 꽝 57% 중 70%가 '아깝다' → 전체의 약 40%
+    expect(almost / 30000).toBeGreaterThan(0.37);
+    expect(almost / 30000).toBeLessThan(0.43);
   });
   it("폭탄 다음 날은 강제 무지출 데이 (말일 → 다음 달 1일)", () => {
     const t = (date: string, tier: LotteryTicket["tier"], revealed = true): LotteryTicket =>

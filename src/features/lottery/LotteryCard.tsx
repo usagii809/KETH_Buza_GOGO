@@ -2,6 +2,8 @@ import type { LotteryTicket, Profile } from "../../lib/types";
 import { Avatar } from "../../ui/Avatar";
 import { symbolsOf } from "./ticket";
 
+const isBombPair = (t: LotteryTicket) => symbolsOf(t).filter((x) => x === "💣").length === 2;
+
 interface Props {
   uid: string;
   today: string;
@@ -35,7 +37,7 @@ export function LotteryCard({ uid, today, tickets, profiles, bombBy, couponCount
     else if (t.tier === "love") text = "💕 숨겨진 하트! 뽀뽀 해주기";
     else if (t.tier === "prize") text = `${t.rank}등 ${t.prize}`;
     else if (t.tier === "bomb") text = "💣💣💣 폭탄! 내일 강제 무지출";
-    else if (t.tier === "almost") text = `아깝다! ${sym}`;
+    else if (t.tier === "almost") text = isBombPair(t) ? `휴, 폭탄 피했다! ${sym}` : `아깝다! ${sym}`;
     else text = `꽝 ${sym}`;
     return (
       <div className="flex items-center gap-2 min-w-0">

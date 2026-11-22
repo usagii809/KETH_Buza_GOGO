@@ -22,31 +22,23 @@ export interface PrizeRow {
 /**
  * 당첨표. 확률을 바꾸고 싶으면 chance만 고치면 돼요.
  * 🤫 ❤️❤️❤️은 숨겨진 이스터 에그라서 화면의 당첨표(?)에는 안 보여요.
- * 합계 약 22%가 당첨/폭탄, 나머지는 꽝(대부분 셋 다 다른 그림)
+ * 합계 36%가 당첨/폭탄, 나머지는 꽝(대부분 셋 다 다른 그림)
  */
 export const PRIZE_TABLE: PrizeRow[] = [
-  { symbol: JACKPOT_SYMBOL, tier: "jackpot", rank: 1, chance: 0.02, prize: "🍗🍺 치맥 당첨! 오늘은 묻지도 따지지도 않고 치맥 GO!" },
-  { symbol: "💎", tier: "prize", rank: 2, chance: 0.02, prize: "💆 어깨 안마 10분 이용권" },
-  { symbol: "🐷", tier: "prize", rank: 3, chance: 0.03, prize: "🧽 설거지 면제권" },
-  { symbol: "🍀", tier: "prize", rank: 4, chance: 0.04, prize: "🎫 로또 한 장 사주기" },
-  { symbol: "🍒", tier: "prize", rank: 5, chance: 0.05, prize: "🏃 심부름 1회 이용권" },
-  { symbol: LOVE_SYMBOL, tier: "love", rank: 0, chance: 0.03, prize: "💋 뽀뽀 해주기" },
-  { symbol: "💣", tier: "bomb", rank: 0, chance: 0.03, prize: "내일은 강제 무지출 데이! 둘 다 하루 동안 지갑 봉인 🔒" }
+  { symbol: JACKPOT_SYMBOL, tier: "jackpot", rank: 1, chance: 0.04, prize: "🍗🍺 치맥 당첨! 오늘은 묻지도 따지지도 않고 치맥 GO!" },
+  { symbol: "💎", tier: "prize", rank: 2, chance: 0.04, prize: "💆 어깨 안마 10분 이용권" },
+  { symbol: "🐷", tier: "prize", rank: 3, chance: 0.05, prize: "🧽 설거지 면제권" },
+  { symbol: "🍀", tier: "prize", rank: 4, chance: 0.06, prize: "🎫 로또 한 장 사주기" },
+  { symbol: "🍒", tier: "prize", rank: 5, chance: 0.07, prize: "🏃 심부름 1회 이용권" },
+  { symbol: LOVE_SYMBOL, tier: "love", rank: 0, chance: 0.05, prize: "💋 뽀뽀 해주기" },
+  { symbol: "💣", tier: "bomb", rank: 0, chance: 0.05, prize: "내일은 강제 무지출 데이! 둘 다 하루 동안 지갑 봉인 🔒" }
 ];
 
 /** 화면에 보여줄 당첨표 (숨겨진 하트는 빼고) */
 export const VISIBLE_PRIZES = PRIZE_TABLE.filter((r) => r.tier !== "love");
 
-/** 꽝일 때 오늘의 운세 */
-export const FORTUNES = [
-  "오늘의 운세: 지갑을 닫으면 행운이 열려요 🔒",
-  "오늘의 운세: 편의점 앞을 지나치면 금전운 상승 📈",
-  "오늘의 운세: 집밥이 행운을 불러와요 🍚",
-  "오늘의 운세: 장바구니는 비울수록 마음이 채워져요 🛒",
-  "오늘의 운세: 내일의 복권이 더 반짝일 예정이에요 ✨",
-  "오늘의 운세: 무지출하면 새싹이 웃어요 🌱",
-  "오늘의 운세: 서로 칭찬 한마디가 최고의 재테크 💬"
-];
+/** 꽝일 때 멘트 */
+export const LOSE_MESSAGE = "아쉽지만 내일 또 도전해봐요! 🍀";
 
 export interface DrawResult {
   symbols: string[];
@@ -71,7 +63,7 @@ export function drawTicket(rand: () => number = Math.random): DrawResult {
   if (s.filter((x) => x === JACKPOT_SYMBOL).length === 2) {
     return { symbols: s, tier: "almost", rank: 0, prize: "아깝다! 🎰이 두 개… 치맥이 코앞이었어요 🍺" };
   }
-  return { symbols: s, tier: "lose", rank: 0, prize: pick(FORTUNES, rand) };
+  return { symbols: s, tier: "lose", rank: 0, prize: LOSE_MESSAGE };
 }
 
 export function tierTitle(tier: LotteryTier, rank = 0): string {

@@ -111,13 +111,24 @@ export function ExpenseSheet({ tx, viewedYm, uid, history, beforeAdd, myName, fo
       </>}>
       <form id="expenseForm" onSubmit={submit} className="space-y-5">
         <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label htmlFor="expenseAmount" className="text-sm font-medium text-toss-sub">얼마 썼나요?</label>
-            <button type="button" onClick={() => setAmount(0)} className="text-xs font-semibold text-toss-sub hover:text-toss-text">지우기</button>
+          <label htmlFor="expenseDate" className="block text-sm font-medium text-toss-sub mb-1.5">언제 썼나요?</label>
+          <input id="expenseDate" type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={`${inputClass} num block min-w-0 max-w-full appearance-none`} />
+        </div>
+
+        <div>
+          <span className="block text-sm font-medium text-toss-sub mb-1.5">어떤 지출인가요?</span>
+          <div className="space-y-2">
+            {GROUPS.map((g) => (
+              <div key={g.key} className="flex items-center gap-2">
+                <span className={`w-12 shrink-0 text-xs font-bold ${g.text}`}>{g.shortLabel}</span>
+                <div className="flex-1 grid grid-cols-3 gap-1.5">
+                  {CATEGORIES.filter((c) => c.group === g.key).map((c) => (
+                    <button key={c.key} type="button" data-cat={c.key} onClick={() => setCategory(c.key)} className={chip(c.key === category)}>{c.short}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
-          {/* 새 기록일 때만 바로 키패드가 뜨도록 */}
-          <BigMoneyInput id="expenseAmount" value={amount} onChange={setAmount} autoFocus={!tx} />
-          <QuickAddChips amounts={[[1000, "+1천"], [5000, "+5천"], [10000, "+1만"], [30000, "+3만"], [50000, "+5만"]]} onAdd={(n) => setAmount((a) => a + n)} />
         </div>
 
         <div>
@@ -151,19 +162,12 @@ export function ExpenseSheet({ tx, viewedYm, uid, history, beforeAdd, myName, fo
         </div>
 
         <div>
-          <span className="block text-sm font-medium text-toss-sub mb-1.5">어떤 지출인가요?</span>
-          <div className="space-y-2">
-            {GROUPS.map((g) => (
-              <div key={g.key} className="flex items-center gap-2">
-                <span className={`w-12 shrink-0 text-xs font-bold ${g.text}`}>{g.shortLabel}</span>
-                <div className="flex-1 grid grid-cols-3 gap-1.5">
-                  {CATEGORIES.filter((c) => c.group === g.key).map((c) => (
-                    <button key={c.key} type="button" data-cat={c.key} onClick={() => setCategory(c.key)} className={chip(c.key === category)}>{c.short}</button>
-                  ))}
-                </div>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-1.5">
+            <label htmlFor="expenseAmount" className="text-sm font-medium text-toss-sub">얼마 썼나요?</label>
+            <button type="button" onClick={() => setAmount(0)} className="text-xs font-semibold text-toss-sub hover:text-toss-text">지우기</button>
           </div>
+          <BigMoneyInput id="expenseAmount" value={amount} onChange={setAmount} />
+          <QuickAddChips amounts={[[1000, "+1천"], [5000, "+5천"], [10000, "+1만"], [30000, "+3만"], [50000, "+5만"]]} onAdd={(n) => setAmount((a) => a + n)} />
         </div>
 
         <div>
@@ -185,11 +189,6 @@ export function ExpenseSheet({ tx, viewedYm, uid, history, beforeAdd, myName, fo
               </span>
             </button>
           )}
-        </div>
-
-        <div>
-          <label htmlFor="expenseDate" className="block text-sm font-medium text-toss-sub mb-1.5">날짜</label>
-          <input id="expenseDate" type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={`${inputClass} num`} />
         </div>
       </form>
     </Sheet>

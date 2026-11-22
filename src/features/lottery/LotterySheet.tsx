@@ -4,7 +4,7 @@ import type { LotteryTicket } from "../../lib/types";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
 import { confetti } from "../fun/confetti";
-import { drawTicket, isJackpotSymbol, JACKPOT_SYMBOL, LOVE_SYMBOL, symbolsOf, tierTitle, VISIBLE_PRIZES } from "./ticket";
+import { drawTicket, isJackpotSymbol, JACKPOT_SYMBOL, LOVE_SYMBOL, LOSE_MESSAGE, symbolsOf, tierTitle, VISIBLE_PRIZES } from "./ticket";
 
 interface Props {
   uid: string;
@@ -77,9 +77,13 @@ export function LotterySheet({ uid, myName, today, onClose }: Props) {
               ) : (
                 <p className={`font-bold ${ticket.tier === "love" ? "text-xl text-rose-500" : "text-lg"}`}>{tierTitle(ticket.tier, ticket.rank)}</p>
               )}
-              <p className="text-base font-semibold mt-1">{ticket.prize}</p>
+              <p className="text-base font-semibold mt-1 whitespace-pre-line leading-relaxed">{ticket.tier === "lose" ? LOSE_MESSAGE : ticket.prize}</p>
               {(ticket.tier === "prize" || ticket.tier === "love") && <p className="text-xs text-toss-sub mt-1">상대에게 이 화면을 보여주고 오늘 써요</p>}
-              <p className={`text-xs mt-2 ${ticket.tier === "bomb" || ticket.tier === "jackpot" ? "text-white/60" : "text-toss-sub"}`}>내일 또 한 장이 도착해요</p>
+              {ticket.tier !== "lose" && (
+                <p className={`text-xs mt-2 ${ticket.tier === "bomb" || ticket.tier === "jackpot" ? "text-white/60" : "text-toss-sub"}`}>
+                  {ticket.tier === "almost" ? LOSE_MESSAGE : "내일 또 한 장이 도착해요"}
+                </p>
+              )}
             </div>
           )}
 
@@ -111,7 +115,7 @@ function PrizeTable() {
         ))}
         <div className="flex items-center gap-3 pt-1.5 border-t border-toss-border">
           <span className="w-11 shrink-0 text-center text-xs font-bold rounded-full py-0.5 bg-white text-toss-sub">꽝</span>
-          <span className="text-sm text-toss-sub leading-snug">그 외 · 대신 오늘의 운세 한 줄 🔮</span>
+          <span className="text-sm text-toss-sub leading-snug">그 외 · 내일 또 도전!</span>
         </div>
       </div>
     </div>

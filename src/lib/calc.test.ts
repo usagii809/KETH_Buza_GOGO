@@ -10,7 +10,7 @@ import { dueDateInMonth, getPeriodInfo } from "./dates";
 import { formatShort } from "./format";
 import { isHousehold, type Transaction } from "./types";
 import { matchTx } from "../features/expenses/filters";
-import { drawTicket, forcedNoSpendDays, FORTUNES, LOVE_SYMBOL, PRIZE_TABLE, VISIBLE_PRIZES } from "../features/lottery/ticket";
+import { drawTicket, forcedNoSpendDays, LOSE_MESSAGE, LOVE_SYMBOL, PRIZE_TABLE, VISIBLE_PRIZES } from "../features/lottery/ticket";
 import { nameForEmail, sha256Hex } from "./people";
 import type { LotteryTicket } from "./types";
 
@@ -306,8 +306,8 @@ describe("오늘의 복권", () => {
     for (const r of PRIZE_TABLE) { if (r.symbol === symbol) return acc + 0.0001; acc += r.chance; }
     throw new Error(symbol);
   };
-  it("당첨표: 1등 🎰🎰🎰 2%, 2~5등, 그림이 다 달라요", () => {
-    expect(PRIZE_TABLE[0]).toMatchObject({ symbol: "🎰", rank: 1, chance: 0.02 });
+  it("당첨표: 1등 🎰🎰🎰 4%, 2~5등, 그림이 다 달라요", () => {
+    expect(PRIZE_TABLE[0]).toMatchObject({ symbol: "🎰", rank: 1, chance: 0.04 });
     expect(PRIZE_TABLE.filter((r) => r.tier === "prize").map((r) => r.rank)).toEqual([2, 3, 4, 5]);
     expect(PRIZE_TABLE.find((r) => r.symbol === "🍒")?.prize).toContain("심부름 1회");
     expect(PRIZE_TABLE.find((r) => r.symbol === "🍀")?.prize).toContain("로또 한 장");
@@ -321,9 +321,9 @@ describe("오늘의 복권", () => {
     expect(t).toMatchObject({ symbols: ["💎", "💎", "💎"], tier: "prize", rank: 2 });
     expect(t.prize).toContain("어깨 안마");
   });
-  it("🤫 숨겨진 하트: 3% · 뽀뽀 해주기 · 당첨표에는 안 보여요", () => {
+  it("🤫 숨겨진 하트: 5% · 뽀뽀 해주기 · 당첨표에는 안 보여요", () => {
     const row = PRIZE_TABLE.find((r) => r.symbol === LOVE_SYMBOL);
-    expect(row).toMatchObject({ tier: "love", chance: 0.03, prize: "💋 뽀뽀 해주기" });
+    expect(row).toMatchObject({ tier: "love", chance: 0.05, prize: "💋 뽀뽀 해주기" });
     expect(VISIBLE_PRIZES.some((r) => r.symbol === LOVE_SYMBOL)).toBe(false);
     expect(drawTicket(seq(at(LOVE_SYMBOL)))).toMatchObject({ symbols: ["❤️", "❤️", "❤️"], tier: "love" });
   });
@@ -333,13 +333,13 @@ describe("오늘의 복권", () => {
   it("아깝다: 🎰이 두 개", () => {
     expect(drawTicket(seq(0.9, 0.0, 0.0, 0.2))).toMatchObject({ symbols: ["🎰", "🎰", "💎"], tier: "almost" });
   });
-  it("꽝 + 오늘의 운세, 꽝일 땐 셋 다 같은 그림이 안 나와요", () => {
+  it("꽝이면 내일 또 도전 멘트, 셋 다 같은 그림은 안 나와요", () => {
     const t = drawTicket(seq(0.9, 0.3, 0.3, 0.3, 0));
     expect(t.tier).toBe("lose");
     expect(new Set(t.symbols).size).toBeGreaterThan(1);
-    expect(FORTUNES).toContain(t.prize);
+    expect(t.prize).toBe(LOSE_MESSAGE);
   });
-  it("확률: 1등 약 2%, 하트 약 3%, 하트는 꼭 세 개로만 나와요", () => {
+  it("확률: 1등 약 4%, 하트 약 5%, 하트는 꼭 세 개로만 나와요", () => {
     let jackpot = 0, love = 0, lose = 0, loseAllDiff = 0;
     for (let i = 0; i < 30000; i++) {
       const t = drawTicket();
@@ -348,10 +348,10 @@ describe("오늘의 복권", () => {
       else expect(t.symbols).not.toContain(LOVE_SYMBOL);
       if (t.tier === "lose") { lose++; if (new Set(t.symbols).size === 3) loseAllDiff++; }
     }
-    expect(jackpot / 30000).toBeGreaterThan(0.013);
-    expect(jackpot / 30000).toBeLessThan(0.027);
-    expect(love / 30000).toBeGreaterThan(0.022);
-    expect(love / 30000).toBeLessThan(0.038);
+    expect(jackpot / 30000).toBeGreaterThan(0.031);
+    expect(jackpot / 30000).toBeLessThan(0.049);
+    expect(love / 30000).toBeGreaterThan(0.04);
+    expect(love / 30000).toBeLessThan(0.06);
     expect(loseAllDiff / lose).toBeGreaterThan(0.5);
   });
   it("폭탄 다음 날은 강제 무지출 데이 (말일 → 다음 달 1일)", () => {

@@ -105,3 +105,7 @@ body {
   background: linear-gradient(135deg, #3a0b14 0%, #160409 55%, #2e1507 100%);
   border: 1px solid rgba(231, 195, 90, 0.75);
 }
+
+/* 좌우로 흔들리지 않게 */
+html, body { overflow-x: hidden; overscroll-behavior-x: none; }
+input[type="date"] { -webkit-appearance: none; min-width: 0; }

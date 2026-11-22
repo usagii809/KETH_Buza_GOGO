@@ -1,6 +1,6 @@
 import type { LotteryTicket, Profile } from "../../lib/types";
 import { Avatar } from "../../ui/Avatar";
-import { symbolsOf, tierTitle } from "./ticket";
+import { symbolsOf } from "./ticket";
 
 interface Props {
   uid: string;
@@ -44,10 +44,13 @@ export function LotteryCard({ uid, today, tickets, profiles, bombBy, onOpen }: P
   };
 
   return (
-    <section className="bg-white rounded-3xl p-4 shadow-sm mb-4">
+    <section onClick={onOpen} role="button" aria-label="오늘의 복권 열기" className="bg-white rounded-3xl p-4 shadow-sm mb-4 cursor-pointer active:scale-[0.99] transition">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-bold text-toss-text">🎟️ 오늘의 복권</h2>
-        {jackpots > 0 && <span className="text-xs font-bold text-toss-red">이번 달 치맥 {jackpots}번 🍗</span>}
+        <span className="flex items-center gap-2">
+          {jackpots > 0 && <span className="text-xs font-bold text-toss-red">이번 달 치맥 {jackpots}번 🍗</span>}
+          <span className="text-xl leading-none text-toss-muted">›</span>
+        </span>
       </div>
 
       {bombBy && (
@@ -69,11 +72,11 @@ export function LotteryCard({ uid, today, tickets, profiles, bombBy, onOpen }: P
       {!played && partnerTicket?.revealed && <div className="mt-2">{line(partnerTicket, partnerProfile, "상대방")}</div>}
 
       {played && mine && (
-        <button type="button" onClick={onOpen} className="mt-2 w-full text-left space-y-1.5">
-          <p className={`text-sm font-bold ${mine.tier === "jackpot" ? "text-amber-600" : "text-toss-text"}`}>{tierTitle(mine.tier, mine.rank)}</p>
+        <div className="mt-2 w-full text-left space-y-1.5">
           {line(mine, me, "나")}
           {line(partnerTicket, partnerProfile, "상대방")}
-        </button>
+          {(mine.tier === "lose" || mine.tier === "almost") && <p className="text-xs text-toss-sub pt-0.5">아쉽지만 내일 또 도전해봐요! 🍀</p>}
+        </div>
       )}
     </section>
   );

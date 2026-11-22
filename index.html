@@ -75,7 +75,7 @@
       <div class="mb-6">
         <h1 class="text-2xl font-bold text-toss-text">태형이와 경은이의 부자되기 프로젝트!</h1>
         <p class="text-sm text-toss-sub mt-1.5 leading-relaxed">
-          등록된 부부 계정으로 로그인하면 두 사람의 지출 내역과 예산이 실시간으로 동기화돼요.
+          로그인하면 둘이 쓴 돈이 실시간으로 같이 보여요.
         </p>
       </div>
 
@@ -95,7 +95,7 @@
 
         <button type="submit" id="loginSubmitBtn"
           class="w-full py-3.5 rounded-2xl bg-toss-blue hover:bg-toss-blueDark text-white text-base font-bold shadow-sm active:scale-[0.99] transition">
-          로그인하기
+          로그인
         </button>
       </form>
     </div>
@@ -139,11 +139,10 @@
 
     <!-- 2-1. 저축 요약 카드 -->
     <section class="bg-white rounded-3xl p-5 shadow-sm mb-4">
-      <div id="emptyBudgetPrompt" class="hidden mb-4 p-3.5 rounded-2xl bg-toss-blueLight border border-blue-100">
-        <p class="text-sm text-toss-text font-medium leading-relaxed">
-          아직 등록된 예산이 없어요. <strong class="text-toss-blue">[예산 수정]</strong>을 눌러 수입과 고정지출·예산을 등록해 주세요.
-        </p>
-      </div>
+      <button type="button" id="emptyBudgetPrompt" class="hidden w-full text-left mb-4 p-4 rounded-2xl bg-toss-blueLight active:scale-[0.99] transition">
+        <p class="text-base font-bold text-toss-text">먼저 이번 달 예산부터 정해볼까요?</p>
+        <p class="text-sm text-toss-sub mt-0.5">수입과 예산만 알려주면 저축 계획을 세워드려요 <span class="text-toss-blue font-bold">→</span></p>
+      </button>
 
       <div class="flex items-center gap-4">
         <!-- 도넛 그래프 (저축 + 변동지출 + 고정지출 = 월수입) -->
@@ -165,7 +164,7 @@
             <p id="savingsLabel" class="text-sm font-medium text-toss-sub">이번 달 예상 저축액</p>
             <button id="openBudgetModalBtn" type="button"
               class="text-xs font-semibold text-toss-sub bg-toss-bg hover:bg-gray-200/70 px-2.5 py-1.5 rounded-xl active:scale-95 transition shrink-0 -mt-1">
-              예산 수정
+              예산 설정
             </button>
           </div>
           <p id="netSavingsAmount" class="text-2xl font-bold text-toss-blue num mt-0.5 truncate">0원</p>
@@ -280,7 +279,7 @@
           <!-- 금액 -->
           <div>
             <div class="flex items-center justify-between mb-1.5">
-              <label for="expenseAmount" class="text-sm font-medium text-toss-sub">금액</label>
+              <label for="expenseAmount" class="text-sm font-medium text-toss-sub">얼마 썼나요?</label>
               <button type="button" id="clearAmountBtn" class="text-xs font-semibold text-toss-sub hover:text-toss-text">지우기</button>
             </div>
             <div class="relative">
@@ -299,7 +298,7 @@
 
           <!-- 카테고리 칩 -->
           <div>
-            <span class="block text-sm font-medium text-toss-sub mb-1.5">카테고리</span>
+            <span class="block text-sm font-medium text-toss-sub mb-1.5">어디에 썼나요?</span>
             <input type="hidden" id="expenseCategory" value="foodIngredients" />
             <div id="categoryChipGroup" class="space-y-2"></div>
           </div>
@@ -322,8 +321,8 @@
                 class="w-full bg-toss-bg text-toss-text text-base font-medium rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue num" />
             </div>
             <div class="col-span-3">
-              <label for="expenseMemo" class="block text-sm font-medium text-toss-sub mb-1.5">메모 (선택)</label>
-              <input type="text" id="expenseMemo" maxlength="40" placeholder="예: 마트 장보기"
+              <label for="expenseMemo" class="block text-sm font-medium text-toss-sub mb-1.5">메모 <span class="font-normal">(선택)</span></label>
+              <input type="text" id="expenseMemo" maxlength="40" placeholder="예: 이마트 장보기"
                 class="w-full bg-toss-bg text-toss-text text-base font-medium rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
             </div>
           </div>
@@ -331,10 +330,10 @@
 
         <div class="shrink-0 flex gap-2 px-5 py-3.5 border-t border-toss-border bg-white">
           <button type="button" id="deleteExpenseBtn"
-            class="hidden px-4 py-3.5 rounded-2xl bg-red-50 hover:bg-red-100 text-toss-red text-sm font-bold transition">삭제</button>
+            class="hidden px-4 py-3.5 rounded-2xl bg-red-50 hover:bg-red-100 text-toss-red text-sm font-bold transition">지우기</button>
           <button type="submit" id="submitExpenseBtn"
             class="flex-1 py-3.5 rounded-2xl bg-toss-blue hover:bg-toss-blueDark text-white text-base font-bold shadow-sm active:scale-[0.99] transition">
-            지출 등록하기
+            기록하기
           </button>
         </div>
       </form>
@@ -348,7 +347,7 @@
         <div class="flex justify-center pt-2.5 sm:hidden"><span class="w-10 h-1.5 rounded-full bg-toss-border"></span></div>
         <div class="flex items-center justify-between px-5 pt-3 pb-3.5">
           <div>
-            <h3 class="text-lg font-bold text-toss-text">수입 · 고정지출 · 예산</h3>
+            <h3 class="text-lg font-bold text-toss-text">예산 설정</h3>
             <p id="budgetModalMonthSub" class="text-xs text-toss-sub mt-0.5">2026년 11월 기준</p>
           </div>
           <button type="button" data-close="budgetModal" aria-label="닫기"
@@ -359,7 +358,7 @@
       <form id="budgetEditForm" class="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div>
-            <label for="edit_income" class="block text-sm font-bold text-toss-blue mb-1.5">세후 월수입</label>
+            <label for="edit_income" class="block text-sm font-bold text-toss-blue mb-1.5">한 달 수입 <span class="font-medium">(세후)</span></label>
             <input type="text" id="edit_income" inputmode="numeric" placeholder="0"
               class="comma-money-input w-full bg-toss-blueLight/70 text-toss-text text-lg font-bold num rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
           </div>
@@ -370,21 +369,21 @@
           <!-- 계획 미리보기 -->
           <div class="p-3.5 rounded-2xl bg-toss-bg space-y-1">
             <div class="flex justify-between text-sm"><span class="text-toss-sub">변동지출 예산 합계</span><span id="editVariableSubtotal" class="font-bold num">0원</span></div>
-            <div class="flex justify-between text-sm"><span class="text-toss-sub">계획 저축액</span><span id="editPlannedSavings" class="font-bold text-toss-blue num">0원</span></div>
+            <div class="flex justify-between text-sm"><span class="text-toss-sub">이대로면 매달 모이는 돈</span><span id="editPlannedSavings" class="font-bold text-toss-blue num">0원</span></div>
           </div>
 
           <label class="flex items-start gap-2 pt-1 cursor-pointer select-none">
             <input type="checkbox" id="saveAsDefaultCheckbox" class="w-4 h-4 mt-0.5 rounded text-toss-blue focus:ring-toss-blue" />
             <span class="text-sm font-medium text-toss-sub leading-snug">
-              기본 예산으로도 저장
-              <span class="block text-xs font-normal">예산을 따로 정하지 않은 다음 달부터 이 값이 적용돼요.</span>
+              다음 달에도 이 예산 쓰기
+              <span class="block text-xs font-normal">예산을 따로 정하지 않은 달에 자동으로 적용돼요</span>
             </span>
           </label>
         </div>
 
         <div class="shrink-0 flex gap-2 px-5 py-3.5 border-t border-toss-border bg-white">
           <button type="button" id="resetZeroBudgetBtn" class="px-4 py-3 rounded-xl bg-toss-bg text-sm font-bold text-toss-sub hover:bg-gray-200 transition">비우기</button>
-          <button type="submit" id="saveBudgetSubmitBtn" class="flex-1 py-3 rounded-xl bg-toss-blue hover:bg-toss-blueDark text-white text-base font-bold shadow-sm transition">저장</button>
+          <button type="submit" id="saveBudgetSubmitBtn" class="flex-1 py-3 rounded-xl bg-toss-blue hover:bg-toss-blueDark text-white text-base font-bold shadow-sm transition">저장하기</button>
         </div>
       </form>
     </div>
@@ -397,7 +396,7 @@
         <div class="flex justify-center pt-2.5 sm:hidden"><span class="w-10 h-1.5 rounded-full bg-toss-border"></span></div>
         <div class="flex items-center justify-between px-5 pt-3 pb-3.5">
           <div>
-            <h3 class="text-lg font-bold text-toss-text">설정 및 데이터 관리</h3>
+            <h3 class="text-lg font-bold text-toss-text">설정</h3>
             <p id="currentUserEmailLabel" class="text-xs text-toss-sub mt-0.5">로그인 계정 확인 중...</p>
           </div>
           <button type="button" data-close="settingsModal" aria-label="닫기"
@@ -408,24 +407,24 @@
       <div class="flex-1 overflow-y-auto px-5 py-4 space-y-2.5">
         <button id="exportCsvBtn" type="button" class="w-full py-3 px-4 rounded-2xl bg-toss-bg hover:bg-gray-200/70 text-left flex items-center justify-between transition">
           <div>
-            <p class="text-sm font-bold text-toss-text">이번 달 내역 CSV 다운로드</p>
-            <p class="text-xs text-toss-sub">엑셀/구글 시트에서 열 수 있어요</p>
+            <p class="text-sm font-bold text-toss-text">이번 달 내역 엑셀로 받기</p>
+            <p class="text-xs text-toss-sub">CSV 파일이라 엑셀·구글 시트에서 바로 열려요</p>
           </div>
           <span class="text-sm font-bold text-toss-blue">CSV</span>
         </button>
 
         <button id="exportJsonBtn" type="button" class="w-full py-3 px-4 rounded-2xl bg-toss-bg hover:bg-gray-200/70 text-left flex items-center justify-between transition">
           <div>
-            <p class="text-sm font-bold text-toss-text">전체 백업 파일 저장 (JSON)</p>
-            <p class="text-xs text-toss-sub">기본 예산 · 월별 예산 · 모든 내역</p>
+            <p class="text-sm font-bold text-toss-text">전체 백업하기</p>
+            <p class="text-xs text-toss-sub">예산과 모든 기록을 파일 하나로 저장해요</p>
           </div>
           <span class="text-sm font-bold text-toss-blue">백업</span>
         </button>
 
         <label class="w-full py-3 px-4 rounded-2xl bg-toss-bg hover:bg-gray-200/70 flex items-center justify-between cursor-pointer transition">
           <div>
-            <p class="text-sm font-bold text-toss-text">백업 파일로 복원</p>
-            <p class="text-xs text-toss-sub">같은 내역은 덮어써서 중복되지 않아요</p>
+            <p class="text-sm font-bold text-toss-text">백업 불러오기</p>
+            <p class="text-xs text-toss-sub">여러 번 불러와도 기록이 중복되지 않아요</p>
           </div>
           <span class="text-sm font-bold text-toss-green">복원</span>
           <input type="file" id="importJsonInput" accept=".json,application/json" class="hidden" />
@@ -528,7 +527,7 @@
     }
 
     const BUDGET_SECTIONS = [
-      { title: "고정지출 (매월 고정 차감)", sumId: "editFixedSubtotal",
+      { title: "고정지출 · 매달 꼭 나가는 돈", sumId: "editFixedSubtotal",
         fields: [["fixedLoan", "대출금"], ["fixedMaintenance", "관리비"], ["fixedEvents", "경조사비"]] },
       ...GROUPS.map((g) => ({
         title: `${g.label} 예산`, sumId: `editSubtotal_${g.key}`,
@@ -577,6 +576,15 @@
     function formatKRW(amount) {
       const num = Math.round(Number(amount) || 0);
       return `${num.toLocaleString("ko-KR")}원`;
+    }
+    // 문장 속 금액은 "5만 원"처럼 짧게 (예: 12,300 → 1만 2,300원)
+    function formatShort(amount) {
+      const n = Math.round(Math.abs(Number(amount) || 0));
+      const sign = Number(amount) < 0 ? "-" : "";
+      if (n < 10000) return `${sign}${n.toLocaleString("ko-KR")}원`;
+      const man = Math.floor(n / 10000);
+      const rest = n % 10000;
+      return `${sign}${man.toLocaleString("ko-KR")}만${rest ? " " + rest.toLocaleString("ko-KR") : ""}원`;
     }
     function parseFormattedNumber(val) {
       if (val === null || val === undefined) return 0;
@@ -632,8 +640,8 @@
 
     // 상태 색: 초과 = 빨강, 오늘 위치보다 10%p 이상 빠르게 씀 = 주황, 그 외 정상
     const STATUS = {
-      over: { bar: "bg-toss-red", text: "text-toss-red", hex: "#F04452", label: "초과" },
-      fast: { bar: "bg-toss-amber", text: "text-toss-amber", hex: "#FF9F00", label: "빠름" },
+      over: { bar: "bg-toss-red", text: "text-toss-red", hex: "#F04452", label: "넘었어요" },
+      fast: { bar: "bg-toss-amber", text: "text-toss-amber", hex: "#FF9F00", label: "빨라요" },
       ok: { bar: "bg-toss-blue", text: "text-toss-blue", hex: "#3182F6", label: "" }
     };
     function getStatus(spent, budget, period, paced) {
@@ -723,8 +731,8 @@
     function showDbError(err) {
       const banner = $("dbErrorBanner");
       banner.textContent = err && err.code === "permission-denied"
-        ? "DB 접근 권한 오류: Firebase Console의 Firestore 규칙에 현재 로그인 계정의 UID가 등록되어 있는지 확인해 주세요."
-        : `클라우드 동기화 알림: ${err?.message || "네트워크 상태를 확인해 주세요."}`;
+        ? "데이터를 불러올 권한이 없어요. Firebase의 Firestore 규칙에 지금 계정(UID)이 등록돼 있는지 확인해 주세요."
+        : "동기화가 잠깐 끊겼어요. 인터넷 연결을 확인해 주세요.";
       banner.classList.remove("hidden");
     }
     function clearDbError() { $("dbErrorBanner").classList.add("hidden"); }
@@ -860,7 +868,7 @@
       const gap = projectedSavings - plannedSavings;
       const savingsRate = income > 0 ? ((projectedSavings / income) * 100).toFixed(1) : "0.0";
 
-      $("savingsLabel").textContent = period.state === "past" ? `${period.m}월 저축액` : `${period.m}월 예상 저축액`;
+      $("savingsLabel").textContent = period.state === "past" ? `${period.m}월에 모은 돈` : `${period.m}월 예상 저축액`;
       const netEl = $("netSavingsAmount");
       netEl.textContent = formatKRW(projectedSavings);
       netEl.className = `text-2xl font-bold num mt-0.5 truncate ${projectedSavings >= 0 ? "text-toss-blue" : "text-toss-red"}`;
@@ -869,13 +877,15 @@
       if (income === 0) {
         gapEl.textContent = "";
       } else if (gap < 0) {
-        gapEl.textContent = `계획(${formatKRW(plannedSavings)})보다 ${formatKRW(-gap)} ${period.state === "past" ? "덜 모았어요" : "초과 지출 중"}`;
+        gapEl.textContent = period.state === "past"
+          ? `계획보다 ${formatShort(-gap)} 덜 모았어요`
+          : `예산을 넘겨서 계획보다 ${formatShort(-gap)} 덜 모일 것 같아요`;
         gapEl.className = "text-xs font-semibold text-toss-red mt-1 leading-snug";
       } else if (gap > 0) {
-        gapEl.textContent = `계획보다 ${formatKRW(gap)} 더 모았어요 🎉`;
+        gapEl.textContent = `계획보다 ${formatShort(gap)} 더 모았어요 🎉`;
         gapEl.className = "text-xs font-semibold text-toss-green mt-1 leading-snug";
       } else {
-        gapEl.textContent = period.state === "past" ? "계획한 만큼 모았어요" : "계획대로 가는 중 · 아낀 만큼 더 쌓여요";
+        gapEl.textContent = period.state === "past" ? "계획한 만큼 딱 모았어요 👏" : "계획대로 가는 중 · 아낀 만큼 더 쌓여요";
         gapEl.className = "text-xs font-medium text-toss-sub mt-1 leading-snug";
       }
 
@@ -895,7 +905,7 @@
       $("legendLivingDot").style.background = livingHex;
       $("legendSavingsVal").textContent = formatKRW(projectedSavings);
       $("legendLivingVal").textContent = formatKRW(projectedVariable);
-      $("legendLivingSub").textContent = period.state === "past" ? "" : `사용 ${formatKRW(totalVariableSpent)}`;
+      $("legendLivingSub").textContent = period.state === "past" ? "" : `${formatShort(totalVariableSpent)} 씀`;
       $("legendFixedVal").textContent = formatKRW(fixedTotal);
       $("legendIncomeVal").textContent = formatKRW(income);
 
@@ -919,7 +929,7 @@
 
       const mode = isPast ? "month" : periodMode;
       const titles = { day: "하루 가용 예산", week: "이번 주 가용 예산", month: "이번 달 가용 예산" };
-      $("availableTitle").textContent = isPast ? "남은 예산 (마감)" : titles[mode];
+      $("availableTitle").textContent = isPast ? "이 달은 마감됐어요" : titles[mode];
 
       const foodCats = CATEGORIES.filter((c) => c.group === "FOOD");
       const foodBudget = foodCats.reduce((s, c) => s + budgetOf(c.key), 0);
@@ -931,8 +941,8 @@
       const days = mode === "day" ? 1 : period.weekLeft;
       const perPeriod = (remain) => (period.daysLeft > 0 ? floor100((remain / period.daysLeft) * days) : 0);
       const daysNote = mode === "day"
-        ? `남은 ${period.daysLeft}일(오늘 포함)로 나눈 금액`
-        : `일요일까지 ${period.weekLeft}일 기준`;
+        ? `남은 ${period.daysLeft}일 동안 나눠 쓰면 돼요`
+        : `일요일까지 ${period.weekLeft}일 남았어요`;
 
       // 변동지출 전체
       const varEl = $("availVariableAmount");
@@ -940,13 +950,13 @@
       if (mode === "month") {
         varEl.textContent = formatKRW(varRemain);
         varEl.className = `text-lg font-bold num mt-1 block ${varRemain < 0 ? "text-toss-red" : "text-toss-text"}`;
-        varSub.textContent = `예산 ${formatKRW(t.totalVariableBudget)} 중 ${formatKRW(t.totalVariableSpent)} 사용`;
+        varSub.textContent = `${formatShort(t.totalVariableBudget)} 중 ${formatShort(t.totalVariableSpent)} 썼어요`;
       } else {
         varEl.textContent = formatKRW(perPeriod(pacedRemain));
         varEl.className = `text-lg font-bold num mt-1 block ${pacedRemain <= 0 && t.pacedBudget > 0 ? "text-toss-red" : "text-toss-text"}`;
         varSub.textContent = pacedRemain <= 0 && t.pacedBudget > 0
-          ? "이미 예산을 다 썼어요"
-          : `${daysNote} · 통신비·생필품·의류 제외`;
+          ? "이번 달 예산을 다 썼어요 🥲"
+          : `${daysNote} (통신비·생필품·의류 빼고)`;
       }
 
       // 식비
@@ -962,7 +972,8 @@
         foodEl.textContent = formatKRW(perPeriod(foodRemain));
         foodEl.className = `text-lg font-bold num mt-1 block ${foodRemain <= 0 && foodBudget > 0 ? "text-toss-red" : "text-toss-text"}`;
       }
-      foodSub.innerHTML = `사용 ${formatKRW(foodSpent)} / ${formatKRW(foodBudget)} · <b class="${foodStatus.text}">${foodPct}%${foodStatus.label ? " " + foodStatus.label : ""}</b>`;
+      const foodHint = foodStatus === STATUS.over ? "식비 예산을 넘었어요" : foodStatus === STATUS.fast ? "평소보다 빨리 쓰고 있어요" : `${formatShort(foodSpent)} / ${formatShort(foodBudget)}`;
+      foodSub.innerHTML = `${foodHint} · <b class="${foodStatus.text}">${foodPct}%</b>`;
     }
 
     function renderCategoryList(period, usageMap, budgetOf) {
@@ -976,10 +987,10 @@
         const curTotal = Object.values(usageMap).reduce((s, v) => s + v, 0);
         const prevTotal = Object.values(prevMap).reduce((s, v) => s + v, 0);
         const diff = curTotal - prevTotal;
-        const scope = period.state === "current" ? "지난달 같은 기간" : "지난달";
-        if (diff < 0) { momEl.textContent = `${scope}보다 ${formatKRW(-diff)} 덜 썼어요 👍`; momEl.className = "text-xs font-semibold text-toss-green mb-3"; }
-        else if (diff > 0) { momEl.textContent = `${scope}보다 ${formatKRW(diff)} 더 썼어요`; momEl.className = "text-xs font-semibold text-toss-red mb-3"; }
-        else { momEl.textContent = `${scope}과 똑같이 썼어요`; momEl.className = "text-xs font-medium text-toss-sub mb-3"; }
+        const scope = period.state === "current" ? "지난달 이맘때" : "지난달";
+        if (diff < 0) { momEl.textContent = `${scope}보다 ${formatShort(-diff)} 덜 썼어요 👍`; momEl.className = "text-xs font-semibold text-toss-green mb-3"; }
+        else if (diff > 0) { momEl.textContent = `${scope}보다 ${formatShort(diff)} 더 썼어요`; momEl.className = "text-xs font-semibold text-toss-red mb-3"; }
+        else { momEl.textContent = `${scope}랑 똑같이 썼어요`; momEl.className = "text-xs font-medium text-toss-sub mb-3"; }
       } else {
         momEl.textContent = "";
         momEl.className = "mb-2";
@@ -1004,7 +1015,7 @@
               const d = Math.round(((spent - prev) / prev) * 100);
               if (d !== 0) mom = `<span class="${d > 0 ? "text-toss-red" : "text-toss-green"}">지난달 ${d > 0 ? "▲" : "▼"}${Math.abs(d)}%</span>`;
             } else if (spent > 0) {
-              mom = `<span class="text-toss-sub">지난달 0원</span>`;
+              mom = `<span class="text-toss-sub">지난달엔 안 썼어요</span>`;
             }
           }
 
@@ -1012,12 +1023,12 @@
             <div>
               <div class="flex items-center justify-between text-sm mb-1.5">
                 <span class="font-semibold text-toss-text truncate min-w-0">${cat.label}</span>
-                <span class="font-bold num shrink-0 ml-2 ${remain < 0 ? "text-toss-red" : "text-toss-text"}">잔액 ${formatKRW(remain)}</span>
+                <span class="font-bold num shrink-0 ml-2 ${remain < 0 ? "text-toss-red" : "text-toss-text"}">${remain < 0 ? formatKRW(-remain) + " 넘었어요" : formatKRW(remain) + " 남음"}</span>
               </div>
               ${progressBarHTML(pct, status, period, cat.paced)}
               <div class="flex justify-between items-center text-xs text-toss-sub num mt-1 gap-2">
                 <span class="truncate">${formatKRW(spent)} / ${formatKRW(budget)} ${mom ? "· " + mom : ""}</span>
-                <span class="font-bold shrink-0 ${status.text}">${pct}%${status.label ? " " + status.label : ""}</span>
+                <span class="font-bold shrink-0 ${status.text}">${status === STATUS.fast ? "빨라요 · " : ""}${pct}%</span>
               </div>
             </div>`;
         }).join("");
@@ -1053,11 +1064,11 @@
 
       const filtered = monthTransactions.filter((tx) => selectedFilter === "ALL" || normalizeSpender(tx.spender) === selectedFilter);
       const total = filtered.reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
-      $("txSummaryCount").textContent = `총 ${filtered.length}건 · 합계 ${formatKRW(total)}`;
+      $("txSummaryCount").textContent = `${filtered.length}건 · ${formatKRW(total)}`;
 
       const listEl = $("transactionList");
       if (filtered.length === 0) {
-        listEl.innerHTML = `<div class="py-10 text-center"><p class="text-sm font-medium text-toss-sub">기록된 지출 내역이 없어요.</p></div>`;
+        listEl.innerHTML = `<div class="py-10 text-center"><p class="text-base font-bold text-toss-text">아직 기록이 없어요</p><p class="text-sm text-toss-sub mt-1">아래 버튼으로 첫 지출을 남겨보세요</p></div>`;
         return;
       }
 
@@ -1136,8 +1147,8 @@
 
     function openExpenseSheet(tx = null) {
       editingTxId = tx ? tx.id : null;
-      $("expenseModalTitle").textContent = tx ? "지출 수정" : "지출 기록";
-      $("submitExpenseBtn").textContent = tx ? "수정 완료" : "지출 등록하기";
+      $("expenseModalTitle").textContent = tx ? "기록 수정" : "지출 기록";
+      $("submitExpenseBtn").textContent = tx ? "수정하기" : "기록하기";
       $("deleteExpenseBtn").classList.toggle("hidden", !tx);
 
       if (tx) {
@@ -1246,16 +1257,16 @@
         submitBtn.textContent = "로그인 중...";
         try {
           await signInWithEmailAndPassword(auth, $("loginEmail").value.trim(), $("loginPassword").value);
-          showToast("부자 되기 프로젝트에 연결되었어요.");
+          showToast("어서 오세요! 오늘도 부자 되러 가볼까요? 💰");
         } catch (err) {
           console.error("로그인 실패:", err);
           errBox.textContent = err.code === "auth/too-many-requests"
-            ? "로그인 시도가 너무 많아요. 잠시 후 다시 시도해 주세요."
-            : "이메일 또는 비밀번호를 다시 확인해 주세요.";
+            ? "시도가 너무 많았어요. 잠깐 쉬었다가 다시 해주세요."
+            : "이메일이나 비밀번호가 맞지 않아요.";
           errBox.classList.remove("hidden");
         } finally {
           submitBtn.disabled = false;
-          submitBtn.textContent = "로그인하기";
+          submitBtn.textContent = "로그인";
         }
       });
 
@@ -1311,7 +1322,7 @@
 
         const dateVal = $("expenseDate").value || getTodayDateString();
         const amountVal = parseFormattedNumber($("expenseAmount").value);
-        if (amountVal <= 0) { showToast("1원 이상의 금액을 입력해 주세요."); return; }
+        if (amountVal <= 0) { showToast("금액을 입력해 주세요"); return; }
 
         const data = {
           date: dateVal,
@@ -1325,7 +1336,7 @@
         const btn = $("submitExpenseBtn");
         const isEdit = !!editingTxId;
         btn.disabled = true;
-        btn.textContent = isEdit ? "수정 중..." : "등록 중...";
+        btn.textContent = "저장하는 중...";
         try {
           if (isEdit) {
             await updateDoc(doc(db, ...ROOT, "transactions", editingTxId), { ...data, updatedAt: Date.now() });
@@ -1338,40 +1349,40 @@
           closeModal("expenseModal");
           if (data.yearMonth !== currentYearMonth) {
             goToMonth(data.yearMonth);
-            showToast(`${Number(data.yearMonth.slice(5))}월 내역으로 이동했어요.`);
+            showToast(`${Number(data.yearMonth.slice(5))}월에 기록하고 그 달로 이동했어요`);
           } else {
-            showToast(isEdit ? "수정되었어요." : `${formatKRW(amountVal)} 지출을 기록했어요.`);
+            showToast(isEdit ? "수정했어요" : `${formatShort(amountVal)} 기록했어요`);
           }
         } catch (err) {
           console.error("지출 저장 오류:", err);
           showDbError(err);
-          showToast("저장 중 오류가 발생했어요.");
+          showToast("저장하지 못했어요. 다시 시도해 주세요");
         } finally {
           btn.disabled = false;
-          btn.textContent = isEdit ? "수정 완료" : "지출 등록하기";
+          btn.textContent = isEdit ? "수정하기" : "기록하기";
         }
       });
 
       $("deleteExpenseBtn").addEventListener("click", () => {
         const id = editingTxId;
         if (!id) return;
-        openConfirmModal("지출 내역 삭제", "이 내역을 삭제할까요?\n두 사람 화면 모두에서 바로 사라져요.", async () => {
+        openConfirmModal("이 기록을 지울까요?", "지우면 둘 다 볼 수 없어요.", async () => {
           try {
             await deleteDoc(doc(db, ...ROOT, "transactions", id));
             closeModal("expenseModal");
-            showToast("삭제되었어요.");
+            showToast("지웠어요");
           } catch (err) {
             console.error("삭제 오류:", err);
             showDbError(err);
-            showToast("삭제 중 오류가 발생했어요.");
+            showToast("지우지 못했어요. 다시 시도해 주세요");
           }
-        }, { okText: "삭제" });
+        }, { okText: "지우기" });
       });
 
       // 예산 시트
       $("openBudgetModalBtn").addEventListener("click", () => {
         const period = getPeriodInfo(currentYearMonth);
-        $("budgetModalMonthSub").textContent = `${period.y}년 ${period.m}월 예산`;
+        $("budgetModalMonthSub").textContent = `${period.y}년 ${period.m}월에 적용돼요`;
         Object.keys(ZERO_BUDGET).forEach((k) => {
           const el = $(`edit_${k}`);
           if (el) el.value = formatInputWithCommas(activeBudget[k] ?? 0);
@@ -1382,10 +1393,12 @@
         openModal("budgetModal");
       });
 
+      $("emptyBudgetPrompt").addEventListener("click", () => $("openBudgetModalBtn").click());
+
       $("resetZeroBudgetBtn").addEventListener("click", () => {
         Object.keys(ZERO_BUDGET).forEach((k) => { const el = $(`edit_${k}`); if (el) el.value = ""; });
         updateBudgetModalSubtotals();
-        showToast("입력칸을 모두 비웠어요. 저장해야 반영돼요.");
+        showToast("모두 비웠어요. 저장해야 반영돼요");
       });
 
       $("budgetEditForm").addEventListener("submit", async (e) => {
@@ -1401,25 +1414,25 @@
         };
         const saveBtn = $("saveBudgetSubmitBtn");
         saveBtn.disabled = true;
-        saveBtn.textContent = "저장 중...";
+        saveBtn.textContent = "저장하는 중...";
         try {
           if ($("saveAsDefaultCheckbox").checked) await setDoc(defaultDoc(), payload, { merge: true });
           await setDoc(monthDoc(currentYearMonth), payload, { merge: true });
           closeModal("budgetModal");
-          showToast("예산을 저장했어요.");
+          showToast("예산을 저장했어요 👍");
         } catch (err) {
           console.error("예산 저장 오류:", err);
           showDbError(err);
-          showToast("저장 중 오류가 발생했어요.");
+          showToast("저장하지 못했어요. 다시 시도해 주세요");
         } finally {
           saveBtn.disabled = false;
-          saveBtn.textContent = "저장";
+          saveBtn.textContent = "저장하기";
         }
       });
 
       // 설정 시트
       $("openSettingsModalBtn").addEventListener("click", () => {
-        $("currentUserEmailLabel").textContent = `로그인 계정: ${currentUser?.email || "인증됨"}`;
+        $("currentUserEmailLabel").textContent = `${currentUser?.email || "로그인됨"}`;
         openModal("settingsModal");
       });
 
@@ -1434,7 +1447,7 @@
         ].join(","));
         const csv = "﻿" + [headers.join(","), ...rows].join("\n");
         downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8;" }), `태형경은가계부_${currentYearMonth}.csv`);
-        showToast("CSV 파일을 저장했어요.");
+        showToast("파일을 저장했어요");
       });
 
       $("exportJsonBtn").addEventListener("click", async () => {
@@ -1447,10 +1460,10 @@
           monthSnap.forEach((d) => { months[d.id] = normalizeBudgetDoc(d.data()); });
           const backup = { version: 2, exportedAt: new Date().toISOString(), defaultBudget: defaultBudgetData, months, transactions };
           downloadBlob(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }), `태형경은가계부_전체백업_${getTodayDateString()}.json`);
-          showToast("전체 백업 파일을 저장했어요.");
+          showToast("백업을 저장했어요");
         } catch (err) {
           console.error("JSON 백업 오류:", err);
-          showToast("백업 파일 생성 중 오류가 발생했어요.");
+          showToast("백업하지 못했어요. 다시 시도해 주세요");
         }
       });
 
@@ -1461,7 +1474,7 @@
 
         let parsed;
         try { parsed = JSON.parse(await file.text()); }
-        catch { showToast("올바른 JSON 백업 파일인지 확인해 주세요."); return; }
+        catch { showToast("이 앱에서 만든 백업 파일인지 확인해 주세요"); return; }
 
         const txs = Array.isArray(parsed.transactions) ? parsed.transactions.filter((t) => t && t.date && Number(t.amount) > 0) : [];
         const months = parsed.months && typeof parsed.months === "object"
@@ -1469,8 +1482,8 @@
         const hasDefault = parsed.defaultBudget && typeof parsed.defaultBudget === "object";
 
         openConfirmModal(
-          "백업 복원",
-          `내역 ${txs.length}건, 월별 예산 ${months.length}개${hasDefault ? ", 기본 예산" : ""}을 복원할까요?\n같은 내역은 덮어써서 중복되지 않아요.`,
+          "백업을 불러올까요?",
+          `기록 ${txs.length}건, 월별 예산 ${months.length}개${hasDefault ? ", 기본 예산" : ""}을 불러와요.\n이미 있는 기록은 덮어써서 중복되지 않아요.`,
           async () => {
             try {
               const ops = [];
@@ -1494,14 +1507,14 @@
                 await batch.commit();
               }
               closeModal("settingsModal");
-              showToast("백업 데이터를 복원했어요.");
+              showToast("백업을 불러왔어요");
             } catch (err) {
               console.error("JSON 복원 오류:", err);
               showDbError(err);
-              showToast("복원 중 오류가 발생했어요.");
+              showToast("불러오지 못했어요. 다시 시도해 주세요");
             }
           },
-          { okText: "복원", danger: false }
+          { okText: "불러오기", danger: false }
         );
       });
 
@@ -1518,9 +1531,9 @@
         try {
           await signOut(auth);
           closeModal("settingsModal");
-          showToast("로그아웃되었어요.");
+          showToast("로그아웃했어요. 또 만나요 👋");
         } catch {
-          showToast("로그아웃 중 오류가 발생했어요.");
+          showToast("로그아웃하지 못했어요");
         }
       });
     }

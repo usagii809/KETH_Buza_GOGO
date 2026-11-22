@@ -4,7 +4,7 @@ import type { LotteryTicket } from "../../lib/types";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
 import { confetti } from "../fun/confetti";
-import { drawTicket, PRIZE_TABLE, symbolsOf, tierTitle } from "./ticket";
+import { drawTicket, isJackpotSymbol, JACKPOT_SYMBOL, LOVE_SYMBOL, symbolsOf, tierTitle, VISIBLE_PRIZES } from "./ticket";
 
 interface Props {
   uid: string;
@@ -37,16 +37,18 @@ export function LotterySheet({ uid, myName, today, onClose }: Props) {
     if (!ticket || revealed) return;
     setRevealed(true);
     revealTicket(ticket.id).catch((err) => console.warn("복권 저장 참고:", err));
-    if (ticket.tier === "jackpot") { confetti(); setTimeout(confetti, 900); toast("🍗🍺 777! 오늘은 치맥 GO!"); }
+    if (ticket.tier === "jackpot") { confetti(); setTimeout(confetti, 900); toast("🎰🎰🎰 잭팟! 오늘은 치맥 GO!"); }
+    else if (ticket.tier === "love") { confetti(); setTimeout(confetti, 700); toast("💕 숨겨진 하트 세 개! 뽀뽀 해주기 당첨"); }
     else if (ticket.tier === "prize") { confetti(); toast(`🎁 ${ticket.rank}등 당첨! 쿠폰을 보여주세요`); }
     else if (ticket.tier === "bomb") toast("💣 펑! 내일은 둘 다 강제 무지출 데이예요");
   };
 
   const resultBg = ticket?.tier === "jackpot" ? "ruby-panel gold-shine text-amber-50"
+    : ticket?.tier === "love" ? "bg-gradient-to-br from-rose-100 via-pink-50 to-rose-100 border border-rose-200"
     : ticket?.tier === "prize" ? "bg-indigo-50" : ticket?.tier === "bomb" ? "bg-gray-900 text-white" : "bg-toss-bg";
 
   return (
-    <Sheet title="🎟️ 오늘의 복권" subtitle="하루 한 장! 777이 나오면 묻지도 따지지도 않고 치맥 GO" onClose={onClose}>
+    <Sheet title="🎟️ 오늘의 복권" subtitle="하루 한 장! 🎰🎰🎰 나오면 바로 치맥 GO" onClose={onClose}>
       {!ticket ? (
         <div className="h-40 flex items-center justify-center text-sm text-toss-sub">복권을 꺼내는 중…</div>
       ) : (
@@ -69,9 +71,14 @@ export function LotterySheet({ uid, myName, today, onClose }: Props) {
           )}
           {revealed && (
             <div className={`p-4 rounded-2xl text-center ${resultBg}`}>
-              <p className={`font-bold ${ticket.tier === "jackpot" ? "text-xl gold-text" : "text-lg"}`}>{tierTitle(ticket.tier, ticket.rank)}</p>
+              {ticket.tier === "jackpot" ? (
+                // 금색 글씨 + 🎰은 원래 색 그대로
+                <p className="text-xl font-bold"><span className="gold-text">👑 1등!</span> 🎰🎰🎰 <span className="gold-text">치맥 당첨</span></p>
+              ) : (
+                <p className={`font-bold ${ticket.tier === "love" ? "text-xl text-rose-500" : "text-lg"}`}>{tierTitle(ticket.tier, ticket.rank)}</p>
+              )}
               <p className="text-base font-semibold mt-1">{ticket.prize}</p>
-              {ticket.tier === "prize" && <p className="text-xs text-toss-sub mt-1">상대에게 이 화면을 보여주고 오늘 써요</p>}
+              {(ticket.tier === "prize" || ticket.tier === "love") && <p className="text-xs text-toss-sub mt-1">상대에게 이 화면을 보여주고 오늘 써요</p>}
               <p className={`text-xs mt-2 ${ticket.tier === "bomb" || ticket.tier === "jackpot" ? "text-white/60" : "text-toss-sub"}`}>내일 또 한 장이 도착해요</p>
             </div>
           )}
@@ -87,14 +94,14 @@ function PrizeTable() {
   return (
     <div className="rounded-2xl bg-toss-bg p-3.5 animate-sheet-up">
       <div className="space-y-2">
-        {PRIZE_TABLE.map((row) => (
+        {VISIBLE_PRIZES.map((row) => (
           <div key={row.symbol} className="flex items-center gap-3">
             <span className={`w-11 shrink-0 text-center text-xs font-bold rounded-full py-0.5 ${row.tier === "jackpot" ? "bg-gradient-to-b from-amber-200 to-amber-500 text-zinc-900" : row.tier === "bomb" ? "bg-gray-800 text-white" : "bg-white text-toss-sub"}`}>
               {row.rank ? `${row.rank}등` : "폭탄"}
             </span>
             <span className="w-[72px] shrink-0 text-lg leading-none tracking-tight">
-              {row.symbol === "7"
-                ? <span className="inline-block px-2 py-1 rounded-lg lux-cell"><span className="lux-seven ruby-text text-lg tracking-widest">777</span></span>
+              {row.tier === "jackpot"
+                ? <span className="inline-block px-1.5 py-1 rounded-lg lux-cell text-base leading-none tracking-tight">{JACKPOT_SYMBOL.repeat(3)}</span>
                 : row.symbol.repeat(3)}
             </span>
             <span className="text-sm text-toss-text leading-snug">
@@ -114,12 +121,16 @@ function PrizeTable() {
 const Symbol = ({ s }: { s: string }) =>
   s === "7" ? <span className="text-[56px] leading-none lux-seven ruby-text">7</span> : <span className="text-[42px] leading-none">{s}</span>;
 
+const cellClass = (s: string) =>
+  isJackpotSymbol(s) ? "lux-cell" : s === LOVE_SYMBOL ? "bg-rose-50 ring-2 ring-rose-200" : "bg-white shadow-sm";
+
 /**
  * 은박을 손가락으로 긁어내는 카드.
  * 그림 세 칸이 각각 60% 넘게 드러나야 열려요 (겉만 긁어서는 안 열려요)
  */
 function ScratchCard({ symbols, revealed, onReveal }: { symbols: string[]; revealed: boolean; onReveal: () => void }) {
-  const jackpot = revealed && symbols.length === 3 && symbols.every((s) => s === "7");
+  const jackpot = revealed && symbols.length === 3 && symbols.every(isJackpotSymbol);
+  const love = revealed && symbols.length === 3 && symbols.every((s) => s === LOVE_SYMBOL);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const boxRefs = useRef<(HTMLSpanElement | null)[]>([]);
@@ -191,11 +202,11 @@ function ScratchCard({ symbols, revealed, onReveal }: { symbols: string[]; revea
   };
 
   return (
-    <div ref={wrapRef} className={`relative h-36 rounded-2xl overflow-hidden border-2 select-none ${jackpot ? "ruby-panel gold-shine border-amber-300" : "border-amber-300 bg-gradient-to-br from-amber-50 to-yellow-100"}`}>
+    <div ref={wrapRef} className={`relative h-36 rounded-2xl overflow-hidden border-2 select-none ${jackpot ? "ruby-panel gold-shine border-amber-300" : love ? "border-rose-300 bg-gradient-to-br from-rose-100 to-pink-50" : "border-amber-300 bg-gradient-to-br from-amber-50 to-yellow-100"}`}>
       <div className="absolute inset-0 flex items-center justify-center gap-3">
         {symbols.map((s, i) => (
           <span key={i} ref={(el) => { boxRefs.current[i] = el; }}
-            className={`w-16 h-20 rounded-xl flex items-center justify-center ${s === "7" ? "lux-cell" : "bg-white shadow-sm"}`}>
+            className={`w-16 h-20 rounded-xl flex items-center justify-center ${cellClass(s)}`}>
             <Symbol s={s} />
           </span>
         ))}

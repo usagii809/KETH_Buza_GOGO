@@ -60,7 +60,7 @@ export interface Profile {
   photo?: string;
 }
 
-export type LotteryTier = "jackpot" | "prize" | "bomb" | "almost" | "lose";
+export type LotteryTier = "jackpot" | "prize" | "love" | "bomb" | "almost" | "lose";
 
 /** 하루 한 장 복권. 여는 순간 결과가 서버에 고정돼서 다시 뽑을 수 없어요 */
 export interface LotteryTicket {

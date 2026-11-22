@@ -28,7 +28,8 @@ export function LotteryCard({ uid, today, tickets, profiles, bombBy, onOpen }: P
     const sym = t ? symbolsOf(t).join("") : "";
     let text: string;
     if (!t || !t.revealed) text = "아직 안 긁었어요";
-    else if (t.tier === "jackpot") text = "👑 1등 777 치맥!";
+    else if (t.tier === "jackpot") text = "👑 1등 🎰🎰🎰 치맥!";
+    else if (t.tier === "love") text = "💕 숨겨진 하트! 뽀뽀 해주기";
     else if (t.tier === "prize") text = `${t.rank}등 ${t.prize}`;
     else if (t.tier === "bomb") text = "💣💣💣 폭탄! 내일 강제 무지출";
     else if (t.tier === "almost") text = `아깝다! ${sym}`;
@@ -37,7 +38,7 @@ export function LotteryCard({ uid, today, tickets, profiles, bombBy, onOpen }: P
       <div className="flex items-center gap-2 min-w-0">
         <Avatar profile={who} size={22} />
         <span className="text-sm font-semibold text-toss-text shrink-0">{name}</span>
-        <span className={`text-sm truncate ${t?.tier === "jackpot" ? "font-bold text-amber-600" : t?.tier === "bomb" ? "font-bold text-gray-800" : "text-toss-sub"}`}>{text}</span>
+        <span className={`text-sm truncate ${t?.tier === "jackpot" ? "font-bold text-amber-600" : t?.tier === "love" ? "font-bold text-rose-500" : t?.tier === "bomb" ? "font-bold text-gray-800" : "text-toss-sub"}`}>{text}</span>
       </div>
     );
   };
@@ -60,7 +61,7 @@ export function LotteryCard({ uid, today, tickets, profiles, bombBy, onOpen }: P
           className="mt-3 w-full flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-gradient-to-r from-amber-100 via-yellow-50 to-amber-100 border border-amber-200 active:scale-[0.99] transition">
           <span className="text-left">
             <span className="block text-sm font-bold text-toss-text">{mine ? "긁다 만 복권이 있어요!" : "오늘의 복권이 도착했어요"}</span>
-            <span className="block text-xs text-toss-sub mt-0.5">777이 나오면 묻지도 따지지도 않고 치맥 GO 🍗🍺</span>
+            <span className="block text-xs text-toss-sub mt-0.5">🎰🎰🎰이 나오면 묻지도 따지지도 않고 치맥 GO 🍗🍺</span>
           </span>
           <span className="shrink-0 px-3 py-1.5 rounded-full bg-toss-amber text-white text-sm font-bold">긁기</span>
         </button>

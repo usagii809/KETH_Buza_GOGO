@@ -10,7 +10,7 @@ import { dueDateInMonth, getPeriodInfo } from "./dates";
 import { formatShort } from "./format";
 import { isHousehold, type Transaction } from "./types";
 import { matchTx } from "../features/expenses/filters";
-import { drawTicket, forcedNoSpendDays, FORTUNES, PRIZE_TABLE } from "../features/lottery/ticket";
+import { drawTicket, forcedNoSpendDays, FORTUNES, LOVE_SYMBOL, PRIZE_TABLE, VISIBLE_PRIZES } from "../features/lottery/ticket";
 import { nameForEmail, sha256Hex } from "./people";
 import type { LotteryTicket } from "./types";
 
@@ -301,26 +301,37 @@ describe("무지출 최장 기록", () => {
 
 describe("오늘의 복권", () => {
   const seq = (...xs: number[]) => { let i = 0; return () => xs[i++ % xs.length]; };
-  it("당첨표: 1등 777은 5%, 2~5등 그림이 다 달라요", () => {
-    expect(PRIZE_TABLE[0]).toMatchObject({ symbol: "7", rank: 1, chance: 0.05 });
+  const at = (symbol: string) => {
+    let acc = 0;
+    for (const r of PRIZE_TABLE) { if (r.symbol === symbol) return acc + 0.0001; acc += r.chance; }
+    throw new Error(symbol);
+  };
+  it("당첨표: 1등 🎰🎰🎰 2%, 2~5등, 그림이 다 달라요", () => {
+    expect(PRIZE_TABLE[0]).toMatchObject({ symbol: "🎰", rank: 1, chance: 0.02 });
     expect(PRIZE_TABLE.filter((r) => r.tier === "prize").map((r) => r.rank)).toEqual([2, 3, 4, 5]);
     expect(PRIZE_TABLE.find((r) => r.symbol === "🍒")?.prize).toContain("심부름 1회");
-    expect(PRIZE_TABLE.some((r) => r.prize.includes("커피"))).toBe(false);
+    expect(PRIZE_TABLE.find((r) => r.symbol === "🍀")?.prize).toContain("로또 한 장");
     expect(new Set(PRIZE_TABLE.map((r) => r.symbol)).size).toBe(PRIZE_TABLE.length);
   });
-  it("1등: 777 치맥", () => {
-    expect(drawTicket(seq(0.001))).toMatchObject({ symbols: ["7", "7", "7"], tier: "jackpot", rank: 1 });
+  it("1등: 🎰🎰🎰 치맥", () => {
+    expect(drawTicket(seq(at("🎰")))).toMatchObject({ symbols: ["🎰", "🎰", "🎰"], tier: "jackpot", rank: 1 });
   });
   it("2등: 💎💎💎 어깨 안마", () => {
-    expect(drawTicket(seq(0.06))).toMatchObject({ symbols: ["💎", "💎", "💎"], tier: "prize", rank: 2 });
-    expect(drawTicket(seq(0.06)).prize).toContain("어깨 안마");
+    const t = drawTicket(seq(at("💎")));
+    expect(t).toMatchObject({ symbols: ["💎", "💎", "💎"], tier: "prize", rank: 2 });
+    expect(t.prize).toContain("어깨 안마");
+  });
+  it("🤫 숨겨진 하트: 3% · 뽀뽀 해주기 · 당첨표에는 안 보여요", () => {
+    const row = PRIZE_TABLE.find((r) => r.symbol === LOVE_SYMBOL);
+    expect(row).toMatchObject({ tier: "love", chance: 0.03, prize: "💋 뽀뽀 해주기" });
+    expect(VISIBLE_PRIZES.some((r) => r.symbol === LOVE_SYMBOL)).toBe(false);
+    expect(drawTicket(seq(at(LOVE_SYMBOL)))).toMatchObject({ symbols: ["❤️", "❤️", "❤️"], tier: "love" });
   });
   it("💣💣💣 폭탄", () => {
-    const bombAt = PRIZE_TABLE.slice(0, -1).reduce((a, r) => a + r.chance, 0) + 0.001;
-    expect(drawTicket(seq(bombAt)).tier).toBe("bomb");
+    expect(drawTicket(seq(at("💣"))).tier).toBe("bomb");
   });
-  it("아깝다: 7이 두 개", () => {
-    expect(drawTicket(seq(0.9, 0.0, 0.0, 0.2)).tier).toBe("almost");
+  it("아깝다: 🎰이 두 개", () => {
+    expect(drawTicket(seq(0.9, 0.0, 0.0, 0.2))).toMatchObject({ symbols: ["🎰", "🎰", "💎"], tier: "almost" });
   });
   it("꽝 + 오늘의 운세, 꽝일 땐 셋 다 같은 그림이 안 나와요", () => {
     const t = drawTicket(seq(0.9, 0.3, 0.3, 0.3, 0));
@@ -328,15 +339,19 @@ describe("오늘의 복권", () => {
     expect(new Set(t.symbols).size).toBeGreaterThan(1);
     expect(FORTUNES).toContain(t.prize);
   });
-  it("확률이 대략 맞아요 (1등 약 5%, 꽝은 대부분 셋 다 다른 그림)", () => {
-    let jackpot = 0, lose = 0, loseAllDiff = 0;
-    for (let i = 0; i < 20000; i++) {
+  it("확률: 1등 약 2%, 하트 약 3%, 하트는 꼭 세 개로만 나와요", () => {
+    let jackpot = 0, love = 0, lose = 0, loseAllDiff = 0;
+    for (let i = 0; i < 30000; i++) {
       const t = drawTicket();
       if (t.tier === "jackpot") jackpot++;
+      if (t.tier === "love") { love++; expect(t.symbols).toEqual(["❤️", "❤️", "❤️"]); }
+      else expect(t.symbols).not.toContain(LOVE_SYMBOL);
       if (t.tier === "lose") { lose++; if (new Set(t.symbols).size === 3) loseAllDiff++; }
     }
-    expect(jackpot / 20000).toBeGreaterThan(0.04);
-    expect(jackpot / 20000).toBeLessThan(0.06);
+    expect(jackpot / 30000).toBeGreaterThan(0.013);
+    expect(jackpot / 30000).toBeLessThan(0.027);
+    expect(love / 30000).toBeGreaterThan(0.022);
+    expect(love / 30000).toBeLessThan(0.038);
     expect(loseAllDiff / lose).toBeGreaterThan(0.5);
   });
   it("폭탄 다음 날은 강제 무지출 데이 (말일 → 다음 달 1일)", () => {

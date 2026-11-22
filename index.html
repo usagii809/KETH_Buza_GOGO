@@ -76,8 +76,7 @@
   <div id="loginView" class="hidden min-h-screen flex items-center justify-center px-4 py-10">
     <div class="w-full max-w-md bg-white rounded-3xl p-7 shadow-sm border border-toss-border/60">
       <div class="mb-6">
-        <span class="text-xs font-bold text-toss-blue tracking-tight">부부 실시간 클라우드 동기화</span>
-        <h1 class="text-2xl font-bold text-toss-text mt-1">태형 경은 가계부 로그인</h1>
+        <h1 class="text-2xl font-bold text-toss-text">태형이와 경은이의 부자되기 프로젝트!</h1>
         <p class="text-xs text-toss-sub mt-1.5 leading-relaxed">
           등록된 부부 계정으로 로그인하면 양쪽 아이폰의 지출 내역과 예산 잔액이 실시간으로 동기화됩니다.
         </p>
@@ -102,10 +101,6 @@
           로그인하기
         </button>
       </form>
-
-      <div class="mt-6 pt-4 border-t border-toss-border text-[11px] text-toss-muted leading-relaxed">
-        * 로컬 개발(`127.0.0.1`) 접속 시 로그인이 차단되면 주소창을 <code class="bg-toss-bg px-1.5 py-0.5 rounded text-toss-text">localhost:5500</code>으로 변경해 주세요.
-      </div>
     </div>
   </div>
 
@@ -117,10 +112,6 @@
       <div>
         <div class="flex items-center gap-2">
           <span class="text-xs font-bold text-toss-blue tracking-tight">태형 경은 가계부</span>
-          <span id="syncStatusBadge" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-toss-green text-[10px] font-bold">
-            <span class="w-1.5 h-1.5 rounded-full bg-toss-green animate-pulse"></span>
-            실시간 클라우드 동기화
-          </span>
         </div>
         <!-- 월 이동 컨트롤 -->
         <div class="flex items-center gap-2 mt-1.5">
@@ -952,9 +943,7 @@
         } catch (err) {
           console.error("로그인 실패:", err);
           let msg = "이메일 또는 비밀번호를 다시 확인해 주세요.";
-          if (err.code === "auth/unauthorized-domain") {
-            msg = "승인되지 않은 도메인입니다. 주소창을 localhost:5500으로 변경하거나 Firebase 도메인 설정을 확인해 주세요.";
-          } else if (err.code === "auth/too-many-requests") {
+          if (err.code === "auth/too-many-requests") {
             msg = "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.";
           }
           errBox.textContent = msg;

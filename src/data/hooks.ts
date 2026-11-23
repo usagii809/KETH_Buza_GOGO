@@ -2,7 +2,7 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { onSnapshot, type FirestoreError } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
 import { auth } from "../lib/firebase";
-import { normalizeBudget, ZERO_BUDGET, type Budget } from "../lib/categories";
+import { applyCategoryConfig, getCategoryVersion, normalizeBudget, ZERO_BUDGET, type Budget } from "../lib/categories";
 import { shiftMonth } from "../lib/dates";
 import type { Goal, LotteryTicket, Profile, RecurringRule, Settlement, Transaction } from "../lib/types";
 import type { StreakRecord } from "../features/noSpend/calc";
@@ -51,9 +51,10 @@ export function useMonthData(ym: string) {
       setOverrideLoaded(true);
     }, (err) => setError(errorMessage(err)));
 
-    const unsubTx = onSnapshot(monthQuery(ym), (snap) => {
+    // includeMetadataChanges: 오프라인 기록이 서버에 올라가면 '올리는 중' 표시를 지우려고
+    const unsubTx = onSnapshot(monthQuery(ym), { includeMetadataChanges: true }, (snap) => {
       setError(null);
-      setTxs(snap.docs.map((d) => withId<Transaction>(d.id, d.data())).sort(byDateDesc));
+      setTxs(snap.docs.map((d) => ({ ...withId<Transaction>(d.id, d.data()), ...(d.metadata.hasPendingWrites ? { pending: true } : {}) })).sort(byDateDesc));
     }, (err) => setError(errorMessage(err)));
 
     loadMonthTransactions(shiftMonth(ym, -1))
@@ -92,6 +93,7 @@ export function useSharedData() {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [noSpendBest, setNoSpendBest] = useState<StreakRecord | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [categoryConfig, setCategoryConfig] = useState<{ raw: unknown; version: number } | null>(null);
 
   useEffect(() => {
     const unsubRec = onSnapshot(refs.recurring(), (snap) => {
@@ -111,11 +113,20 @@ export function useSharedData() {
     const unsubProfiles = onSnapshot(refs.profiles(), (snap) => {
       setProfiles(snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as Profile));
     }, (err) => console.warn("프로필 구독 참고:", err));
+    // 직접 추가한 항목: 받으면 바로 적용하고, 화면이 다시 계산되게 version을 올려요
+    const unsubCats = onSnapshot(refs.categories(), (snap) => {
+      const raw = snap.exists() ? snap.data() : {};
+      applyCategoryConfig(raw);
+      setCategoryConfig({ raw, version: getCategoryVersion() });
+    }, (err) => { console.warn("카테고리 구독 참고:", err); setCategoryConfig((c) => c ?? { raw: {}, version: getCategoryVersion() }); });
     loadRecentTransactions().then((list) => { setHistory(list); setHistoryLoaded(true); }).catch((err) => console.warn("최근 기록 조회 참고:", err));
-    return () => { unsubRec(); unsubGoals(); unsubBest(); unsubProfiles(); };
+    return () => { unsubRec(); unsubGoals(); unsubBest(); unsubProfiles(); unsubCats(); };
   }, []);
 
-  return { recurring, recurringLoaded, goals, history, historyLoaded, firstRecord, firstRecordLoaded, noSpendBest, profiles };
+  return {
+    recurring, recurringLoaded, goals, history, historyLoaded, firstRecord, firstRecordLoaded, noSpendBest, profiles,
+    categoryConfig: categoryConfig?.raw ?? null, categoriesLoaded: !!categoryConfig, categoryVersion: categoryConfig?.version ?? 0
+  };
 }
 
 /** 이번 달 복권 기록 (오늘 결과 · 이달 치맥 횟수) */

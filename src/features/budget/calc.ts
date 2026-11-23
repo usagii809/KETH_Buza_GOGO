@@ -1,4 +1,4 @@
-import { CATEGORIES, type Budget, type CategoryKey, fixedTotalOf, normalizeCategory, variableBudgetOf } from "../../lib/categories";
+import { CATEGORIES, budgetOf, type Budget, type CategoryKey, fixedTotalOf, normalizeCategory, variableBudgetOf } from "../../lib/categories";
 import type { PeriodInfo } from "../../lib/dates";
 import type { Transaction } from "../../lib/types";
 
@@ -61,13 +61,13 @@ export function computeSummary(budget: Budget, txs: Transaction[], period: Perio
 
   const projectedVariable = CATEGORIES.reduce((s, c) => {
     const spent = usage[c.key];
-    return s + (period.state === "past" ? spent : Math.max(budget[c.key], spent));
+    return s + (period.state === "past" ? spent : Math.max(budgetOf(budget, c.key), spent));
   }, 0);
   const plannedSavings = income - fixedTotal - totalVariableBudget;
   const projectedSavings = income - fixedTotal - projectedVariable;
 
   const paced = CATEGORIES.filter((c) => c.paced);
-  const pacedBudget = paced.reduce((s, c) => s + budget[c.key], 0);
+  const pacedBudget = paced.reduce((s, c) => s + budgetOf(budget, c.key), 0);
   const pacedSpent = paced.reduce((s, c) => s + usage[c.key], 0);
 
   let livingHex = "#00B37E";

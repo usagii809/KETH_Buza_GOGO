@@ -3,7 +3,7 @@ import { CATEGORY_MAP, normalizeCategory, normalizeSpender } from "../../lib/cat
 import { downloadCsv } from "../../lib/csv";
 import { formatDateHeader } from "../../lib/dates";
 import { formatKRW, formatShort } from "../../lib/format";
-import type { Spender, Transaction } from "../../lib/types";
+import { isRefund, type Spender, type Transaction } from "../../lib/types";
 import { Card } from "../../ui/controls";
 import { useFeedback } from "../../ui/feedback";
 import { FILTERS, matchTx, type FilterKey } from "./filters";
@@ -16,7 +16,7 @@ const SPENDER_BADGE: Record<Spender, string> = {
 const PAGE = 15;
 const sum = (list: Transaction[]) => list.reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
 
-export function TransactionList({ txs, ym, now, onEdit }: { txs: Transaction[]; ym: string; now: Date; onEdit: (tx: Transaction) => void }) {
+export function TransactionList({ txs, ym, now, onEdit, onSearchAll }: { txs: Transaction[]; ym: string; now: Date; onEdit: (tx: Transaction) => void; onSearchAll?: (query: string) => void }) {
   const { toast } = useFeedback();
   const [filter, setFilter] = useState<FilterKey>("ALL");
   const [query, setQuery] = useState("");
@@ -80,6 +80,12 @@ export function TransactionList({ txs, ym, now, onEdit }: { txs: Transaction[]; 
         <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="쿠팡, 휴지처럼 사용처·품목으로 찾기"
           className="w-full mb-2 bg-toss-bg text-toss-text text-base rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-toss-blue" />
       )}
+      {searchOpen && onSearchAll && (
+        <button type="button" onClick={() => onSearchAll(query)}
+          className="search-all w-full mb-2 py-2 rounded-xl bg-toss-blueLight text-toss-blue text-sm font-bold active:scale-[0.99] transition">
+          🔎 {query.trim() ? `'${query.trim()}' 전체 기간에서 찾기` : "전체 기간에서 찾기"}
+        </button>
+      )}
 
       <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1 mb-1">
         {FILTERS.map(([key, label]) => (
@@ -111,7 +117,8 @@ export function TransactionList({ txs, ym, now, onEdit }: { txs: Transaction[]; 
               <span>{formatDateHeader(g.date, now)}</span>
               <span className="num">
                 {dayHousehold > 0 && `-${formatKRW(dayHousehold)}`}
-                {dayHousehold > 0 && dayCompany > 0 && " · "}
+                {dayHousehold < 0 && <span className="text-toss-green">+{formatKRW(-dayHousehold)}</span>}
+                {dayHousehold !== 0 && dayCompany > 0 && " · "}
                 {dayCompany > 0 && <span className="text-indigo-600">🏢 {formatKRW(dayCompany)}</span>}
               </span>
             </div>
@@ -130,12 +137,14 @@ export function TransactionList({ txs, ym, now, onEdit }: { txs: Transaction[]; 
                         {tx.company && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-indigo-50 text-indigo-600">🏢 회사</span>}
                         <span className="text-xs font-medium text-toss-sub truncate">{cat.label}</span>
                         {tx.auto && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-green-50 text-toss-green">🔁 자동</span>}
+                        {isRefund(tx) && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-green-50 text-toss-green">↩️ 환불</span>}
+                        {tx.pending && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-amber-50 text-amber-700" title="연결되면 올라가요">⏳ 올리는 중</span>}
                         {tx.reactions && Object.values(tx.reactions).some((r) => r?.e) && (
                           <span className="px-1.5 py-0.5 rounded-full text-xs bg-rose-50 leading-none">{Object.values(tx.reactions).map((r) => r?.e).filter(Boolean).join("")}</span>
                         )}
                       </div>
                     </div>
-                    <span className={`text-base font-bold num shrink-0 ${tx.company ? "text-indigo-500" : "text-toss-text"}`}>-{formatKRW(tx.amount)}</span>
+                    <span className={`text-base font-bold num shrink-0 ${isRefund(tx) ? "text-toss-green" : tx.company ? "text-indigo-500" : "text-toss-text"}`}>{isRefund(tx) ? "+" : "-"}{formatKRW(Math.abs(Number(tx.amount) || 0))}</span>
                   </button>
                 );
               })}

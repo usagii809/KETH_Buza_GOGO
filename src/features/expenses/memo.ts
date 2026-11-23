@@ -13,7 +13,7 @@ export function buildMemoIndex(txs: Iterable<Transaction>): MemoSuggestion[] {
   const idx = new Map<string, { memo: string; counts: Partial<Record<CategoryKey, number>>; total: number; last: number }>();
   for (const t of txs) {
     const memo = String(t.memo || "").trim();
-    if (!memo) continue;
+    if (!memo || (Number(t.amount) || 0) < 0) continue;
     const k = memo.toLowerCase();
     const e = idx.get(k) || { memo, counts: {}, total: 0, last: 0 };
     e.total += 1;

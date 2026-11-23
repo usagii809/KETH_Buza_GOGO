@@ -101,6 +101,7 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
  * - 경은이 공동 지출 기록 → "경은 님이 공동 지출을 기록했어요 · 이마트 52,000원"
  */
 function recordLine(recorder: string, spender: string, myName: string | undefined, place: string, amount: number) {
+  if (amount < 0) return <><b>{recorder}</b> 님이 <b>{place}</b>에서 <b className="num text-toss-green">{formatKRW(-amount)}</b> 환불받았어요 ↩️</>;
   const money = <><b>{place}</b> <b className="num">{formatKRW(amount)}</b></>;
   if (spender === recorder) return <><b>{recorder}</b> 님이 <b>{place}</b>에서 <b className="num">{formatKRW(amount)}</b> 썼어요</>;
   const whose = spender === "공동" ? <><span className="px-1 rounded bg-gray-100 font-bold">공동</span> 지출</>

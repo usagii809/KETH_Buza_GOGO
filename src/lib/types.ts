@@ -6,6 +6,7 @@ export interface Transaction {
   yearMonth: string; // YYYY-MM
   category: string;
   spender?: string;
+  /** 0보다 작으면 환불·취소 (그날 지출에서 빠져요) */
   amount: number;
   /** 어디서 (사용처: 쿠팡, 이마트 …) */
   memo?: string;
@@ -19,6 +20,10 @@ export interface Transaction {
   /** 회사 돈(영업활동비)으로 쓴 내역: 기록만 하고 가계부 계산에서는 빠져요 */
   company?: boolean;
   recurringId?: string;
+  /** 환불·부분취소: 원래 결제 기록 id */
+  refundOf?: string;
+  /** 아직 서버에 못 올린 기록 (화면 표시용, 저장하지 않아요) */
+  pending?: boolean;
   /** 같이 보기 반응: uid → 이모지 */
   reactions?: Record<string, Reaction>;
 }
@@ -30,6 +35,9 @@ export interface Reaction {
 
 /** 가계부 계산에 들어가는 지출인지 (회사 돈은 제외) */
 export const isHousehold = (t: Transaction) => !t.company;
+
+/** 환불·취소 기록인지 */
+export const isRefund = (t: Pick<Transaction, "amount">) => (Number(t.amount) || 0) < 0;
 
 export interface RecurringRule {
   id: string;

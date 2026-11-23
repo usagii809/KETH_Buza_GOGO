@@ -4,7 +4,7 @@ import {
   orderBy, query, setDoc, updateDoc, where, writeBatch, type DocumentData
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { BUDGET_KEYS, normalizeBudget, normalizeCategory, normalizeSpender, type Budget } from "../lib/categories";
+import { applyCategoryConfig, BUDGET_KEYS, normalizeBudget, normalizeCategory, normalizeSpender, type Budget, type CategoryConfig } from "../lib/categories";
 import { dueDateInMonth, todayStr, todayYm } from "../lib/dates";
 import type { Goal, LotteryTicket, Profile, RecurringRule, Settlement, Transaction } from "../lib/types";
 
@@ -20,6 +20,8 @@ export const refs = {
   goals: () => collection(db, `${BASE}/goals`),
   goal: (id: string) => doc(db, `${BASE}/goals/${id}`),
   noSpendBest: () => doc(db, `${BASE}/config/noSpendBest`),
+  categories: () => doc(db, `${BASE}/config/categories`),
+  settlements: () => collection(db, `${BASE}/settlements`),
   profiles: () => collection(db, `${BASE}/profiles`),
   profile: (uid: string) => doc(db, `${BASE}/profiles/${uid}`),
   lotteries: () => collection(db, `${BASE}/lottery`),
@@ -33,18 +35,35 @@ export const monthQuery = (ym: string) => query(refs.transactions(), where("year
 export const withId = <T>(id: string, data: DocumentData) => ({ id, ...data }) as T;
 
 // ── 지출 ──
-export type ExpenseInput = Pick<Transaction, "date" | "category" | "spender" | "amount" | "memo" | "items" | "company">;
+export type ExpenseInput = Pick<Transaction, "date" | "category" | "spender" | "amount" | "memo" | "items" | "company" | "refundOf">;
+
+/** Firestore는 undefined 값을 못 받아서 빼고 보내요 */
+const clean = <T extends object>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
+
+/**
+ * 오프라인이면 서버 확인을 기다리지 않아요.
+ * 기록은 이미 폰 안에 저장돼서 화면에 바로 보이고, 연결되면 알아서 올라가요.
+ * 반환값: "synced" = 서버까지 저장됨 / "queued" = 폰에 저장, 연결되면 올라감
+ */
+export async function localFirst(write: Promise<unknown>, waitMs = 2500): Promise<"synced" | "queued"> {
+  write.catch((err) => console.error("서버 저장 오류:", err));
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return "queued";
+  const timer = new Promise<"queued">((r) => setTimeout(() => r("queued"), waitMs));
+  return Promise.race([write.then(() => "synced" as const), timer]);
+}
 
 export function addExpense(input: ExpenseInput, uid: string) {
-  return addDoc(refs.transactions(), {
-    ...input,
+  // 문서 id를 먼저 만들고 저장해요 (오프라인에서도 바로 화면에 나와요)
+  return setDoc(doc(refs.transactions()), {
+    ...clean(input),
     yearMonth: input.date.slice(0, 7),
     createdBy: uid,
     createdAt: Date.now()
   });
 }
 export function updateExpense(id: string, input: ExpenseInput) {
-  return updateDoc(refs.transaction(id), { ...input, yearMonth: input.date.slice(0, 7), updatedAt: Date.now() });
+  const { refundOf, ...rest } = input;
+  return updateDoc(refs.transaction(id), { ...clean(rest), ...(refundOf ? { refundOf } : {}), yearMonth: input.date.slice(0, 7), updatedAt: Date.now() });
 }
 export const deleteExpense = (id: string) => deleteDoc(refs.transaction(id));
 
@@ -78,6 +97,29 @@ export async function loadFirstRecordDate(): Promise<string | null> {
   return typeof d === "string" ? d : null;
 }
 
+/** 모든 기록 (전체 기간 검색용). 둘이 쓰는 가계부라 수천 건 수준이고, 한 번 받으면 폰에 캐시돼요 */
+export async function loadAllTransactions(): Promise<Transaction[]> {
+  const snap = await getDocs(refs.transactions());
+  return snap.docs.map((d) => withId<Transaction>(d.id, d.data()));
+}
+
+/** 연간 결산용: 그 해 기록 · 달별 예산 · 복권 */
+export async function loadYearData(year: number) {
+  const y = String(year);
+  const [txSnap, monthSnap, lotterySnap] = await Promise.all([
+    getDocs(query(refs.transactions(), where("date", ">=", `${y}-01-01`), where("date", "<=", `${y}-12-31`))),
+    getDocs(refs.months()),
+    getDocs(query(refs.lotteries(), where("date", ">=", `${y}-01-01`), where("date", "<=", `${y}-12-31`)))
+  ]);
+  const months: Record<string, Budget> = {};
+  monthSnap.docs.forEach((d) => { if (d.id.startsWith(y)) months[d.id] = normalizeBudget(d.data()); });
+  return {
+    txs: txSnap.docs.map((d) => withId<Transaction>(d.id, d.data())),
+    months,
+    tickets: lotterySnap.docs.map((d) => withId<LotteryTicket>(d.id, d.data()))
+  };
+}
+
 export async function loadMonthTransactions(ym: string): Promise<Transaction[]> {
   const snap = await getDocs(monthQuery(ym));
   return snap.docs.map((d) => withId<Transaction>(d.id, d.data()));
@@ -101,6 +143,45 @@ export async function saveBudget(ym: string, budget: Budget, alsoDefault: boolea
 export async function pinMonthBudget(ym: string, budget: Budget) {
   if (!BUDGET_KEYS.some((k) => budget[k] > 0)) return;
   await setDoc(refs.month(ym), { ...budget, pinnedAt: Date.now() }, { merge: true });
+}
+
+// ── 카테고리 직접 추가 · 숨기기 ──
+export const saveCategoryConfig = (cfg: CategoryConfig) => setDoc(refs.categories(), { custom: cfg.custom || [], hidden: cfg.hidden || [], overrides: cfg.overrides || {}, updatedAt: Date.now() });
+
+/** 이 카테고리를 쓰는 기록 · 자동 기록 규칙이 있는지 */
+export async function categoryInUse(key: string): Promise<{ txs: number; rules: number }> {
+  const [t, r] = await Promise.all([
+    getDocs(query(refs.transactions(), where("category", "==", key))),
+    getDocs(query(refs.recurring(), where("category", "==", key)))
+  ]);
+  return { txs: t.size ?? t.docs.length, rules: r.size ?? r.docs.length };
+}
+
+/** 카테고리 지우기: 쓰던 기록 · 자동 기록 · 예산을 다른 카테고리(to)로 옮기고 목록에서 빼요 */
+export async function removeCategory(key: string, to: string, next: CategoryConfig) {
+  const [t, r, m, d] = await Promise.all([
+    getDocs(query(refs.transactions(), where("category", "==", key))),
+    getDocs(query(refs.recurring(), where("category", "==", key))),
+    getDocs(refs.months()),
+    getDoc(refs.defaultBudget())
+  ]);
+  const ops: ((b: ReturnType<typeof writeBatch>) => void)[] = [];
+  t.docs.forEach((x) => ops.push((b) => b.update(x.ref, { category: to, updatedAt: Date.now() })));
+  r.docs.forEach((x) => ops.push((b) => b.update(x.ref, { category: to })));
+  // 예산은 옮길 카테고리에 더해요
+  const moveBudget = (ref: ReturnType<typeof refs.month>, data: DocumentData | undefined) => {
+    const v = Number(data?.[key]) || 0;
+    if (data && key in data) ops.push((b) => b.set(ref, { [key]: deleteField(), ...(v ? { [to]: (Number(data[to]) || 0) + v } : {}) }, { merge: true }));
+  };
+  m.docs.forEach((x) => moveBudget(x.ref, x.data()));
+  if (d.exists()) moveBudget(refs.defaultBudget(), d.data());
+  ops.push((b) => b.set(refs.categories(), { custom: next.custom || [], hidden: next.hidden || [], overrides: next.overrides || {}, updatedAt: Date.now() }));
+  for (let i = 0; i < ops.length; i += 400) {
+    const batch = writeBatch(db);
+    ops.slice(i, i + 400).forEach((fn) => fn(batch));
+    await batch.commit();
+  }
+  return { txs: t.docs.length, rules: r.docs.length };
 }
 
 // ── 매달 자동 기록 ──
@@ -207,20 +288,35 @@ export const skipSettlement = (ym: string, by?: string) =>
   setDoc(refs.settlement(ym), { at: Date.now(), skipped: true, ...(by ? { by } : {}) });
 
 // ── 백업 / 복원 ──
+const docsOf = (snap: { docs: { id: string; data: () => DocumentData }[] }) => snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+/** 전체 백업 (v4): 앱이 쓰는 데이터를 전부 담아요 */
 export async function exportBackup(defaultBudget: Budget) {
-  const [txSnap, monthSnap, recSnap, goalSnap] = await Promise.all([
-    getDocs(refs.transactions()), getDocs(refs.months()), getDocs(refs.recurring()), getDocs(refs.goals())
+  const [txSnap, monthSnap, recSnap, goalSnap, settleSnap, lotterySnap, profileSnap, bestSnap, catSnap] = await Promise.all([
+    getDocs(refs.transactions()), getDocs(refs.months()), getDocs(refs.recurring()), getDocs(refs.goals()),
+    getDocs(refs.settlements()), getDocs(refs.lotteries()), getDocs(refs.profiles()), getDoc(refs.noSpendBest()), getDoc(refs.categories())
   ]);
   const months: Record<string, Budget> = {};
   monthSnap.forEach((d) => { months[d.id] = normalizeBudget(d.data()); });
+  const settlements: Record<string, DocumentData> = {};
+  settleSnap.docs.forEach((d) => { settlements[d.id] = d.data(); });
   return {
-    version: 3,
+    version: 4,
     exportedAt: new Date().toISOString(),
     defaultBudget,
     months,
-    transactions: txSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-    recurring: recSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-    goals: goalSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    transactions: docsOf(txSnap),
+    recurring: docsOf(recSnap),
+    goals: docsOf(goalSnap),
+    /** 월말 정산 기록 (없으면 복원 후 정산을 또 해서 목표에 두 번 들어갈 수 있어요) */
+    settlements,
+    /** 복권 · 쿠폰 */
+    lottery: docsOf(lotterySnap),
+    /** 프로필 (이름 · 사진) */
+    profiles: docsOf(profileSnap),
+    noSpendBest: bestSnap.exists() ? bestSnap.data() : null,
+    /** 직접 추가한 카테고리 · 숨긴 카테고리 */
+    categories: catSnap.exists() ? catSnap.data() : null
   };
 }
 
@@ -230,25 +326,48 @@ export interface ParsedBackup {
   transactions: Record<string, unknown>[];
   recurring: Record<string, unknown>[];
   goals: Record<string, unknown>[];
+  settlements: [string, Record<string, unknown>][];
+  lottery: Record<string, unknown>[];
+  profiles: Record<string, unknown>[];
+  noSpendBest: Record<string, unknown> | null;
+  categories: CategoryConfig | null;
 }
 
 export function parseBackup(raw: unknown): ParsedBackup {
   const p = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const arr = (v: unknown) => (Array.isArray(v) ? (v as Record<string, unknown>[]) : []);
+  const obj = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
   return {
     defaultBudget: p.defaultBudget && typeof p.defaultBudget === "object" ? normalizeBudget(p.defaultBudget) : null,
     months: p.months && typeof p.months === "object"
       ? Object.entries(p.months as Record<string, unknown>).filter(([ym]) => /^\d{4}-\d{2}$/.test(ym)).map(([ym, b]) => [ym, normalizeBudget(b)])
       : [],
-    transactions: arr(p.transactions).filter((t) => t && t.date && Number(t.amount) > 0),
+    // 0원이 아닌 기록 (음수 = 환불)
+    transactions: arr(p.transactions).filter((t) => t && t.date && Number(t.amount) && Number.isFinite(Number(t.amount))),
     recurring: arr(p.recurring).filter((r) => r && r.id),
-    goals: arr(p.goals).filter((g) => g && g.id)
+    goals: arr(p.goals).filter((g) => g && g.id),
+    settlements: Object.entries(obj(p.settlements) || {})
+      .filter(([ym, v]) => /^\d{4}-\d{2}$/.test(ym) && obj(v)).map(([ym, v]) => [ym, v as Record<string, unknown>]),
+    lottery: arr(p.lottery).filter((t) => t && t.id && t.uid && t.date),
+    profiles: arr(p.profiles).filter((x) => x && x.id),
+    noSpendBest: obj(p.noSpendBest) && Number((p.noSpendBest as Record<string, unknown>).days) > 0 ? (p.noSpendBest as Record<string, unknown>) : null,
+    categories: obj(p.categories) as CategoryConfig | null
   };
 }
 
 /** 같은 id는 덮어써서 여러 번 불러와도 중복되지 않음 */
 export async function importBackup(b: ParsedBackup) {
   const ops: ((batch: ReturnType<typeof writeBatch>) => void)[] = [];
+  // 직접 추가한 카테고리를 먼저 적용해야 기록의 카테고리가 '기타 생활비'로 바뀌지 않아요
+  if (b.categories) {
+    const cats = b.categories;
+    applyCategoryConfig(cats);
+    ops.push((x) => x.set(refs.categories(), cats));
+  }
+  b.settlements.forEach(([ym, s]) => ops.push((x) => x.set(refs.settlement(ym), s)));
+  b.lottery.forEach(({ id, ...rest }) => ops.push((x) => x.set(refs.lottery(String(id)), rest)));
+  b.profiles.forEach(({ id, ...rest }) => ops.push((x) => x.set(refs.profile(String(id)), rest, { merge: true })));
+  if (b.noSpendBest) { const best = b.noSpendBest; ops.push((x) => x.set(refs.noSpendBest(), best)); }
   if (b.defaultBudget) { const d = b.defaultBudget; ops.push((x) => x.set(refs.defaultBudget(), d, { merge: true })); }
   b.months.forEach(([ym, budget]) => ops.push((x) => x.set(refs.month(ym), budget, { merge: true })));
   b.recurring.forEach(({ id, ...rest }) => ops.push((x) => x.set(refs.recurringRule(String(id)), rest)));
@@ -266,6 +385,8 @@ export async function importBackup(b: ParsedBackup) {
       items: String(item.items || ""),
       ...(item.company ? { company: true } : {}),
       ...(item.auto ? { auto: true, recurringId: String(item.recurringId || "") } : {}),
+      ...(item.refundOf ? { refundOf: String(item.refundOf) } : {}),
+      ...(item.reactions && typeof item.reactions === "object" ? { reactions: item.reactions } : {}),
       ...(item.createdBy ? { createdBy: String(item.createdBy) } : {}),
       createdAt: Number(item.createdAt) || Date.now()
     }));

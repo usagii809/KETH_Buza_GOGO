@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { addRecurring, deleteRecurring, updateRecurring, type RecurringInput } from "../../data/db";
-import { CATEGORIES, CATEGORY_MAP, SPENDERS, normalizeCategory, normalizeSpender } from "../../lib/categories";
+import { CATEGORY_MAP, SPENDERS, normalizeCategory, normalizeSpender, visibleCategories } from "../../lib/categories";
 import { formatKRW } from "../../lib/format";
 import type { RecurringRule } from "../../lib/types";
 import { MoneyInput } from "../../ui/controls";
@@ -93,7 +93,7 @@ export function RecurringSheet({ rules, onClose }: { rules: RecurringRule[]; onC
               {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d === 31 ? "매달 말일" : `매달 ${d}일`}</option>)}
             </select>
             <select id="recCategory" value={form.category} onChange={(e) => set("category", e.target.value)} className={select}>
-              {CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.short}</option>)}
+              {[...visibleCategories(), ...(CATEGORY_MAP[form.category] && !visibleCategories().some((c) => c.key === form.category) ? [CATEGORY_MAP[form.category]] : [])].map((c) => <option key={c.key} value={c.key}>{c.short}</option>)}
             </select>
             <select id="recSpender" value={form.spender} onChange={(e) => set("spender", e.target.value)} className={select}>
               {SPENDERS.map((sp) => <option key={sp} value={sp}>{sp}</option>)}

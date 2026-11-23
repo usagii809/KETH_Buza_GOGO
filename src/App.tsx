@@ -30,6 +30,10 @@ import { QuipBubble } from "./features/quips/QuipBubble";
 import { Avatar } from "./ui/Avatar";
 import { ReportSection } from "./features/report/ReportSection";
 import { SettingsSheet } from "./features/settings/SettingsSheet";
+import { CategorySheet } from "./features/settings/CategorySheet";
+import { SearchSheet, type SearchState } from "./features/search/SearchSheet";
+import { DEFAULT_SEARCH } from "./features/search/calc";
+import { YearSheet } from "./features/yearly/YearSheet";
 import { buildMonthBars } from "./features/trend/calc";
 import { TrendCard } from "./features/trend/TrendCard";
 import { plannedSavingsOf } from "./lib/categories";
@@ -42,7 +46,11 @@ import { store } from "./lib/storage";
 import { useFeedback } from "./ui/feedback";
 
 type OpenSheet =
-  | { type: "expense"; tx?: Transaction }
+  /** back: 닫으면 돌아갈 시트 (검색에서 기록을 열었을 때) */
+  | { type: "expense"; tx?: Transaction; refundFor?: Transaction; back?: OpenSheet }
+  | { type: "search"; state: SearchState }
+  | { type: "year"; year: number }
+  | { type: "categories" }
   | { type: "budget" }
   | { type: "settings" }
   | { type: "recurring" }
@@ -64,7 +72,7 @@ function Dashboard({ user }: { user: User }) {
   const now = useNow();
   const [ym, setYm] = useState(() => todayYm());
   const [sheet, setSheet] = useState<OpenSheet>(null);
-  const closeSheet = useCallback(() => setSheet(null), []);
+  const closeSheet = useCallback(() => setSheet((s) => (s?.type === "expense" && s.back ? s.back : null)), []);
 
   // 🤫 프로젝트 이름을 빠르게 7번 누르면…
   const titleTaps = useRef<number[]>([]);
@@ -147,7 +155,10 @@ function Dashboard({ user }: { user: User }) {
   const recentHousehold = useMemo(() => recentTxs.filter(isHousehold), [recentTxs]);
 
   const period = useMemo(() => getPeriodInfo(ym, now), [ym, now]);
-  const summary = useMemo(() => computeSummary(month.budget, txs, period), [month.budget, txs, period]);
+  // 카테고리를 추가·숨기면 계산을 다시 해요
+  const cv = shared.categoryVersion;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const summary = useMemo(() => computeSummary(month.budget, txs, period), [month.budget, txs, period, cv]);
   const bars = useMemo(() => buildMonthBars(ym, 6, recentHousehold, txs, todayYm(now)), [ym, recentHousehold, txs, now]);
   // 저축 목표 예상에 쓰는 '이번 달 계획 저축액'
   const planned = period.state === "current" ? summary.plannedSavings : plannedSavingsOf(month.defaultBudget);
@@ -156,14 +167,16 @@ function Dashboard({ user }: { user: User }) {
   const prevYm = shiftMonth(ym, -1);
   const prevSettle = useSettlement(prevYm);
   const prevSummary = useMemo(() => computeSummary({ ...month.defaultBudget, ...(prevSettle.override || {}) }, prevTxs, getPeriodInfo(prevYm, now)),
-    [month.defaultBudget, prevSettle.override, prevTxs, prevYm, now]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [month.defaultBudget, prevSettle.override, prevTxs, prevYm, now, cv]);
   const prevOptions = settleOptions(prevSummary);
   const showPrevSettle = period.state === "current" && prevSettle.loaded && !prevSettle.settlement && canSettle(prevOptions, prevTxs.length > 0);
   const newGoal = () => setSheet({ type: "goal", goalId: null, mode: "edit" });
 
   // 📊 카테고리 비교 (진행 중인 달은 같은 날짜까지)
   const insights = useMemo(() => period.state === "future" ? null : buildInsights(ym, txs, recentHousehold, period.state === "current" ? period.day : null),
-    [ym, txs, recentHousehold, period.state, period.day]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ym, txs, recentHousehold, period.state, period.day, cv]);
 
   // 자동완성: 최근 120일 + 지금 보는 달 (id 중복 제거)
   const history = useMemo(() => [...new Map([...shared.history, ...month.txs].map((t) => [t.id, t])).values()], [shared.history, month.txs]);
@@ -202,11 +215,12 @@ function Dashboard({ user }: { user: User }) {
 
   // 매달 자동 기록: 규칙이 바뀌거나 앱으로 돌아올 때 확인
   useEffect(() => {
-    if (!shared.recurringLoaded) return;
+    // 직접 추가한 카테고리를 받기 전에 기록하면 '기타 생활비'로 들어가니까 기다려요
+    if (!shared.recurringLoaded || !shared.categoriesLoaded) return;
     runRecurring(shared.recurring, user.uid, pinIfNeeded).then((n) => { if (n) toast(`매달 자동 기록 ${n}건을 남겼어요 🔁`); });
     // pinIfNeeded는 일부러 빼요: 예산이 바뀔 때마다 다시 돌 필요는 없어서
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shared.recurringLoaded, shared.recurring, now, user.uid, toast]);
+  }, [shared.recurringLoaded, shared.categoriesLoaded, shared.recurring, now, user.uid, toast]);
 
   const goal = sheet?.type === "goal" && sheet.goalId ? shared.goals.find((g) => g.id === sheet.goalId) ?? null : null;
   const openGoal = (g: Goal, prefill = 0) => setSheet({ type: "goal", goalId: g.id, mode: "deposit", prefill });
@@ -226,7 +240,11 @@ function Dashboard({ user }: { user: User }) {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
+        <button type="button" aria-label="전체 기간 검색" id="openSearchBtn" onClick={() => setSheet({ type: "search", state: { ...DEFAULT_SEARCH, query: "" } })}
+          className="w-11 h-11 shrink-0 rounded-full bg-white border border-toss-border flex items-center justify-center text-toss-sub active:scale-95 transition">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M20 20l-3.5-3.5" /></svg>
+        </button>
         <button type="button" aria-label="같이 보기" onClick={openFeed}
           className="relative w-11 h-11 shrink-0 rounded-full bg-white border border-toss-border flex items-center justify-center text-xl active:scale-95 transition">
           💌
@@ -263,9 +281,18 @@ function Dashboard({ user }: { user: User }) {
         onNew={() => setSheet({ type: "goal", goalId: null, mode: "edit" })} />
       <BudgetCard budget={month.budget} s={summary} period={period} txs={txs} prevTxs={prevTxs} />
       <TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={prevTxs} bars={bars} />
+      <button type="button" id="openYearBtn" onClick={() => setSheet({ type: "year", year: period.y })}
+        className="w-full mb-4 px-5 py-4 rounded-3xl bg-white shadow-sm border border-toss-border/60 flex items-center justify-between active:scale-[0.99] transition">
+        <span className="text-left">
+          <span className="block text-base font-bold text-toss-text">📅 {period.y}년 결산</span>
+          <span className="block text-xs text-toss-sub mt-0.5">올해 모은 돈 · 카테고리 순위 · 단골 · 무지출을 한눈에</span>
+        </span>
+        <span className="text-sm font-bold text-toss-blue">보기 →</span>
+      </button>
       {insights && period.state === "current" && <InsightCard data={insights} />}
       <NoSpendCard period={period} txs={txs} prevTxs={prevTxs} now={now} start={noSpendStart} best={best} forcedDays={forcedDays} />
-      <TransactionList txs={month.txs} ym={ym} now={now} onEdit={(tx) => setSheet({ type: "expense", tx })} />
+      <TransactionList txs={month.txs} ym={ym} now={now} onEdit={(tx) => setSheet({ type: "expense", tx })}
+        onSearchAll={(query) => setSheet({ type: "search", state: { ...DEFAULT_SEARCH, query } })} />
 
       <div className="fixed bottom-5 left-0 right-0 z-30 flex justify-center pointer-events-none px-4" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <button type="button" onClick={() => setSheet({ type: "expense" })}
@@ -276,12 +303,23 @@ function Dashboard({ user }: { user: User }) {
       </div>
 
       {sheet?.type === "expense" && (
-        <ExpenseSheet tx={sheet.tx} viewedYm={ym} uid={user.uid} history={history} beforeAdd={pinIfNeeded} myName={me?.name} forcedDays={forcedDays} onMovedMonth={setYm} onClose={closeSheet} />
+        <ExpenseSheet key={sheet.tx?.id ?? (sheet.refundFor ? `refund_${sheet.refundFor.id}` : "new")} tx={sheet.tx} refundFor={sheet.refundFor}
+          onRefund={(orig) => setSheet({ type: "expense", refundFor: orig, back: sheet.back })} viewedYm={ym} uid={user.uid} history={history} beforeAdd={pinIfNeeded} myName={me?.name} forcedDays={forcedDays} onMovedMonth={setYm} onClose={closeSheet} />
       )}
       {sheet?.type === "budget" && <BudgetSheet period={period} budget={month.budget} onClose={closeSheet} />}
       {sheet?.type === "settings" && (
         <SettingsSheet uid={user.uid} me={me} nameLocked={!!emailName} email={user.email} ym={ym} txs={month.txs} defaultBudget={month.defaultBudget} rules={shared.recurring}
-          onOpenRecurring={() => setSheet({ type: "recurring" })} onClose={closeSheet} />
+          onOpenRecurring={() => setSheet({ type: "recurring" })} onOpenCategories={() => setSheet({ type: "categories" })} onClose={closeSheet} />
+      )}
+      {sheet?.type === "categories" && <CategorySheet config={shared.categoryConfig} onClose={closeSheet} />}
+      {sheet?.type === "search" && (
+        <SearchSheet initial={sheet.state} now={now} onClose={closeSheet}
+          onEdit={(tx, state) => setSheet({ type: "expense", tx, back: { type: "search", state } })} />
+      )}
+      {sheet?.type === "year" && (
+        <YearSheet initialYear={sheet.year} now={now} defaultBudget={month.defaultBudget} noSpendStart={noSpendStart}
+          firstYear={noSpendStart ? Number(noSpendStart.slice(0, 4)) : null}
+          onOpenMonth={(target) => { setYm(target); setSheet(null); window.scrollTo({ top: 0, behavior: "smooth" }); }} onClose={closeSheet} />
       )}
       {sheet?.type === "recurring" && <RecurringSheet rules={shared.recurring} onClose={closeSheet} />}
       {sheet?.type === "lottery" && <LotterySheet uid={user.uid} myName={me?.name} today={today} onClose={closeSheet} onOpenCoupons={() => setSheet({ type: "coupons" })} />}

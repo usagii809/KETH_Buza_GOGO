@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CATEGORIES, CATEGORY_MAP, GROUPS, normalizeCategory, type Budget } from "../../lib/categories";
+import { CATEGORIES, CATEGORY_MAP, GROUPS, budgetOf, isHiddenCategory, normalizeCategory, type Budget } from "../../lib/categories";
 import type { PeriodInfo } from "../../lib/dates";
 import { formatKRW, formatShort } from "../../lib/format";
 import { store } from "../../lib/storage";
@@ -20,7 +20,7 @@ export function BudgetCard({ budget, s, period, txs, prevTxs }: { budget: Budget
 
   const isPast = period.state === "past";
   const effective: AvailableMode = isPast ? "month" : mode;
-  const foodBudget = CATEGORIES.filter((c) => c.group === "FOOD").reduce((t, c) => t + budget[c.key], 0);
+  const foodBudget = CATEGORIES.filter((c) => c.group === "FOOD").reduce((t, c) => t + budgetOf(budget, c.key), 0);
   const isFood = (t: Transaction) => CATEGORY_MAP[normalizeCategory(t.category)].group === "FOOD";
   const all = computeAllowance(s.totalVariableBudget, txs, period, effective);
   const food = computeAllowance(foodBudget, txs, period, effective, isFood);
@@ -51,8 +51,10 @@ export function BudgetCard({ budget, s, period, txs, prevTxs }: { budget: Budget
 
         <div className="space-y-5">
           {GROUPS.map((g) => {
-            const cats = CATEGORIES.filter((c) => c.group === g.key);
-            const gBudget = cats.reduce((t, c) => t + budget[c.key], 0);
+            // 숨긴 항목은 예산이나 지출이 있을 때만
+            const cats = CATEGORIES.filter((c) => c.group === g.key && (!isHiddenCategory(c.key) || budgetOf(budget, c.key) > 0 || s.usage[c.key] !== 0));
+            if (!cats.length) return null;
+            const gBudget = cats.reduce((t, c) => t + budgetOf(budget, c.key), 0);
             const gSpent = cats.reduce((t, c) => t + s.usage[c.key], 0);
             return (
               <div key={g.key}>
@@ -62,10 +64,10 @@ export function BudgetCard({ budget, s, period, txs, prevTxs }: { budget: Budget
                 </div>
                 <div className="space-y-3.5">
                   {cats.map((cat) => {
-                    const b = budget[cat.key];
+                    const b = budgetOf(budget, cat.key);
                     const spent = s.usage[cat.key];
                     const remain = b - spent;
-                    const pct = b > 0 ? Math.round((spent / b) * 100) : spent > 0 ? 100 : 0;
+                    const pct = Math.max(0, b > 0 ? Math.round((spent / b) * 100) : spent > 0 ? 100 : 0);
                     const st = getStatus(spent, b, period, cat.paced);
                     const prev = mom?.prev[cat.key] ?? 0;
                     const change = mom ? pctChange(spent, prev) : null;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { saveBudget } from "../../data/db";
-import { CATEGORIES, FIXED_FIELDS, GROUPS, ZERO_BUDGET, fixedTotalOf, plannedSavingsOf, variableBudgetOf, type Budget, type BudgetKey } from "../../lib/categories";
+import { CATEGORIES, FIXED_FIELDS, budgetOf, isHiddenCategory, GROUPS, ZERO_BUDGET, fixedTotalOf, plannedSavingsOf, variableBudgetOf, type Budget, type BudgetKey } from "../../lib/categories";
 import type { PeriodInfo } from "../../lib/dates";
 import { formatKRW } from "../../lib/format";
 import { MoneyInput, primaryButton } from "../../ui/controls";
@@ -28,6 +28,7 @@ export function BudgetSheet({ period, budget, onClose }: { period: PeriodInfo; b
   const [alsoDefault, setAlsoDefault] = useState(period.state !== "past");
   const [busy, setBusy] = useState(false);
   const set = (k: BudgetKey) => (v: number) => setDraft((d) => ({ ...d, [k]: v }));
+  const setCat = (k: string) => (v: number) => setDraft((d) => ({ ...d, [k]: v }));
 
   const planned = plannedSavingsOf(draft);
   const rate = draft.income > 0 ? ` (${((planned / draft.income) * 100).toFixed(1)}%)` : "";
@@ -84,16 +85,17 @@ export function BudgetSheet({ period, budget, onClose }: { period: PeriodInfo; b
             <span id="variableTotal" className="text-lg font-bold num text-toss-blue">{formatKRW(variableBudgetOf(draft))}</span>
           </div>
           {GROUPS.map((g) => {
-            const cats = CATEGORIES.filter((c) => c.group === g.key);
+            // 숨긴 항목은 예산이 남아 있을 때만 보여요
+            const cats = CATEGORIES.filter((c) => c.group === g.key && (!isHiddenCategory(c.key) || budgetOf(draft, c.key) > 0));
             return (
               <div key={g.key} className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${g.badge}`}>{g.label}</span>
-                  <span className="text-xs font-bold text-toss-sub num">소계 {formatKRW(cats.reduce((t, c) => t + draft[c.key], 0))}</span>
+                  <span className="text-xs font-bold text-toss-sub num">소계 {formatKRW(cats.reduce((t, c) => t + budgetOf(draft, c.key), 0))}</span>
                 </div>
                 {cats.map((c) => (
-                  <Field key={c.key} id={`edit_${c.key}`} label={c.label} value={draft[c.key]} onChange={set(c.key)} empty="기록만"
-                    hint={NO_LIMIT_OK.includes(c.key) && !draft[c.key] ? "비워두면 예산 없이 기록만 해요" : undefined} />
+                  <Field key={c.key} id={`edit_${c.key}`} label={c.label} value={budgetOf(draft, c.key)} onChange={setCat(c.key)} empty="기록만"
+                    hint={NO_LIMIT_OK.includes(c.key) && !budgetOf(draft, c.key) ? "비워두면 예산 없이 기록만 해요" : undefined} />
                 ))}
               </div>
             );

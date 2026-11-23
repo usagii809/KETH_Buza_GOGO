@@ -1,11 +1,11 @@
 import { shiftMonth, toDateStr, type PeriodInfo } from "../../lib/dates";
 import type { Transaction } from "../../lib/types";
 
-/** 날짜별 지출 합계 (자동 기록은 무지출 판정에서 제외) */
+/** 날짜별 지출 합계 (자동 기록은 무지출 판정에서 제외, 환불은 지출이 아니라서 제외) */
 export function spentByDate(txs: Transaction[]): Record<string, number> {
   const m: Record<string, number> = {};
   txs.forEach((tx) => {
-    if (tx.auto) return;
+    if (tx.auto || !((Number(tx.amount) || 0) > 0)) return;
     m[tx.date] = (m[tx.date] || 0) + (Number(tx.amount) || 0);
   });
   return m;

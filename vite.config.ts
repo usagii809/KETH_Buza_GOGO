@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-// GitHub Pages(usagii809.github.io/KETH_Buza_GOGO/) 하위 경로에서도 동작하도록 상대 경로로 빌드
+// GitHub Pages(usagii809.github.io/buja/) 하위 경로에서도 동작하도록 상대 경로로 빌드
 export default defineConfig({
   base: "./",
   plugins: [

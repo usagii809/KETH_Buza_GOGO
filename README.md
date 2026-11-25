@@ -2,7 +2,7 @@
 
 둘이 같이 쓰는 가계부 웹앱이에요. 아이폰 홈 화면에 추가해서 앱처럼 써요.
 
-- **주소:** https://usagii809.github.io/KETH_Buza_GOGO/
+- **주소:** https://usagii809.github.io/buja/
 - **기술:** TypeScript · React · Vite · Tailwind CSS · Firebase(로그인, Firestore) · PWA
 
 ## 처음 한 번만

@@ -2,10 +2,9 @@ import { setActivityReaction, setReaction } from "../../data/db";
 import { CATEGORY_MAP, normalizeCategory, normalizeSpender } from "../../lib/categories";
 import { formatKRW } from "../../lib/format";
 import { couponLabel } from "../lottery/coupons";
-import { symbolsOf, tierTitle } from "../lottery/ticket";
 import type { Profile, Reaction, Transaction } from "../../lib/types";
 import { notify } from "./notify";
-import { targetLabel, targetSummary } from "./notifyText";
+import { lotteryShort, targetLabel, targetSummary } from "./notifyText";
 import { Avatar } from "../../ui/Avatar";
 import { useState } from "react";
 import { Segmented } from "../../ui/controls";
@@ -228,16 +227,18 @@ function describeActivity(it: ActivityItem, myName: string | undefined, partnerN
   const subj = it.mine ? <b>내가</b> : <><b>{it.who}</b> 님이</>;
   const owner = it.mine ? <b>내</b> : <><b>{it.who}</b> 님</>;
   if (it.kind === "lottery") {
+    // 한 줄 제목 + 작은 설명 한 줄로 짧게 (그림 · 상품 이름은 아래 줄에만)
     const t = it.ticket;
-    const big = t.tier === "jackpot" || t.tier === "prize" || t.tier === "love";
+    const l = lotteryShort(t);
     const line = t.tier === "bomb"
-      ? <>{owner} 복권에서 💣 폭탄이 나왔어요! 다음 주는 외식 금지</>
-      : big ? <>{subj} 복권에 당첨됐어요! <b>{tierTitle(t.tier, t.rank)}</b></>
-      : <>{subj} 오늘의 복권을 긁었어요 · {tierTitle(t.tier, t.rank)}</>;
+      ? <>{owner} 복권에서 <b>💣 폭탄 발견!</b></>
+      : l.big ? <>{subj} <b>{l.title}</b></>
+      : <>{subj} 오늘의 복권을 긁었어요</>;
+    const big = l.big;
     return {
       icon: t.tier === "bomb" ? "💣" : big ? "🎉" : "🎟️",
       line,
-      sub: [symbolsOf(t).join(" "), big ? t.prize : ""].filter(Boolean).join(" · "),
+      sub: `${l.symbols} · ${l.detail}`,
       tone: t.tier === "bomb" ? "bg-gray-100" : big ? "bg-amber-50" : "bg-toss-bg"
     };
   }

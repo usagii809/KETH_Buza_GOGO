@@ -5,7 +5,7 @@ import { formatKRW } from "../../lib/format";
 import type { PushMessage } from "../../lib/push";
 import type { Goal, LotteryTicket, Transaction } from "../../lib/types";
 import { couponLabel } from "../lottery/coupons";
-import { tierTitle } from "../lottery/ticket";
+import { symbolsOf } from "../lottery/ticket";
 import type { ActivityItem, FeedItem } from "./calc";
 
 type TxLike = Pick<Transaction, "amount" | "category" | "memo" | "spender"> & Partial<Pick<Transaction, "company">>;
@@ -32,6 +32,22 @@ export function reactionMsg(who: string, emoji: string, tx: TxLike): PushMessage
   return { kind: "reaction", title: `${nim(who)}이 내 기록에 ${emoji} 반응했어요`, body: `${placeOf(tx)} · ${formatKRW(Math.abs(Number(tx.amount) || 0))}`, tag: "reaction" };
 }
 
+/**
+ * 복권 결과를 짧게: 한 줄 제목 + 작은 설명 (같이 보기 · 알림 · 반응 소식 공통)
+ * 예) "복권 1등 당첨! 🍗🍺" / "🎰🎰🎰 · 치맥 쿠폰"
+ */
+export function lotteryShort(t: Pick<LotteryTicket, "tier" | "rank" | "prize" | "symbols"> & Partial<LotteryTicket>) {
+  const symbols = symbolsOf(t as LotteryTicket).join("");
+  switch (t.tier) {
+    case "jackpot": return { title: "복권 1등 당첨! 🍗🍺", detail: "치맥 쿠폰", symbols, big: true };
+    case "prize": return { title: `복권 ${t.rank}등 당첨! 🎁`, detail: t.prize, symbols, big: true };
+    case "love": return { title: "숨겨진 하트 당첨! 💕", detail: "뽀뽀 쿠폰", symbols, big: true };
+    case "bomb": return { title: "💣 폭탄 발견!", detail: "다음 주 외식 금지", symbols, big: false };
+    case "almost": return { title: "아깝다! 😮", detail: "아깝다!", symbols, big: false };
+    default: return { title: "꽝", detail: "꽝", symbols, big: false };
+  }
+}
+
 /** 반응 소식에서 부르는 이름: "복권" · "쿠폰" · "저축" · "저축 목표" · "정산" */
 export function targetLabel(t: ActivityItem) {
   if (t.kind === "lottery") return "복권";
@@ -42,7 +58,7 @@ export function targetLabel(t: ActivityItem) {
 
 /** 무엇에 반응했는지 짧게 */
 export function targetSummary(t: ActivityItem) {
-  if (t.kind === "lottery") return tierTitle(t.ticket.tier, t.ticket.rank);
+  if (t.kind === "lottery") { const l = lotteryShort(t.ticket); return `${l.symbols} · ${l.detail}`; }
   if (t.kind === "coupon") return couponLabel(t.ticket);
   const name = `${t.goal.emoji} ${t.goal.name}`;
   if (t.kind === "goalNew") return name;
@@ -55,11 +71,11 @@ export function activityReactionMsg(who: string, emoji: string, t: ActivityItem)
 }
 
 /** 복권 긁기 */
-export function lotteryMsg(who: string, t: Pick<LotteryTicket, "tier" | "rank" | "prize">): PushMessage {
-  if (t.tier === "bomb") return { kind: "lottery", title: `💣 ${nim(who)} 복권에서 폭탄이 나왔어요!`, body: "다음 주 일주일간 외식·배달 금지예요", tag: "lottery" };
-  const big = t.tier === "jackpot" || t.tier === "prize" || t.tier === "love";
-  if (big) return { kind: "lottery", title: `🎉 ${nim(who)}이 복권에 당첨됐어요!`, body: [tierTitle(t.tier, t.rank), t.prize].filter(Boolean).join(" · "), tag: "lottery" };
-  return { kind: "lottery", title: `🎟️ ${nim(who)}이 오늘의 복권을 긁었어요`, body: tierTitle(t.tier, t.rank), tag: "lottery" };
+export function lotteryMsg(who: string, t: Pick<LotteryTicket, "tier" | "rank" | "prize"> & Partial<LotteryTicket>): PushMessage {
+  const l = lotteryShort(t as LotteryTicket);
+  if (t.tier === "bomb") return { kind: "lottery", title: `💣 ${nim(who)} 복권에서 폭탄 발견!`, body: `${l.symbols} · 다음 주 일주일간 외식·배달 금지예요`, tag: "lottery" };
+  if (l.big) return { kind: "lottery", title: `🎉 ${nim(who)}이 ${l.title}`, body: `${l.symbols} · ${l.detail}`, tag: "lottery" };
+  return { kind: "lottery", title: `🎟️ ${nim(who)}이 오늘의 복권을 긁었어요`, body: `${l.symbols} · ${l.detail}`, tag: "lottery" };
 }
 
 /** 쿠폰 쓰기 → 받는 사람 차례 */

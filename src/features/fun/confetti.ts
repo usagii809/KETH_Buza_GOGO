@@ -111,7 +111,7 @@ function burst(emojis: string[], x: number, y: number, o: BurstOpts) {
 
 /** 🍗🍺 · 💍 · 🎂🥳 · 🎄🎅 누른 자리에서 가까이 · 멀리 제각각 튀어올랐다가 포물선을 그리며 떨어져요 */
 export function emojiPop(emojis: string[], x: number, y: number) {
-  burst(emojis, x, y, { count: 40, speed: [2, 12], drag: 0.985, gravity: 0.11, life: [2.6, 3.6], size: [24, 44], lift: 3, spin: 7 });
+  burst(emojis, x, y, { count: 40, speed: [1.5, 7.5], drag: 0.985, gravity: 0.08, life: [2.6, 3.6], size: [24, 44], lift: 3, spin: 7 });
 }
 
 /** ❤️ 누른 자리에서 하트가 몽글몽글 사방으로 천천히 퍼지며 둥실 떠올라요 */

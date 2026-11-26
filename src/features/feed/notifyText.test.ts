@@ -21,9 +21,9 @@ describe("🔔 알림 문구 (받는 사람 입장)", () => {
     expect(activityReactionMsg("경은", "🥲", target).title).toBe("경은 님이 내 복권에 🥲 반응했어요");
   });
   it("복권 · 쿠폰", () => {
-    expect(lotteryMsg("경은", ticket({ tier: "bomb", prize: "" })).title).toBe("💣 경은 님 복권에서 폭탄이 나왔어요!");
-    expect(lotteryMsg("경은", ticket()).title).toBe("🎉 경은 님이 복권에 당첨됐어요!");
-    expect(lotteryMsg("경은", ticket()).body).toContain("어깨 안마");
+    expect(lotteryMsg("경은", ticket({ tier: "bomb", prize: "", symbols: ["💣", "💣", "💣"] })).title).toBe("💣 경은 님 복권에서 폭탄 발견!");
+    expect(lotteryMsg("경은", ticket())).toMatchObject({ title: "🎉 경은 님이 복권 2등 당첨! 🎁", body: "💎💎💎 · 💆 어깨 안마 10분 이용권" });
+    expect(lotteryMsg("경은", ticket({ tier: "jackpot", rank: 1, symbols: ["🎰", "🎰", "🎰"] }))).toMatchObject({ title: "🎉 경은 님이 복권 1등 당첨! 🍗🍺", body: "🎰🎰🎰 · 치맥 쿠폰" });
     expect(couponMsg("경은", ticket()).body).toBe("💆 어깨 안마 10분 이용권 · 내 차례예요 😇");
   });
   it("저축", () => {

@@ -25,6 +25,7 @@ import { NoSpendCard } from "./features/noSpend/NoSpendCard";
 import { RecurringSheet } from "./features/recurring/RecurringSheet";
 import { LotteryCard } from "./features/lottery/LotteryCard";
 import { breaksDiningBan, diningBanDays, upcomingDiningBan } from "./features/lottery/ticket";
+import { buildRefundIndex } from "./features/expenses/refunds";
 import { LotterySheet } from "./features/lottery/LotterySheet";
 import { QuipBubble } from "./features/quips/QuipBubble";
 import { Avatar } from "./ui/Avatar";
@@ -189,6 +190,9 @@ function Dashboard({ user }: { user: User }) {
 
   // 자동완성: 최근 120일 + 지금 보는 달 (id 중복 제거)
   const history = useMemo(() => [...new Map([...shared.history, ...month.txs].map((t) => [t.id, t])).values()], [shared.history, month.txs]);
+  // ↩️ 결제 ↔ 환불 연결 (불러온 기록 전부에서: 최근 120일 · 이번 달 · 지난 12개월 · 새 소식)
+  const refundIndex = useMemo(() => buildRefundIndex(shared.history, recentTxs, month.prevTxs, month.txs, feedTxs),
+    [shared.history, recentTxs, month.prevTxs, month.txs, feedTxs]);
 
   // 무지출 챌린지는 '처음 기록을 남긴 날'부터 세요 (그 전엔 앱을 안 썼으니까)
   const noSpendStart = useMemo(() => {
@@ -330,7 +334,7 @@ function Dashboard({ user }: { user: User }) {
           {noSpendEl}
         </>
       )}
-      <TransactionList txs={month.txs} ym={ym} now={now} onEdit={(tx) => setSheet({ type: "expense", tx })}
+      <TransactionList txs={month.txs} ym={ym} now={now} refundIndex={refundIndex} onEdit={(tx) => setSheet({ type: "expense", tx })}
         onSearchAll={(query) => setSheet({ type: "search", state: { ...DEFAULT_SEARCH, query } })} />
 
       <div className="fixed bottom-5 left-0 right-0 z-30 flex justify-center pointer-events-none px-4" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
@@ -343,7 +347,8 @@ function Dashboard({ user }: { user: User }) {
 
       {sheet?.type === "expense" && (
         <ExpenseSheet key={sheet.tx?.id ?? (sheet.refundFor ? `refund_${sheet.refundFor.id}` : "new")} tx={sheet.tx} refundFor={sheet.refundFor}
-          onRefund={(orig) => setSheet({ type: "expense", refundFor: orig, back: sheet.back })} viewedYm={ym} uid={user.uid} history={history} beforeAdd={pinIfNeeded} myName={me?.name} bans={bans} onMovedMonth={setYm} onClose={closeSheet} />
+          onRefund={(orig) => setSheet({ type: "expense", refundFor: orig, back: sheet.back })} viewedYm={ym} uid={user.uid} history={history} beforeAdd={pinIfNeeded} myName={me?.name} bans={bans}
+          refundIndex={refundIndex} onEditOriginal={(orig) => setSheet({ type: "expense", tx: orig })} onMovedMonth={setYm} onClose={closeSheet} />
       )}
       {sheet?.type === "budget" && <BudgetSheet period={period} budget={month.budget} onClose={closeSheet} />}
       {sheet?.type === "settings" && (

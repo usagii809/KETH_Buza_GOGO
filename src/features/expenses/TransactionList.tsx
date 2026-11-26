@@ -7,6 +7,7 @@ import { isRefund, type Spender, type Transaction } from "../../lib/types";
 import { Card } from "../../ui/controls";
 import { useFeedback } from "../../ui/feedback";
 import { FILTERS, matchTx, type FilterKey } from "./filters";
+import { refundStatus, type RefundIndex } from "./refunds";
 
 const SPENDER_BADGE: Record<Spender, string> = {
   태형: "bg-blue-50 text-toss-blue",
@@ -16,7 +17,7 @@ const SPENDER_BADGE: Record<Spender, string> = {
 const PAGE = 15;
 const sum = (list: Transaction[]) => list.reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
 
-export function TransactionList({ txs, ym, now, onEdit, onSearchAll }: { txs: Transaction[]; ym: string; now: Date; onEdit: (tx: Transaction) => void; onSearchAll?: (query: string) => void }) {
+export function TransactionList({ txs, ym, now, refundIndex, onEdit, onSearchAll }: { txs: Transaction[]; ym: string; now: Date; refundIndex?: RefundIndex; onEdit: (tx: Transaction) => void; onSearchAll?: (query: string) => void }) {
   const { toast } = useFeedback();
   const [filter, setFilter] = useState<FilterKey>("ALL");
   const [query, setQuery] = useState("");
@@ -126,6 +127,9 @@ export function TransactionList({ txs, ym, now, onEdit, onSearchAll }: { txs: Tr
               {g.items.map((tx) => {
                 const cat = CATEGORY_MAP[normalizeCategory(tx.category)];
                 const sp = normalizeSpender(tx.spender);
+                // ↩️ 환불 연결: 결제엔 "환불됨", 환불엔 "○/○ 결제 환불"
+                const rs = refundStatus(tx, refundIndex);
+                const orig = tx.refundOf ? refundIndex?.byId.get(tx.refundOf) : undefined;
                 return (
                   <button key={tx.id} type="button" onClick={() => onEdit(tx)}
                     className="tx-row w-full text-left py-3 px-2 -mx-2 flex items-center justify-between gap-3 rounded-xl hover:bg-toss-bg active:bg-toss-bg transition">
@@ -137,14 +141,18 @@ export function TransactionList({ txs, ym, now, onEdit, onSearchAll }: { txs: Tr
                         {tx.company && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-indigo-50 text-indigo-600">🏢 회사</span>}
                         <span className="text-xs font-medium text-toss-sub truncate">{cat.label}</span>
                         {tx.auto && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-green-50 text-toss-green">🔁 자동</span>}
-                        {isRefund(tx) && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-green-50 text-toss-green">↩️ 환불</span>}
+                        {isRefund(tx) && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-green-50 text-toss-green whitespace-nowrap">↩️ {orig ? `${Number(orig.date.slice(5, 7))}/${Number(orig.date.slice(8))} 결제 환불` : "환불"}</span>}
+                        {rs && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-green-50 text-toss-green whitespace-nowrap">↩️ {rs.full ? "전액 환불됨" : `${formatShort(rs.refunded)} 환불됨`}</span>}
                         {tx.pending && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-amber-50 text-amber-700" title="연결되면 올라가요">⏳ 올리는 중</span>}
                         {tx.reactions && Object.values(tx.reactions).some((r) => r?.e) && (
                           <span className="px-1.5 py-0.5 rounded-full text-xs bg-rose-50 leading-none">{Object.values(tx.reactions).map((r) => r?.e).filter(Boolean).join("")}</span>
                         )}
                       </div>
                     </div>
-                    <span className={`text-base font-bold num shrink-0 ${isRefund(tx) ? "text-toss-green" : tx.company ? "text-indigo-500" : "text-toss-text"}`}>{isRefund(tx) ? "+" : "-"}{formatKRW(Math.abs(Number(tx.amount) || 0))}</span>
+                    <span className="shrink-0 text-right">
+                      <span className={`block text-base font-bold num ${isRefund(tx) ? "text-toss-green" : rs?.full ? "text-toss-muted line-through" : tx.company ? "text-indigo-500" : "text-toss-text"}`}>{isRefund(tx) ? "+" : "-"}{formatKRW(Math.abs(Number(tx.amount) || 0))}</span>
+                      {rs && !rs.full && <span className="block text-xs text-toss-sub num">실제 {formatKRW(rs.remaining)}</span>}
+                    </span>
                   </button>
                 );
               })}

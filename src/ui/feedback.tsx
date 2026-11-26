@@ -8,9 +8,25 @@ interface ConfirmOptions {
   danger?: boolean;
 }
 
+export interface Choice {
+  key: string;
+  label: string;
+  /** primary = 파란 버튼, danger = 빨간 버튼, 없으면 회색 */
+  tone?: "primary" | "danger";
+}
+
+interface ChooseOptions {
+  title: string;
+  message?: string;
+  /** 위에서부터 차례로 보여요. 맨 아래 '취소'는 자동으로 붙어요 */
+  choices: Choice[];
+}
+
 interface FeedbackApi {
   toast: (message: string) => void;
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
+  /** 여러 개 중 하나 고르기. 취소하면 null */
+  choose: (opts: ChooseOptions) => Promise<string | null>;
 }
 
 const FeedbackContext = createContext<FeedbackApi | null>(null);
@@ -19,7 +35,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [toastMsg, setToastMsg] = useState("");
   const [toastVisible, setToastVisible] = useState(false);
   const timer = useRef<number>();
-  const [pending, setPending] = useState<(ConfirmOptions & { resolve: (ok: boolean) => void }) | null>(null);
+  const [pending, setPending] = useState<(ConfirmOptions & { choices?: Choice[]; resolve: (v: boolean | string | null) => void }) | null>(null);
 
   const toast = useCallback((message: string) => {
     setToastMsg(message);
@@ -28,10 +44,13 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     timer.current = window.setTimeout(() => setToastVisible(false), 2400);
   }, []);
 
-  const confirm = useCallback((opts: ConfirmOptions) => new Promise<boolean>((resolve) => setPending({ ...opts, resolve })), []);
+  const confirm = useCallback((opts: ConfirmOptions) => new Promise<boolean>((resolve) => setPending({ ...opts, resolve: (v) => resolve(v === true) })), []);
+  const choose = useCallback((opts: ChooseOptions) =>
+    new Promise<string | null>((resolve) => setPending({ ...opts, resolve: (v) => resolve(typeof v === "string" ? v : null) })), []);
 
-  const close = useCallback((ok: boolean) => {
-    setPending((p) => { p?.resolve(ok); return null; });
+  /** 확인창 닫기: true/false (확인창) 또는 고른 key (선택창) */
+  const close = useCallback((v: boolean | string) => {
+    setPending((p) => { p?.resolve(v); return null; });
   }, []);
 
   // 확인창이 떠 있으면 ESC는 확인창만 닫음 (뒤의 시트는 그대로)
@@ -47,7 +66,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   }, [pending, close]);
 
   return (
-    <FeedbackContext.Provider value={{ toast, confirm }}>
+    <FeedbackContext.Provider value={{ toast, confirm, choose }}>
       {children}
 
       {pending && (
@@ -56,13 +75,25 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
           <div role="alertdialog" className="w-full max-w-xs bg-white rounded-3xl p-5 shadow-xl text-center">
             <h4 className="text-lg font-bold text-toss-text">{pending.title}</h4>
             {pending.message && <p className="text-sm text-toss-sub mt-2 leading-relaxed whitespace-pre-line">{pending.message}</p>}
-            <div className="grid grid-cols-2 gap-2 mt-5">
-              <button type="button" onClick={() => close(false)} className="py-3 rounded-xl bg-toss-bg text-sm font-bold text-toss-sub">취소</button>
-              <button type="button" onClick={() => close(true)}
-                className={`py-3 rounded-xl text-sm font-bold text-white ${pending.danger === false ? "bg-toss-blue" : "bg-toss-red"}`}>
-                {pending.okText || "확인"}
-              </button>
-            </div>
+            {pending.choices ? (
+              <div className="flex flex-col gap-2 mt-5">
+                {pending.choices.map((c) => (
+                  <button key={c.key} type="button" onClick={() => close(c.key)}
+                    className={`py-3 rounded-xl text-sm font-bold ${c.tone === "primary" ? "bg-toss-blue text-white" : c.tone === "danger" ? "bg-toss-red text-white" : "bg-toss-bg text-toss-text"}`}>
+                    {c.label}
+                  </button>
+                ))}
+                <button type="button" onClick={() => close(false)} className="py-2.5 text-sm font-bold text-toss-sub">취소</button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 mt-5">
+                <button type="button" onClick={() => close(false)} className="py-3 rounded-xl bg-toss-bg text-sm font-bold text-toss-sub">취소</button>
+                <button type="button" onClick={() => close(true)}
+                  className={`py-3 rounded-xl text-sm font-bold text-white ${pending.danger === false ? "bg-toss-blue" : "bg-toss-red"}`}>
+                  {pending.okText || "확인"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

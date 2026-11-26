@@ -61,11 +61,19 @@ export function addExpense(input: ExpenseInput, uid: string) {
     createdAt: Date.now()
   });
 }
+/** 고치기. refundOf가 빈 문자열이면 원래 결제와의 연결을 끊어요 */
 export function updateExpense(id: string, input: ExpenseInput) {
   const { refundOf, ...rest } = input;
-  return updateDoc(refs.transaction(id), { ...clean(rest), ...(refundOf ? { refundOf } : {}), yearMonth: input.date.slice(0, 7), updatedAt: Date.now() });
+  const link = refundOf ? { refundOf } : refundOf === "" ? { refundOf: deleteField() } : {};
+  return updateDoc(refs.transaction(id), { ...clean(rest), ...link, yearMonth: input.date.slice(0, 7), updatedAt: Date.now() });
 }
 export const deleteExpense = (id: string) => deleteDoc(refs.transaction(id));
+/** 결제와 연결된 환불까지 한 번에 지워요 (따로 지우면 중간에 한쪽만 남을 수 있어서) */
+export function deleteExpenses(ids: string[]) {
+  const batch = writeBatch(db);
+  ids.forEach((id) => batch.delete(refs.transaction(id)));
+  return batch.commit();
+}
 
 // ── 같이 보기: 반응 ──
 /** 최근 30일 안에 남긴 기록 (새 소식 피드) */

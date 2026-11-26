@@ -59,7 +59,15 @@ export const setDoc = async (r, d, o) => apply(r.path, d, o && o.merge);
 export const updateDoc = async (r, d) => apply(r.path, d, true);
 export const addDoc = async (c, d) => apply(c.path + "/n" + (++auto), d, false);
 export const deleteDoc = async (r) => { store.delete(r.path); listeners.forEach(fire); };
-export const writeBatch = () => { const ops = []; return { set(r, d, o) { ops.push([r, d, o]); }, commit: async () => ops.forEach(([r, d, o]) => apply(r.path, d, o && o.merge)) }; };
+export const writeBatch = () => {
+  const ops = [];
+  return {
+    set(r, d, o) { ops.push(() => apply(r.path, d, o && o.merge)); },
+    update(r, d) { ops.push(() => updateDoc(r, d)); },
+    delete(r) { ops.push(() => deleteDoc(r)); },
+    commit: async () => { for (const op of ops) await op(); }
+  };
+};
 // 앱이 새로 쓰기 시작한 함수들 (오프라인 캐시 · 정렬 · 한 문서 읽기)
 export const initializeFirestore = () => ({});
 export const persistentLocalCache = () => ({});

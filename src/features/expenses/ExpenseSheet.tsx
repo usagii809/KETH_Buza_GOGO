@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { addExpense, deleteExpense, localFirst, updateExpense } from "../../data/db";
+import { addExpense, deleteExpense, deleteExpenses, localFirst, updateExpense } from "../../data/db";
 import { CATEGORY_MAP, GROUPS, SPENDERS, normalizeCategory, normalizeSpender, visibleCategories, type CategoryKey } from "../../lib/categories";
 import { defaultDateForMonth, todayStr } from "../../lib/dates";
 import { formatKRW, formatShort } from "../../lib/format";
@@ -12,6 +12,7 @@ import { confetti } from "../fun/confetti";
 import { expenseEgg } from "../fun/eggs";
 import { buildMemoIndex, suggestItems, suggestMemos } from "./memo";
 import type { DiningBan } from "../lottery/ticket";
+import { refundCandidates, refundableOf, type RefundIndex } from "./refunds";
 
 interface Props {
   /** 있으면 수정, 없으면 새 기록 */
@@ -30,13 +31,17 @@ interface Props {
   myName?: string;
   /** 💣 외식 금지 (날짜 → 금지 기간) */
   bans?: Record<string, DiningBan>;
+  /** ↩️ 결제 ↔ 환불 연결 (두 번 빠지는 걸 막으려고) */
+  refundIndex?: RefundIndex;
+  /** 원래 결제를 고치러 가기 */
+  onEditOriginal?: (tx: Transaction) => void;
   /** 다른 달 날짜로 저장했을 때 그 달로 이동 */
   onMovedMonth: (ym: string) => void;
   onClose: () => void;
 }
 
-export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, beforeAdd, myName, bans = {}, onMovedMonth, onClose }: Props) {
-  const { toast, confirm } = useFeedback();
+export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, beforeAdd, myName, bans = {}, refundIndex, onEditOriginal, onMovedMonth, onClose }: Props) {
+  const { toast, confirm, choose } = useFeedback();
   // 환불을 새로 적을 때는 원래 결제 내용을 그대로 가져와요
   const base = tx || refundFor;
   const [amount, setAmount] = useState(tx ? Math.abs(Number(tx.amount) || 0) : 0);
@@ -47,8 +52,19 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
   const [spender, setSpender] = useState<Spender>(normalizeSpender(base ? base.spender : store.get("lastSpender", myName || "공동")));
   const [date, setDate] = useState(tx?.date || (refundFor ? todayStr() : defaultDateForMonth(viewedYm)));
   const [company, setCompany] = useState(!!base?.company);
-  const original = refundFor || null;
-  const refundOf = tx?.refundOf || refundFor?.id;
+  // ↩️ 이 환불이 연결된 원래 결제 (환불 · 부분취소 버튼으로 왔으면 고정, 아니면 아래 목록에서 골라요)
+  const [link, setLink] = useState<string | null>(tx?.refundOf || refundFor?.id || null);
+  const original = refundFor || (link ? refundIndex?.byId.get(link) ?? null : null);
+  const refundOf = refund ? link : null;
+  // 이 결제에 더 환불할 수 있는 금액 (이미 연결된 다른 환불은 빼요)
+  const refundable = original ? refundableOf(original, refundIndex, tx?.id) : 0;
+  const candidates = useMemo(
+    () => (refund && !refundFor && refundIndex ? refundCandidates(memo, refundIndex.byId.values(), refundIndex, 5, tx?.id).filter((c) => c.tx.id !== tx?.id) : []),
+    [refund, refundFor, refundIndex, memo, tx?.id]
+  );
+  // 이 결제에 연결된 환불들 (결제를 지우거나 금액을 줄일 때 경고)
+  const linkedRefunds = tx && !isRefund(tx) ? refundIndex?.refunds.get(tx.id) || [] : [];
+  const linkedTotal = linkedRefunds.reduce((s, r) => s - (Number(r.amount) || 0), 0);
   // 입력 화면 항목: 숨긴 항목은 빼되, 지금 고르고 있는 항목은 보여요
   const cats = visibleCategories();
   if (!cats.some((c) => c.key === category) && CATEGORY_MAP[category]) cats.push(CATEGORY_MAP[category]);
@@ -64,18 +80,39 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
     // 회사 돈은 태형이만 (다른 사람으로 바꾸면 자동으로 꺼져요)
     const isCompany = spender === "태형" && company;
     const signed = refund ? -amount : amount;
-    const input = { date, category, spender, amount: signed, memo: memo.trim(), items: items.trim(), company: isCompany, ...(refund && refundOf ? { refundOf } : {}) };
-    const ym = date.slice(0, 7);
-    // ↩️ 원래 결제보다 많이 환불받는 경우는 한 번 더 확인
-    if (refund && original && amount > Math.abs(Number(original.amount) || 0)) {
+    let linkTo = refundOf;
+    // ↩️ 남은 금액보다 많이 환불하면 거의 실수예요 (같은 환불을 두 번 적었거나 다른 결제에 연결)
+    if (refund && original && amount > refundable) {
+      const already = (Number(original.amount) || 0) - refundable;
+      const pick = await choose({
+        title: "남은 금액보다 많아요",
+        message: `${original.date.slice(5).replace("-", "/")} ${original.memo || "결제"}는 ${formatKRW(Math.max(0, refundable))}만 남았어요.` +
+          (already > 0 ? `\n(${formatKRW(original.amount)} 중 ${formatKRW(already)}은 이미 환불됐어요)` : ""),
+        choices: [
+          ...(onEditOriginal ? [{ key: "fix", label: "원래 결제 금액 고치기" }] : []),
+          { key: "unlink", label: "연결 안 하고 기록" }
+        ]
+      });
+      if (pick === "fix") { onClose(); onEditOriginal?.(original); return; }
+      if (pick !== "unlink") return;
+      linkTo = null;
+    }
+    // 환불이 연결된 결제의 금액을 줄이면 → 환불과 함께 두 번 빠질 수 있어요
+    if (tx && !refund && linkedTotal > 0 && amount < Math.abs(Number(tx.amount) || 0)) {
       const ok = await confirm({
-        title: "원래 결제보다 많아요",
-        message: `원래 결제는 ${formatKRW(Math.abs(Number(original.amount) || 0))}이에요.\n그래도 ${formatKRW(amount)}을 환불로 기록할까요?`,
-        okText: "그래도 기록",
+        title: "환불이 연결된 결제예요",
+        message: `이 결제엔 환불 ${formatKRW(linkedTotal)}이 따로 기록돼 있어요.\n금액까지 줄이면 두 번 빠질 수 있어요. 그래도 저장할까요?`,
+        okText: "그래도 저장",
         danger: false
       });
       if (!ok) return;
     }
+    const input = {
+      date, category, spender, amount: signed, memo: memo.trim(), items: items.trim(), company: isCompany,
+      // 연결을 끊으면 "" (고칠 때 원래 연결을 지워요)
+      ...(refund && linkTo ? { refundOf: linkTo } : tx?.refundOf ? { refundOf: "" } : {})
+    };
+    const ym = date.slice(0, 7);
     // 💣 외식 금지 주간에 외식·배달을 새로 적으려 하면 한 번 더 물어봐요 (회사 돈·환불은 괜찮아요)
     const ban = bans[date];
     if (!tx && !isCompany && !refund && ban && category === "foodDining") {
@@ -121,6 +158,24 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
 
   const remove = async () => {
     if (!tx) return;
+    // 환불이 연결된 결제: 결제만 지우면 환불과 함께 두 번 빠져요 → 같이 지워요
+    if (linkedRefunds.length) {
+      const list = linkedRefunds.map((r) => `${r.date.slice(5).replace("-", "/")} 환불 ${formatKRW(-(Number(r.amount) || 0))}`).join(", ");
+      const pick = await choose({
+        title: "환불 기록이 연결돼 있어요",
+        message: `이 결제엔 ${list}이 연결돼 있어요.\n결제만 지우면 ${formatKRW(linkedTotal)}이 두 번 빠져요.`,
+        choices: [{ key: "both", label: "환불도 같이 지우기", tone: "danger" }]
+      });
+      if (pick !== "both") return;
+      try {
+        const saved = await localFirst(deleteExpenses([tx.id, ...linkedRefunds.map((r) => r.id)]));
+        onClose();
+        toast(saved === "queued" ? `환불 ${linkedRefunds.length}건과 같이 지웠어요 (연결되면 반영돼요)` : `환불 ${linkedRefunds.length}건과 같이 지웠어요`);
+      } catch {
+        toast("지우지 못했어요. 다시 시도해 주세요");
+      }
+      return;
+    }
     if (!(await confirm({ title: "이 기록을 지울까요?", message: "지우면 둘 다 볼 수 없어요.", okText: "지우기" }))) return;
     try {
       const saved = await localFirst(deleteExpense(tx.id));
@@ -209,13 +264,17 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
             <button type="button" onClick={() => setAmount(0)} className="text-xs font-semibold text-toss-sub hover:text-toss-text">지우기</button>
           </div>
           <BigMoneyInput id="expenseAmount" value={amount} onChange={setAmount} />
-          {original ? (
-            <button type="button" onClick={() => setAmount(Math.abs(Number(original.amount) || 0))}
-              className="mt-2 px-3 py-1.5 rounded-full bg-green-50 text-sm font-semibold text-toss-green active:scale-95 transition">전액 {formatKRW(Math.abs(Number(original.amount) || 0))}</button>
+          {refund && original ? (
+            refundable > 0 ? (
+              <button type="button" onClick={() => setAmount(refundable)}
+                className="mt-2 px-3 py-1.5 rounded-full bg-green-50 text-sm font-semibold text-toss-green active:scale-95 transition">
+                {refundable < (Number(original.amount) || 0) ? `남은 금액 ${formatKRW(refundable)}` : `전액 ${formatKRW(refundable)}`}
+              </button>
+            ) : <p className="mt-2 text-xs font-semibold text-toss-red">이 결제는 이미 전액 환불됐어요</p>
           ) : (
             <QuickAddChips amounts={[[1000, "+1천"], [5000, "+5천"], [10000, "+1만"], [30000, "+3만"], [50000, "+5만"]]} onAdd={(n) => setAmount((a) => a + n)} />
           )}
-          {!original && (
+          {!refundFor && (
             <button type="button" role="switch" aria-checked={refund} onClick={() => setRefund((r) => !r)}
               className={`refund-toggle mt-2 w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border transition ${refund ? "bg-green-50 border-green-300" : "bg-white border-toss-border"}`}>
               <span className="text-left">
@@ -227,10 +286,13 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
               </span>
             </button>
           )}
+          {refund && !refundFor && (
+            <RefundPicker memo={memo} candidates={candidates} link={link} onPick={setLink} currentOriginal={original} />
+          )}
           {refund && (
             <p className="mt-2 text-xs text-toss-sub leading-relaxed">
               원래 결제한 달 기록은 그대로 두고, <b>돌려받은 날짜의 달</b> 지출에서 빠져요.
-              {original && original.date.slice(0, 7) === date.slice(0, 7) && " 같은 달이라면 원래 기록 금액을 바로 고쳐도 돼요."}
+              {original && " 원래 결제 금액은 고치지 마세요. 두 번 빠져요."}
             </p>
           )}
         </div>
@@ -257,5 +319,55 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
         </div>
       </form>
     </Sheet>
+  );
+}
+
+/** ↩️ 어떤 결제의 환불인지 고르기: 같은 사용처의 최근 결제 + '연결 안 함' */
+function RefundPicker({ memo, candidates, link, onPick, currentOriginal }: {
+  memo: string;
+  candidates: { tx: Transaction; remaining: number }[];
+  link: string | null;
+  onPick: (id: string | null) => void;
+  currentOriginal: Transaction | null;
+}) {
+  const md = (d: string) => d.slice(5).replace("-", "/");
+  // 이미 연결된 결제가 목록(최근 5건) 밖이면 맨 위에 보여줘요
+  const list = currentOriginal && !candidates.some((c) => c.tx.id === currentOriginal.id)
+    ? [{ tx: currentOriginal, remaining: 0, pinned: true }, ...candidates]
+    : candidates;
+  const row = (on: boolean, disabled = false) =>
+    `w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition ${on ? "border-toss-blue bg-toss-blueLight" : "border-toss-border bg-white"} ${disabled ? "opacity-50" : "active:scale-[0.99]"}`;
+  return (
+    <div className="refund-picker mt-3">
+      <p className="text-sm font-bold text-toss-text">어떤 결제의 환불인가요?</p>
+      <p className="text-xs text-toss-sub mt-0.5 mb-2">
+        {!memo.trim() ? "사용처를 먼저 적으면 그 사용처의 결제를 찾아드려요" : candidates.length ? "같은 사용처의 최근 결제예요" : "같은 사용처의 결제를 못 찾았어요. 연결 없이 기록돼요"}
+      </p>
+      <div className="space-y-1.5">
+        {list.map((c) => {
+          const on = link === c.tx.id;
+          const full = c.remaining <= 0 && !("pinned" in c);
+          return (
+            <button key={c.tx.id} type="button" disabled={full && !on} onClick={() => onPick(c.tx.id)} className={row(on, full && !on)}>
+              <span className={`w-4 h-4 rounded-full border-2 shrink-0 ${on ? "border-toss-blue bg-toss-blue" : "border-gray-300"}`} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-toss-text truncate">{md(c.tx.date)} {c.tx.memo || c.tx.items || "결제"}</span>
+                <span className="block text-xs text-toss-sub num">
+                  {"pinned" in c ? "지금 연결된 결제" : full ? "전액 환불돼서 고를 수 없어요" : c.remaining < (Number(c.tx.amount) || 0) ? `${formatKRW(c.remaining)} 남음 (${formatKRW((Number(c.tx.amount) || 0) - c.remaining)} 환불됨)` : `${formatKRW(c.remaining)} 남음`}
+                </span>
+              </span>
+              <span className="text-sm font-bold num text-toss-text shrink-0">{formatKRW(Number(c.tx.amount) || 0)}</span>
+            </button>
+          );
+        })}
+        <button type="button" onClick={() => onPick(null)} className={row(link === null)}>
+          <span className={`w-4 h-4 rounded-full border-2 shrink-0 ${link === null ? "border-toss-blue bg-toss-blue" : "border-gray-300"}`} />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-toss-text">연결 안 함</span>
+            <span className="block text-xs text-toss-sub">어느 결제인지 모를 때</span>
+          </span>
+        </button>
+      </div>
+    </div>
   );
 }

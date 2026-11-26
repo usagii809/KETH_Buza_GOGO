@@ -3,7 +3,9 @@ import { CATEGORY_MAP, normalizeCategory, normalizeSpender } from "../../lib/cat
 import { formatKRW } from "../../lib/format";
 import { couponLabel } from "../lottery/coupons";
 import { symbolsOf, tierTitle } from "../lottery/ticket";
-import type { Profile, Reaction } from "../../lib/types";
+import type { Profile, Reaction, Transaction } from "../../lib/types";
+import { notify } from "./notify";
+import { targetLabel, targetSummary } from "./notifyText";
 import { Avatar } from "../../ui/Avatar";
 import { useState } from "react";
 import { Segmented } from "../../ui/controls";
@@ -33,11 +35,16 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
   const newCount = (mine: boolean) => items.filter((it) => it.mine === mine && !mine && it.at > lastSeen).length;
 
   /** 같은 이모지를 다시 누르면 반응을 지워요 */
-  const react = async (target: { tx: string } | { activity: string }, current: string | undefined, emoji: string) => {
+  const react = async (target: { tx: Transaction } | { activity: ActivityItem }, current: string | undefined, emoji: string) => {
     const next = current === emoji ? null : emoji;
     try {
-      if ("tx" in target) await setReaction(target.tx, uid, next);
-      else await setActivityReaction(target.activity, uid, next);
+      if ("tx" in target) await setReaction(target.tx.id, uid, next);
+      else await setActivityReaction(target.activity.id, uid, next);
+      // 🔔 반응을 남겼을 때만 상대에게 알려요 (지울 땐 조용히)
+      if (next) {
+        if ("tx" in target) notify.reaction(next, target.tx);
+        else notify.activityReaction(next, target.activity);
+      }
     } catch (err) {
       console.error("반응 저장 오류:", err);
       toast("반응을 남기지 못했어요");
@@ -81,7 +88,7 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
             if (it.kind !== "record" && it.kind !== "reaction") {
               return (
                 <ActivityRow key={it.id} it={it} profile={who} myName={me?.name} isNew={isNew}
-                  {...reactProps} onReact={(cur, e) => react({ activity: it.id }, cur, e)} />
+                  {...reactProps} onReact={(cur, e) => react({ activity: it }, cur, e)} />
               );
             }
             const tx = it.tx;
@@ -107,7 +114,7 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
             return (
               <ReactableRow key={it.id} className={`border border-toss-border ${it.mine ? "bg-toss-bg/60" : ""}`}
                 avatar={<Avatar profile={who} size={36} className="shrink-0" zoomable />}
-                isNew={isNew} mine={it.mine} reactions={tx.reactions} {...reactProps} onReact={(cur, e) => react({ tx: tx.id }, cur, e)}>
+                isNew={isNew} mine={it.mine} reactions={tx.reactions} {...reactProps} onReact={(cur, e) => react({ tx }, cur, e)}>
                 <p className="text-sm text-toss-text leading-snug">
                   {it.mine ? myRecordLine(normalizeSpender(tx.spender), me?.name, partnerName, place, tx.amount) : recordLine(it.who, normalizeSpender(tx.spender), me?.name, place, tx.amount)}
                 </p>
@@ -194,23 +201,6 @@ function ReactableRow({ className, avatar, children, isNew, mine, reactions, uid
       )}
     </div>
   );
-}
-
-/** 반응 소식에서 부르는 이름: "복권" · "쿠폰" · "저축" · "저축 목표" */
-function targetLabel(t: ActivityItem) {
-  if (t.kind === "lottery") return "복권";
-  if (t.kind === "coupon") return "쿠폰";
-  if (t.kind === "goalNew") return "저축 목표";
-  return t.settle ? "정산" : "저축";
-}
-
-/** 반응 소식 아랫줄: 무엇에 반응했는지 짧게 */
-function targetSummary(t: ActivityItem) {
-  if (t.kind === "lottery") return tierTitle(t.ticket.tier, t.ticket.rank);
-  if (t.kind === "coupon") return couponLabel(t.ticket);
-  const name = `${t.goal.emoji} ${t.goal.name}`;
-  if (t.kind === "goalNew") return name;
-  return `${name} ${t.amount > 0 ? "+" : "−"}${formatKRW(Math.abs(t.amount))}`;
 }
 
 /** 복권 · 쿠폰 · 저축 목표 소식 한 줄 (+ 반응) */

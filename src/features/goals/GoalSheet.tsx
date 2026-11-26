@@ -7,6 +7,7 @@ import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
 import { confetti } from "../fun/confetti";
 import { GOAL_EMOJIS, goalEta, goalPct } from "./calc";
+import { notify } from "../feed/notify";
 
 interface Props {
   /** null = 새 목표 */
@@ -39,6 +40,7 @@ function DepositView({ goal, prefill, planned, now, onEdit, onClose }:
     if (sign < 0 && amount > saved) { toast("모은 돈보다 많이 꺼낼 수 없어요"); return; }
     try {
       await moveGoalMoney(goal.id, sign * amount);
+      notify.goalMoney(goal, sign * amount); // 🔔
       onClose();
       const after = saved + sign * amount;
       if (sign > 0 && goal.target > 0 && after >= goal.target && saved < goal.target) { toast(`🎉 ${goal.name} 목표 달성! 축하해요`); confetti(); }
@@ -120,7 +122,7 @@ function EditView({ goal, onClose }: { goal: Goal | null; onClose: () => void })
     if (target <= 0) { toast("목표 금액을 입력해 주세요"); return; }
     try {
       if (goal) { await updateGoal(goal.id, { name: n, emoji, target, saved, monthly }); toast("목표를 수정했어요"); }
-      else { await addGoal({ name: n, emoji, target, saved, monthly }); toast(`${emoji} ${n} 목표를 만들었어요. 같이 모아봐요!`); }
+      else { await addGoal({ name: n, emoji, target, saved, monthly }); notify.goalNew({ name: n, emoji, target }); toast(`${emoji} ${n} 목표를 만들었어요. 같이 모아봐요!`); }
       onClose();
     } catch (err) {
       console.error("목표 저장 오류:", err);

@@ -7,6 +7,7 @@ import { Sheet } from "../../ui/Sheet";
 import { confetti } from "../fun/confetti";
 import { couponLabel, groupCoupons } from "./coupons";
 import { symbolsOf } from "./ticket";
+import { notify } from "../feed/notify";
 
 interface Props {
   uid: string;
@@ -30,6 +31,7 @@ export function CouponSheet({ uid, coupons, profiles, onClose }: Props) {
     if (!ok) return;
     try {
       await markCouponUsed(t.id);
+      notify.coupon(t); // 🔔 상대 차례
       confetti();
       toast(`🎫 ${couponLabel(t)} 사용 완료! ${partnerName} 님, 부탁해요 🙏`);
     } catch (err) {

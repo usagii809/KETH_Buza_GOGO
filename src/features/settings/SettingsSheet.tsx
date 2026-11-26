@@ -14,6 +14,7 @@ import { getThemePref, setThemePref, type ThemePref } from "../../lib/theme";
 import { APP_BUILT_AT, APP_SHA, APP_VERSION, builtAtLabel, fetchServerVersion, isNewer, updateToLatest, type ServerVersion } from "../../lib/version";
 import { Sheet } from "../../ui/Sheet";
 import { Segmented } from "../../ui/controls";
+import { disablePush, enablePush, isPushOn, PUSH_KINDS, pushReady, pushSupport, setPushMute, type PushKind } from "../../lib/push";
 
 function download(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -163,6 +164,7 @@ export function SettingsSheet({ uid, me, nameLocked, email, ym, txs, defaultBudg
           </div>
           <span className="text-sm font-bold text-toss-blue">→</span>
         </button>
+        <NotifyRow uid={uid} />
         <ThemeRow />
         <button type="button" id="openCategoriesBtn" onClick={onOpenCategories} className={item}>
           <div>
@@ -218,6 +220,85 @@ function VersionRow() {
         </button>
       ) : (
         <p className="text-xs text-toss-green mt-0.5">{server ? "최신 버전이에요 ✓" : "최신 버전을 확인하지 못했어요 (오프라인?)"}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 🔔 알림: 이 기기에서 상대 소식(기록 · 반응 · 복권 · 쿠폰 · 저축) 알림 받기
+ * 켜고 끄기와 종류는 기기마다 따로예요
+ */
+function NotifyRow({ uid }: { uid: string }) {
+  const { toast } = useFeedback();
+  const support = pushSupport();
+  const [on, setOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [mute, setMute] = useState<PushKind[]>(() => {
+    try { return JSON.parse(localStorage.getItem("pushMute") || "[]"); } catch { return []; }
+  });
+  useEffect(() => { isPushOn().then(setOn).catch(() => setOn(false)); }, []);
+  const denied = support === "ok" && Notification.permission === "denied";
+
+  const toggle = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (on) {
+        await disablePush();
+        setOn(false);
+        toast("🔕 이 기기에서 알림을 껐어요");
+      } else {
+        const r = await enablePush(uid, mute);
+        if (r === "on") { setOn(true); toast("🔔 알림을 켰어요. 상대 소식이 오면 알려줄게요"); }
+        else if (r === "denied") toast("알림을 허락하지 않았어요. 기기 설정에서 켤 수 있어요");
+        else toast("알림을 켜지 못했어요. 잠시 후 다시 해주세요");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+  const flip = (k: PushKind) => {
+    const next = mute.includes(k) ? mute.filter((m) => m !== k) : [...mute, k];
+    setMute(next);
+    try { localStorage.setItem("pushMute", JSON.stringify(next)); } catch { /* 무시 */ }
+    setPushMute(next).catch(() => toast("저장하지 못했어요"));
+  };
+
+  const sub = !pushReady() ? "알림 서버를 연결하면 켤 수 있어요"
+    : support === "install" ? "Safari 공유 버튼 → '홈 화면에 추가'한 앱에서 켤 수 있어요"
+    : support === "unsupported" ? "이 브라우저는 알림을 지원하지 않아요"
+    : denied ? "알림이 막혀 있어요 · 기기 설정 → 알림에서 '부자 가계부'를 켜주세요"
+    : on ? "상대가 기록하거나 반응하면 바로 알려줘요 (이 기기)"
+    : "상대 소식을 폰 알림으로 받아요";
+  const canToggle = pushReady() && support === "ok" && !denied && on !== null;
+
+  return (
+    <div id="notifyRow" className="px-4 py-3.5 rounded-2xl bg-toss-bg">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-toss-text">🔔 알림</p>
+          <p className="text-xs text-toss-sub">{sub}</p>
+        </div>
+        {canToggle && (
+          <button type="button" role="switch" aria-checked={!!on} aria-label="알림 받기" onClick={toggle} disabled={busy}
+            className={`shrink-0 w-12 h-7 rounded-full p-0.5 transition ${on ? "bg-toss-blue" : "bg-gray-300 dark:bg-white/20"} ${busy ? "opacity-60" : ""}`}>
+            <span className={`block w-6 h-6 rounded-full bg-white shadow transition-transform ${on ? "translate-x-5" : ""}`} />
+          </button>
+        )}
+      </div>
+      {on && (
+        <div className="flex flex-wrap gap-1.5 mt-2.5">
+          {PUSH_KINDS.map(([k, label]) => {
+            const active = !mute.includes(k);
+            return (
+              <button key={k} type="button" aria-pressed={active} onClick={() => flip(k)}
+                className={`px-2.5 py-1 rounded-full text-xs font-bold transition ${active ? "bg-toss-blueLight text-toss-blue" : "bg-white dark:bg-white/10 text-toss-muted line-through"}`}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
       )}
     </div>
   );

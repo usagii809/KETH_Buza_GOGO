@@ -1,4 +1,4 @@
-export const getAuth = () => ({});
+export const getAuth = () => ({ currentUser: { uid: "u1", email: "t@x.com", getIdToken: async () => "test-token" } });
 export const setPersistence = async () => {};
 export const browserLocalPersistence = {};
 export const signInWithEmailAndPassword = async () => {};

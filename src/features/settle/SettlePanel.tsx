@@ -6,6 +6,7 @@ import type { Goal, Settlement } from "../../lib/types";
 import { useFeedback } from "../../ui/feedback";
 import { confetti } from "../fun/confetti";
 import type { SettleOptions } from "./calc";
+import { notify } from "../feed/notify";
 
 interface Props {
   ym: string;
@@ -46,6 +47,7 @@ export function SettlePanel({ ym, options, settlement, goals, myName, standalone
     setBusy(true);
     try {
       await settleMonth(ym, goal, amount, myName);
+      notify.settle(ym, goal, amount); // 🔔
       confetti();
       toast(`💰 ${goal.name}에 ${formatShort(amount)} 넣었어요! ${m}월 정산 끝`);
     } catch (err) {

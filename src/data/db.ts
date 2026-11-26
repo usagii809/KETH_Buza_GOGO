@@ -29,6 +29,8 @@ export const refs = {
   // 같이 보기: 복권 · 쿠폰 · 저축 소식에 단 반응 (문서 id = 소식 id)
   feedReactions: () => collection(db, `${BASE}/feedReactions`),
   feedReaction: (id: string) => doc(db, `${BASE}/feedReactions/${id}`),
+  // 🔔 알림 받을 기기 (문서 id = 기기 구독 주소의 해시)
+  pushSub: (id: string) => doc(db, `${BASE}/pushSubs/${id}`),
   // 예산 문서(months)와 섞이지 않게 따로 둬요
   settlement: (ym: string) => doc(db, `${BASE}/settlements/${ym}`)
 };

@@ -14,6 +14,7 @@ import { buildMemoIndex, findDuplicate, frequentExpenses, suggestItems, suggestM
 import { timeAgo } from "../feed/calc";
 import type { DiningBan } from "../lottery/ticket";
 import { refundCandidates, refundableOf, type RefundIndex } from "./refunds";
+import { notify } from "../feed/notify";
 
 interface Props {
   /** 있으면 수정, 없으면 새 기록 */
@@ -164,6 +165,7 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
       } else {
         await localFirst(beforeAdd(ym), 1500).catch((err) => console.warn("월 예산 고정 참고:", err));
         saved = await localFirst(addExpense(input, uid));
+        notify.record(input); // 🔔 상대 폰에 알림
         if (!refund) {
           store.set("lastCategory", category);
           store.set("lastSpender", spender);

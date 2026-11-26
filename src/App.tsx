@@ -4,6 +4,7 @@ import { HISTORY_DAYS, pinMonthBudget, runRecurring, saveNoSpendBest, saveProfil
 import { useAuthUser, useCoupons, useFeedReactions, useFeedTxs, useLottery, useMonthData, useNow, useRecentMonths, useSettlement, useSharedData } from "./data/hooks";
 import { buildFeed, countUnseen } from "./features/feed/calc";
 import { FeedSheet } from "./features/feed/FeedSheet";
+import { setPushSender } from "./lib/push";
 import { CouponSheet } from "./features/lottery/CouponSheet";
 import { groupCoupons } from "./features/lottery/coupons";
 import { InsightCard } from "./features/report/InsightCard";
@@ -190,6 +191,29 @@ function Dashboard({ user }: { user: User }) {
     setLocalSeen(t);
     saveProfile(user.uid, { feedSeenAt: t }).catch((err) => console.warn("읽은 시각 저장 참고:", err));
   };
+
+  // 🔔 알림을 눌러서 들어오면 같이 보기를 바로 열어요 (?feed=1 · 이미 열린 앱이면 서비스 워커가 메시지로 알려줘요)
+  const [wantFeed, setWantFeed] = useState(() => new URLSearchParams(window.location.search).get("feed") === "1");
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("feed")) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("feed");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    }
+    const onMsg = (e: MessageEvent) => { if (e.data?.type === "buja-open-feed") setWantFeed(true); };
+    navigator.serviceWorker?.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker?.removeEventListener("message", onMsg);
+  }, []);
+  useEffect(() => {
+    // 읽은 시각이 정확하도록 내 프로필을 받은 뒤에 열어요
+    if (!wantFeed || !me) return;
+    setWantFeed(false);
+    feedToasted.current = true;
+    if (sheet?.type !== "feed") openFeed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantFeed, me]);
+  // 알림 문구에 들어갈 내 이름
+  useEffect(() => { setPushSender(me?.name); }, [me?.name]);
 
   // 🏢 회사 돈은 기록만 하고, 예산·저축·무지출·그래프·성적표 계산에서는 전부 빼요
   const txs = useMemo(() => month.txs.filter(isHousehold), [month.txs]);

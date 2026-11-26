@@ -59,7 +59,9 @@ export default defineConfig({
       workbox: {
         // 앱 화면은 오프라인에서도 뜨게, 데이터(Firebase)는 항상 네트워크로
         globPatterns: ["**/*.{js,css,html,png,svg}"],
-        navigateFallback: "index.html"
+        navigateFallback: "index.html",
+        // 🔔 알림 받기 · 누르면 같이 보기 열기 (public/push-sw.js)
+        importScripts: ["push-sw.js"]
       }
     })
   ],

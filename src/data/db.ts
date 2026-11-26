@@ -68,6 +68,12 @@ export function updateExpense(id: string, input: ExpenseInput) {
   return updateDoc(refs.transaction(id), { ...clean(rest), ...link, yearMonth: input.date.slice(0, 7), updatedAt: Date.now() });
 }
 export const deleteExpense = (id: string) => deleteDoc(refs.transaction(id));
+/** 지운 기록 되살리기 (같은 id · 같은 내용으로 다시 저장) */
+export function restoreExpenses(txs: Transaction[]) {
+  const batch = writeBatch(db);
+  txs.forEach(({ id, pending: _pending, ...data }) => batch.set(refs.transaction(id), clean(data as Record<string, unknown>)));
+  return batch.commit();
+}
 /** 결제와 연결된 환불까지 한 번에 지워요 (따로 지우면 중간에 한쪽만 남을 수 있어서) */
 export function deleteExpenses(ids: string[]) {
   const batch = writeBatch(db);

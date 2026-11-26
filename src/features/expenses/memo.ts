@@ -63,12 +63,14 @@ export function matchScore(target: string, query: string): number {
   return 0;
 }
 
-/** 두 번 이상 쓴 곳만 추천해요. 입력이 비었으면 자주 쓴 곳, 있으면 글자가 맞는 곳(쿠 → 쿠팡, ㅋㅍ → 쿠팡) */
+/**
+ * 사용처 추천. 입력이 비었으면 두 번 이상 쓴 곳을 자주 쓴 순으로,
+ * 글자를 치기 시작하면 한 번 쓴 곳까지 글자가 맞는 곳을 (쿠 → 쿠팡, ㅋㅍ → 쿠팡) 자주 쓴 순으로
+ */
 export function suggestMemos(index: MemoSuggestion[], query: string, limit = 6): MemoSuggestion[] {
   const q = query.trim().toLowerCase();
-  const repeat = index.filter((e) => e.total >= 2);
-  if (!q) return [...repeat].sort((a, b) => b.total - a.total || b.last - a.last).slice(0, limit);
-  return repeat
+  if (!q) return index.filter((e) => e.total >= 2).sort((a, b) => b.total - a.total || b.last - a.last).slice(0, limit);
+  return index
     .filter((e) => e.memo.toLowerCase() !== q)
     .map((e) => ({ e, score: matchScore(e.memo, q) }))
     .filter((x) => x.score > 0)
@@ -100,4 +102,45 @@ export function suggestItems(txs: Iterable<Transaction>, store: string, query: s
   const list = [...stats.values()];
   list.sort(s ? (a, b) => b.last - a.last || b.count - a.count : (a, b) => b.count - a.count || b.last - a.last);
   return list.slice(0, limit).map((e) => e.text);
+}
+
+export interface FrequentExpense {
+  memo: string;
+  amount: number;
+  category: CategoryKey;
+  spender: string;
+  count: number;
+}
+
+/** 자주 쓰는 지출: 사용처 · 금액 · 항목 · 사람이 똑같은 기록이 두 번 이상 (회사 돈 · 환불 · 자동 기록 제외) */
+export function frequentExpenses(txs: Iterable<Transaction>, limit = 4): FrequentExpense[] {
+  const m = new Map<string, FrequentExpense & { last: number }>();
+  for (const t of txs) {
+    const amount = Number(t.amount) || 0;
+    const memo = String(t.memo || "").trim();
+    if (amount <= 0 || !memo || t.company || t.auto) continue;
+    const category = normalizeCategory(t.category);
+    const spender = String(t.spender || "공동");
+    const k = `${memo.toLowerCase()}|${amount}|${category}|${spender}`;
+    const e = m.get(k) || { memo, amount, category, spender, count: 0, last: 0 };
+    e.count++;
+    e.last = Math.max(e.last, Number(t.createdAt) || 0);
+    m.set(k, e);
+  }
+  return [...m.values()]
+    .filter((e) => e.count >= 2)
+    .sort((a, b) => b.count - a.count || b.last - a.last)
+    .slice(0, limit)
+    .map(({ last: _last, ...e }) => e);
+}
+
+/** 같은 날 · 같은 금액으로 이미 적힌 기록 (두 사람이 같은 지출을 두 번 적는 걸 막으려고) */
+export function findDuplicate(txs: Iterable<Transaction>, date: string, amount: number, exceptId?: string): Transaction | null {
+  if (amount <= 0) return null;
+  let best: Transaction | null = null;
+  for (const t of txs) {
+    if (t.id === exceptId || t.date !== date || Number(t.amount) !== amount) continue;
+    if (!best || (Number(t.createdAt) || 0) > (Number(best.createdAt) || 0)) best = t;
+  }
+  return best;
 }

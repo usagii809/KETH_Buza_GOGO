@@ -22,8 +22,12 @@ interface ChooseOptions {
   choices: Choice[];
 }
 
+/** 알림 옆 버튼 (예: 되돌리기) */
+export interface ToastAction { label: string; onClick: () => void }
+
 interface FeedbackApi {
-  toast: (message: string) => void;
+  /** action이 있으면 버튼이 붙고 조금 더 오래(5초) 보여요 */
+  toast: (message: string, action?: ToastAction) => void;
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
   /** 여러 개 중 하나 고르기. 취소하면 null */
   choose: (opts: ChooseOptions) => Promise<string | null>;
@@ -33,15 +37,17 @@ const FeedbackContext = createContext<FeedbackApi | null>(null);
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [toastMsg, setToastMsg] = useState("");
+  const [toastAction, setToastAction] = useState<ToastAction | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
   const timer = useRef<number>();
   const [pending, setPending] = useState<(ConfirmOptions & { choices?: Choice[]; resolve: (v: boolean | string | null) => void }) | null>(null);
 
-  const toast = useCallback((message: string) => {
+  const toast = useCallback((message: string, action?: ToastAction) => {
     setToastMsg(message);
+    setToastAction(action ?? null);
     setToastVisible(true);
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setToastVisible(false), 2400);
+    timer.current = window.setTimeout(() => { setToastVisible(false); setToastAction(null); }, action ? 5000 : 2400);
   }, []);
 
   const confirm = useCallback((opts: ConfirmOptions) => new Promise<boolean>((resolve) => setPending({ ...opts, resolve: (v) => resolve(v === true) })), []);
@@ -100,7 +106,15 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
       <div aria-live="polite"
         className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-[70] pointer-events-none transition-opacity duration-200 ${toastVisible ? "opacity-100" : "opacity-0"}`}>
-        <div className="px-4 py-2.5 rounded-2xl bg-gray-900/90 text-white text-sm font-semibold shadow-lg whitespace-nowrap">{toastMsg}</div>
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-gray-900/90 text-white text-sm font-semibold shadow-lg whitespace-nowrap">
+          {toastMsg}
+          {toastAction && (
+            <button type="button" onClick={() => { const a = toastAction; setToastVisible(false); setToastAction(null); a.onClick(); }}
+              className="toast-action pointer-events-auto -my-1 px-2.5 py-1 rounded-lg bg-white/15 text-amber-300 font-bold active:scale-95 transition">
+              {toastAction.label}
+            </button>
+          )}
+        </div>
       </div>
     </FeedbackContext.Provider>
   );

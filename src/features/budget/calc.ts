@@ -156,3 +156,16 @@ export function compareWithPrev(usage: Usage, prevTxs: Transaction[], period: Pe
 
 /** 카테고리별 지난달 대비 % (지난달 0원이면 null) */
 export const pctChange = (cur: number, prev: number) => (prev > 0 ? Math.round(((cur - prev) / prev) * 100) : null);
+
+/**
+ * 기록 저장 직후 알림: 이 기록으로 항목 예산을 80% · 100% 처음 넘으면 한 줄
+ * (예산이 없는 항목 · 이미 넘은 상태였으면 조용히)
+ */
+export function budgetAlert(label: string, budget: number, spentBefore: number, added: number): string | null {
+  if (budget <= 0 || added <= 0) return null;
+  const after = spentBefore + added;
+  const pct = (v: number) => (v / budget) * 100;
+  if (pct(after) > 100 && pct(spentBefore) <= 100) return `🚨 ${label} 예산을 넘었어요 (${Math.round(pct(after))}% · ${Math.round(after - budget).toLocaleString("ko-KR")}원 초과)`;
+  if (pct(after) >= 80 && pct(spentBefore) < 80) return `⚠️ ${label} 예산 ${Math.round(pct(after))}% 썼어요 (남은 돈 ${Math.round(budget - after).toLocaleString("ko-KR")}원)`;
+  return null;
+}

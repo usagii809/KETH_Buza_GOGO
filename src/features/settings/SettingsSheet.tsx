@@ -10,8 +10,10 @@ import { toAvatarDataUrl } from "../../lib/image";
 import type { Profile, RecurringRule, Transaction } from "../../lib/types";
 import { Avatar } from "../../ui/Avatar";
 import { useFeedback } from "../../ui/feedback";
+import { getThemePref, setThemePref, type ThemePref } from "../../lib/theme";
 import { APP_BUILT_AT, APP_SHA, APP_VERSION, builtAtLabel, fetchServerVersion, isNewer, updateToLatest, type ServerVersion } from "../../lib/version";
 import { Sheet } from "../../ui/Sheet";
+import { Segmented } from "../../ui/controls";
 
 function download(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -161,6 +163,7 @@ export function SettingsSheet({ uid, me, nameLocked, email, ym, txs, defaultBudg
           </div>
           <span className="text-sm font-bold text-toss-blue">→</span>
         </button>
+        <ThemeRow />
         <button type="button" id="openCategoriesBtn" onClick={onOpenCategories} className={item}>
           <div>
             <p className="text-sm font-bold text-toss-text">🏷️ 카테고리 관리</p>
@@ -216,6 +219,21 @@ function VersionRow() {
       ) : (
         <p className="text-xs text-toss-green mt-0.5">{server ? "최신 버전이에요 ✓" : "최신 버전을 확인하지 못했어요 (오프라인?)"}</p>
       )}
+    </div>
+  );
+}
+
+/** 🌙 화면 모드: 자동 · 밝게 · 어둡게 (이 기기에만 저장) */
+function ThemeRow() {
+  const [pref, setPref] = useState<ThemePref>(getThemePref);
+  return (
+    <div id="themeRow" className="flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl bg-toss-bg">
+      <div className="min-w-0">
+        <p className="text-sm font-bold text-toss-text">🌙 화면 모드</p>
+        <p className="text-xs text-toss-sub">자동은 아이폰 설정 따라가요</p>
+      </div>
+      <Segmented options={[["auto", "자동"], ["light", "밝게"], ["dark", "어둡게"]]} value={pref}
+        onChange={(v) => { setPref(v); setThemePref(v); }} />
     </div>
   );
 }

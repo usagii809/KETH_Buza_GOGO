@@ -1,16 +1,17 @@
 import { useMemo, useState } from "react";
-import { addExpense, deleteExpense, deleteExpenses, localFirst, updateExpense } from "../../data/db";
+import { addExpense, deleteExpense, deleteExpenses, localFirst, restoreExpenses, updateExpense } from "../../data/db";
 import { CATEGORY_MAP, GROUPS, SPENDERS, normalizeCategory, normalizeSpender, visibleCategories, type CategoryKey } from "../../lib/categories";
 import { defaultDateForMonth, todayStr } from "../../lib/dates";
 import { formatKRW, formatShort } from "../../lib/format";
 import { store } from "../../lib/storage";
 import { isRefund, type Spender, type Transaction } from "../../lib/types";
-import { BigMoneyInput, QuickAddChips, inputClass, primaryButton } from "../../ui/controls";
+import { CalcMoneyInput, QuickAddChips, inputClass, primaryButton } from "../../ui/controls";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
 import { confetti } from "../fun/confetti";
 import { expenseEgg } from "../fun/eggs";
-import { buildMemoIndex, suggestItems, suggestMemos } from "./memo";
+import { buildMemoIndex, findDuplicate, frequentExpenses, suggestItems, suggestMemos } from "./memo";
+import { timeAgo } from "../feed/calc";
 import type { DiningBan } from "../lottery/ticket";
 import { refundCandidates, refundableOf, type RefundIndex } from "./refunds";
 
@@ -35,22 +36,30 @@ interface Props {
   refundIndex?: RefundIndex;
   /** 원래 결제를 고치러 가기 */
   onEditOriginal?: (tx: Transaction) => void;
+  /** 이 기록 내용으로 새로 적기 (오늘 날짜) */
+  copyFrom?: Transaction;
+  /** 수정 화면의 '오늘 날짜로 한 번 더' */
+  onDuplicate?: (tx: Transaction) => void;
+  /** uid → 이름 (같은 지출 경고에 누가 적었는지) */
+  nameOf?: (uid?: string) => string | undefined;
+  /** 저장 직후 예산 알림 문구 (없으면 null) */
+  budgetAlertFor?: (category: CategoryKey, date: string, added: number) => string | null;
   /** 다른 달 날짜로 저장했을 때 그 달로 이동 */
   onMovedMonth: (ym: string) => void;
   onClose: () => void;
 }
 
-export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, beforeAdd, myName, bans = {}, refundIndex, onEditOriginal, onMovedMonth, onClose }: Props) {
+export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, beforeAdd, myName, bans = {}, refundIndex, onEditOriginal, copyFrom, onDuplicate, nameOf, budgetAlertFor, onMovedMonth, onClose }: Props) {
   const { toast, confirm, choose } = useFeedback();
   // 환불을 새로 적을 때는 원래 결제 내용을 그대로 가져와요
-  const base = tx || refundFor;
-  const [amount, setAmount] = useState(tx ? Math.abs(Number(tx.amount) || 0) : 0);
+  const base = tx || refundFor || copyFrom;
+  const [amount, setAmount] = useState(tx ? Math.abs(Number(tx.amount) || 0) : copyFrom ? Math.abs(Number(copyFrom.amount) || 0) : 0);
   const [refund, setRefund] = useState(tx ? isRefund(tx) : !!refundFor);
   const [memo, setMemo] = useState(base?.memo || "");
   const [items, setItems] = useState(base?.items || "");
   const [category, setCategory] = useState<CategoryKey>(normalizeCategory(base ? base.category : store.get("lastCategory", "foodIngredients")));
   const [spender, setSpender] = useState<Spender>(normalizeSpender(base ? base.spender : store.get("lastSpender", myName || "공동")));
-  const [date, setDate] = useState(tx?.date || (refundFor ? todayStr() : defaultDateForMonth(viewedYm)));
+  const [date, setDate] = useState(tx?.date || (refundFor || copyFrom ? todayStr() : defaultDateForMonth(viewedYm)));
   const [company, setCompany] = useState(!!base?.company);
   // ↩️ 이 환불이 연결된 원래 결제 (환불 · 부분취소 버튼으로 왔으면 고정, 아니면 아래 목록에서 골라요)
   const [link, setLink] = useState<string | null>(tx?.refundOf || refundFor?.id || null);
@@ -71,6 +80,11 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
   const [busy, setBusy] = useState(false);
 
   const memoIndex = useMemo(() => buildMemoIndex(history), [history]);
+  // ⭐ 자주 쓰는 지출 (새 기록일 때만)
+  const frequent = useMemo(() => (!tx && !refundFor && !copyFrom ? frequentExpenses(history) : []), [tx, refundFor, copyFrom, history]);
+  const fillFrequent = (f: { memo: string; amount: number; category: CategoryKey; spender: string }) => {
+    setMemo(f.memo); setAmount(f.amount); setCategory(f.category); setSpender(normalizeSpender(f.spender));
+  };
   const suggestions = useMemo(() => suggestMemos(memoIndex, memo), [memoIndex, memo]);
   const itemSuggestions = useMemo(() => suggestItems(history, memo, items), [history, memo, items]);
 
@@ -113,6 +127,21 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
       ...(refund && linkTo ? { refundOf: linkTo } : tx?.refundOf ? { refundOf: "" } : {})
     };
     const ym = date.slice(0, 7);
+    // 👯 같은 날 · 같은 금액 기록이 이미 있으면 (둘이 같은 지출을 두 번 적는 경우)
+    if (!tx && !refund) {
+      const dup = findDuplicate(history, date, amount);
+      if (dup) {
+        const who = nameOf?.(dup.createdBy) || dup.spender || "누군가";
+        const when = dup.createdAt ? timeAgo(Number(dup.createdAt)) : "";
+        const ok = await confirm({
+          title: "같은 지출이 이미 있어요",
+          message: `${who} 님이 ${when ? `${when} ` : ""}${dup.memo || CATEGORY_MAP[normalizeCategory(dup.category)].label} ${formatKRW(Number(dup.amount))}을 기록했어요.\n그래도 추가할까요?`,
+          okText: "그래도 추가",
+          danger: false
+        });
+        if (!ok) return;
+      }
+    }
     // 💣 외식 금지 주간에 외식·배달을 새로 적으려 하면 한 번 더 물어봐요 (회사 돈·환불은 괜찮아요)
     const ban = bans[date];
     if (!tx && !isCompany && !refund && ban && category === "foodDining") {
@@ -123,6 +152,10 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
       });
       if (!ok) return;
     }
+    // ⚠️ 저장하면 항목 예산 80% · 100%를 넘는지 (저장 전 숫자로 계산해 둬요)
+    const alert = !refund && !isCompany && budgetAlertFor
+      ? budgetAlertFor(category, date, amount - (tx && !isRefund(tx) && normalizeCategory(tx.category) === category && !tx.company ? Math.abs(Number(tx.amount) || 0) : 0))
+      : null;
     setBusy(true);
     try {
       let saved: "synced" | "queued";
@@ -145,9 +178,10 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
       } else {
         toast(tx ? "수정했어요" : refund ? `↩️ ${formatShort(amount)} 환불을 기록했어요` : isCompany ? `🏢 회사 돈 ${formatShort(amount)} 기록했어요 (가계부엔 안 들어가요)` : `${formatShort(amount)} 기록했어요`);
       }
+      if (alert) setTimeout(() => toast(alert), 1600);
       // 🤫 새 기록에 숨은 반응
       const egg = tx || refund ? null : expenseEgg(amount, input.memo, input.items);
-      if (egg) setTimeout(() => { toast(egg.text); if (egg.confetti) confetti(); }, 1500);
+      if (egg) setTimeout(() => { toast(egg.text); if (egg.confetti) confetti(); }, alert ? 4200 : 1500);
     } catch (err) {
       console.error("지출 저장 오류:", err);
       toast("저장하지 못했어요. 다시 시도해 주세요");
@@ -155,6 +189,16 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
       setBusy(false);
     }
   };
+
+  /** 지운 뒤 알림의 '되돌리기': 같은 id · 같은 내용으로 다시 저장 */
+  const undoAction = (removed: Transaction[]) => ({
+    label: "되돌리기",
+    onClick: () => {
+      localFirst(restoreExpenses(removed))
+        .then(() => toast(removed.length > 1 ? `${removed.length}건을 되살렸어요` : "되살렸어요"))
+        .catch(() => toast("되살리지 못했어요. 다시 시도해 주세요"));
+    }
+  });
 
   const remove = async () => {
     if (!tx) return;
@@ -168,9 +212,10 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
       });
       if (pick !== "both") return;
       try {
-        const saved = await localFirst(deleteExpenses([tx.id, ...linkedRefunds.map((r) => r.id)]));
+        const removed = [tx, ...linkedRefunds];
+        const saved = await localFirst(deleteExpenses(removed.map((r) => r.id)));
         onClose();
-        toast(saved === "queued" ? `환불 ${linkedRefunds.length}건과 같이 지웠어요 (연결되면 반영돼요)` : `환불 ${linkedRefunds.length}건과 같이 지웠어요`);
+        toast(saved === "queued" ? `환불 ${linkedRefunds.length}건과 같이 지웠어요 (연결되면 반영돼요)` : `환불 ${linkedRefunds.length}건과 같이 지웠어요`, undoAction(removed));
       } catch {
         toast("지우지 못했어요. 다시 시도해 주세요");
       }
@@ -180,7 +225,7 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
     try {
       const saved = await localFirst(deleteExpense(tx.id));
       onClose();
-      toast(saved === "queued" ? "지웠어요 (연결되면 반영돼요)" : "지웠어요");
+      toast(saved === "queued" ? "지웠어요 (연결되면 반영돼요)" : "지웠어요", undoAction([tx]));
     } catch {
       toast("지우지 못했어요. 다시 시도해 주세요");
     }
@@ -190,13 +235,38 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
 
   return (
     <Sheet title={refund ? (tx ? "환불 기록 수정" : "↩️ 환불 · 취소 기록") : tx ? "기록 수정" : "지출 기록"}
-      subtitle={original ? `${original.date.slice(5).replace("-", "/")} ${original.memo || original.items || CATEGORY_MAP[normalizeCategory(original.category)].label} · ${formatKRW(Math.abs(Number(original.amount) || 0))} 결제` : undefined}
+      subtitle={original ? `${original.date.slice(5).replace("-", "/")} ${original.memo || original.items || CATEGORY_MAP[normalizeCategory(original.category)].label} · ${formatKRW(Math.abs(Number(original.amount) || 0))} 결제`
+        : copyFrom ? `${copyFrom.date.slice(5).replace("-", "/")} 기록을 그대로 가져왔어요 · 날짜만 확인하세요` : undefined}
       onClose={onClose}
       footer={<>
         {tx && <button type="button" onClick={remove} className="px-4 py-3.5 rounded-2xl bg-red-50 hover:bg-red-100 text-toss-red text-sm font-bold transition">지우기</button>}
         <button type="submit" form="expenseForm" disabled={busy} className={primaryButton}>{busy ? "저장하는 중..." : tx ? "수정하기" : refund ? "환불 기록하기" : "기록하기"}</button>
       </>}>
       <form id="expenseForm" onSubmit={submit} className="space-y-5">
+        {frequent.length > 0 && amount === 0 && !memo && (
+          <div>
+            <span className="block text-sm font-medium text-toss-sub mb-1.5">⭐ 자주 쓰는 지출</span>
+            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+              {frequent.map((f) => (
+                <button key={`${f.memo}|${f.amount}|${f.category}|${f.spender}`} type="button" onClick={() => fillFrequent(f)}
+                  className="frequent-chip shrink-0 px-3 py-2 rounded-2xl bg-amber-50 text-left active:scale-95 transition">
+                  <span className="block text-sm font-bold text-toss-text whitespace-nowrap">{f.memo} <span className="num">{formatShort(f.amount)}</span></span>
+                  <span className="block text-xs text-toss-sub whitespace-nowrap">{CATEGORY_MAP[f.category]?.short ?? ""} · {f.spender} · {f.count}번</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {tx && !refund && onDuplicate && (
+          <button type="button" onClick={() => onDuplicate(tx)}
+            className="copy-btn w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-toss-blueLight text-left active:scale-[0.99] transition">
+            <span>
+              <span className="block text-sm font-bold text-toss-blue">🔁 오늘 날짜로 한 번 더 기록</span>
+              <span className="block text-xs text-toss-sub mt-0.5">같은 사용처 · 금액 · 항목으로 새 기록을 만들어요</span>
+            </span>
+            <span className="text-sm font-bold text-toss-blue">→</span>
+          </button>
+        )}
         {tx && !refund && onRefund && (
           <button type="button" onClick={() => onRefund(tx)}
             className="refund-btn w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-green-50 text-left active:scale-[0.99] transition">
@@ -263,7 +333,7 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
             <label htmlFor="expenseAmount" className="text-sm font-medium text-toss-sub">{refund ? "얼마 돌려받았나요?" : "얼마 썼나요?"}</label>
             <button type="button" onClick={() => setAmount(0)} className="text-xs font-semibold text-toss-sub hover:text-toss-text">지우기</button>
           </div>
-          <BigMoneyInput id="expenseAmount" value={amount} onChange={setAmount} />
+          <CalcMoneyInput id="expenseAmount" value={amount} onChange={setAmount} />
           {refund && original ? (
             refundable > 0 ? (
               <button type="button" onClick={() => setAmount(refundable)}

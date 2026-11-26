@@ -2,9 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── 색 (밝게) ── 숫자는 R G B */
+:root {
+  --toss-bg: 242 244 246;
+  --toss-card: 255 255 255;
+  --toss-blue: 49 130 246;
+  --toss-blue-dark: 27 100 218;
+  --toss-blue-light: 232 243 255;
+  --toss-text: 25 31 40;
+  --toss-sub: 78 89 104;
+  --toss-muted: 139 149 161;
+  --toss-border: 229 232 235;
+  --toss-green: 0 179 126;
+  --toss-amber: 255 159 0;
+  --toss-red: 240 68 82;
+  color-scheme: light;
+}
+/* ── 색 (어둡게) ── */
+html.dark {
+  --toss-bg: 16 16 20;
+  --toss-card: 30 30 36;
+  --toss-blue: 72 145 248;
+  --toss-blue-dark: 110 168 250;
+  --toss-blue-light: 26 42 66;
+  --toss-text: 236 236 240;
+  --toss-sub: 172 174 184;
+  --toss-muted: 128 130 142;
+  --toss-border: 48 48 58;
+  --toss-green: 32 199 145;
+  --toss-amber: 255 176 46;
+  --toss-red: 255 99 112;
+  color-scheme: dark;
+}
+
 body {
-  background-color: #f2f4f6;
-  color: #191f28;
+  background-color: rgb(var(--toss-bg));
+  color: rgb(var(--toss-text));
   -webkit-tap-highlight-color: transparent;
   padding-top: env(safe-area-inset-top);
   padding-bottom: calc(env(safe-area-inset-bottom) + 96px);
@@ -109,3 +142,34 @@ body {
 /* 좌우로 흔들리지 않게 */
 html, body { overflow-x: hidden; overscroll-behavior-x: none; }
 input[type="date"] { -webkit-appearance: none; min-width: 0; }
+
+/* ── 어둡게: 밝은 색으로 직접 칠한 곳을 어두운 색으로 바꿔요 ── */
+html.dark .bg-white { background-color: rgb(var(--toss-card)); }
+html.dark .bg-white\/60, html.dark .bg-white\/70 { background-color: rgb(var(--toss-card) / 0.7); }
+html.dark .ring-white { --tw-ring-color: rgb(var(--toss-card)); }
+html.dark .bg-gray-100 { background-color: #2a2a33; }
+html.dark .bg-gray-200, html.dark .bg-gray-200\/70, html.dark .hover\:bg-gray-200:hover, html.dark .hover\:bg-red-100:hover { background-color: #34343f; }
+html.dark .bg-gray-300 { background-color: #474753; }
+html.dark .bg-gray-400 { background-color: #5b5b68; }
+html.dark .text-gray-800 { color: rgb(var(--toss-text)); }
+html.dark .border-gray-300 { border-color: #474753; }
+/* 연한 색 배경 → 반투명 */
+html.dark .bg-red-50, html.dark .bg-red-100 { background-color: rgb(240 68 82 / 0.16); }
+html.dark .bg-green-50, html.dark .bg-green-50\/70, html.dark .bg-green-50\/80, html.dark .bg-emerald-50 { background-color: rgb(0 179 126 / 0.15); }
+html.dark .bg-indigo-50 { background-color: rgb(99 102 241 / 0.18); }
+html.dark .bg-violet-50 { background-color: rgb(139 92 246 / 0.18); }
+html.dark .bg-rose-50, html.dark .bg-rose-50\/70, html.dark .bg-rose-100 { background-color: rgb(244 63 94 / 0.16); }
+html.dark .bg-amber-50, html.dark .bg-yellow-50, html.dark .bg-orange-50, html.dark .bg-orange-100 { background-color: rgb(245 158 11 / 0.15); }
+html.dark .bg-blue-50, html.dark .bg-blue-100, html.dark .bg-sky-50 { background-color: rgb(49 130 246 / 0.16); }
+/* 연한 색 테두리 → 은은하게 */
+html.dark [class*="border-green-"], html.dark [class*="border-rose-"], html.dark [class*="border-red-"], html.dark [class*="border-amber-"],
+html.dark [class*="border-yellow-"], html.dark [class*="border-orange-"], html.dark [class*="border-sky-"], html.dark [class*="border-indigo-"],
+html.dark [class*="border-blue-"] { border-color: rgb(255 255 255 / 0.12); }
+/* 진한 색 글자 → 어두운 배경에서 읽히게 밝게 */
+html.dark .text-indigo-600, html.dark .text-indigo-700 { color: #a5b4fc; }
+html.dark .text-rose-500, html.dark .text-rose-600 { color: #fb7185; }
+html.dark .text-amber-600, html.dark .text-amber-700 { color: #fbbf24; }
+/* 연한 그라데이션 카드 → 어두운 그라데이션 */
+html.dark [class*="from-rose-1"], html.dark [class*="from-amber-"] { --tw-gradient-from: #2b2230 var(--tw-gradient-from-position); --tw-gradient-to: rgb(43 34 48 / 0) var(--tw-gradient-to-position); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+html.dark [class*="via-yellow-50"], html.dark [class*="via-pink-50"] { --tw-gradient-stops: var(--tw-gradient-from), #2a2626 var(--tw-gradient-via-position), var(--tw-gradient-to); }
+html.dark [class*="to-yellow-"]:not(.to-yellow-500), html.dark [class*="to-pink-50"], html.dark .to-rose-100, html.dark .to-amber-100 { --tw-gradient-to: #262630 var(--tw-gradient-to-position); }

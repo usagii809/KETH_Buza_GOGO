@@ -13,7 +13,7 @@ import { SettlePanel } from "./features/settle/SettlePanel";
 import { LoginView } from "./features/auth/LoginView";
 import { BudgetCard } from "./features/budget/BudgetCard";
 import { BudgetSheet } from "./features/budget/BudgetSheet";
-import { computeSummary } from "./features/budget/calc";
+import { budgetAlert, computeSummary } from "./features/budget/calc";
 import { SavingsCard } from "./features/budget/SavingsCard";
 import { ExpenseSheet } from "./features/expenses/ExpenseSheet";
 import { TransactionList } from "./features/expenses/TransactionList";
@@ -36,7 +36,7 @@ import { SearchSheet, type SearchState } from "./features/search/SearchSheet";
 import { DEFAULT_SEARCH } from "./features/search/calc";
 import { YearSheet } from "./features/yearly/YearSheet";
 import { TrendCard } from "./features/trend/TrendCard";
-import { plannedSavingsOf } from "./lib/categories";
+import { budgetOf, CATEGORY_MAP, plannedSavingsOf, type CategoryKey } from "./lib/categories";
 import { getPeriodInfo, shiftMonth, toDateStr, todayStr, todayYm } from "./lib/dates";
 import { isHousehold, type Goal, type Transaction } from "./lib/types";
 import { nameForEmail } from "./lib/people";
@@ -47,7 +47,7 @@ import { useFeedback } from "./ui/feedback";
 import { SheetNavContext } from "./ui/Sheet";
 
 type SheetKind =
-  | { type: "expense"; tx?: Transaction; refundFor?: Transaction }
+  | { type: "expense"; tx?: Transaction; refundFor?: Transaction; copyFrom?: Transaction }
   | { type: "search"; state: SearchState }
   | { type: "year"; year: number }
   | { type: "categories" }
@@ -129,6 +129,8 @@ function Dashboard({ user }: { user: User }) {
 
   const month = useMonthData(ym);
   const shared = useSharedData();
+  // 👯 같은 지출 경고에 쓸 이름 (uid → 태형/경은)
+  const nameOf = useCallback((uid?: string) => shared.profiles.find((p) => p.uid === uid)?.name, [shared.profiles]);
   // 지출 흐름 그래프의 '1년' 보기까지 쓰려고 11개월 전부터 불러와요 (성적표는 최근 3개월만 써요)
   const recentTxs = useRecentMonths(ym, 12);
 
@@ -203,6 +205,12 @@ function Dashboard({ user }: { user: User }) {
   const cv = shared.categoryVersion;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const summary = useMemo(() => computeSummary(month.budget, txs, period), [month.budget, txs, period, cv]);
+  /** 보고 있는 달에 기록하면: 이 금액으로 항목 예산 80% · 100%를 처음 넘는지 */
+  const budgetAlertFor = useCallback((category: CategoryKey, date: string, added: number) => {
+    if (date.slice(0, 7) !== ym) return null;
+    const label = CATEGORY_MAP[category]?.label ?? category;
+    return budgetAlert(label, budgetOf(month.budget, category), summary.usage[category] || 0, added);
+  }, [ym, month.budget, summary]);
   // 저축 목표 예상에 쓰는 '이번 달 계획 저축액'
   const planned = period.state === "current" ? summary.plannedSavings : plannedSavingsOf(month.defaultBudget);
   // 💰 월말 정산: 보고 있는 달(지난 달 화면) + 이번 달 화면에서는 지난달
@@ -380,7 +388,8 @@ function Dashboard({ user }: { user: User }) {
 
       <SheetNavContext.Provider value={sheetNav}>
       {sheet?.type === "expense" && (
-        <ExpenseSheet key={sheet.tx?.id ?? (sheet.refundFor ? `refund_${sheet.refundFor.id}` : "new")} tx={sheet.tx} refundFor={sheet.refundFor}
+        <ExpenseSheet key={sheet.tx?.id ?? (sheet.refundFor ? `refund_${sheet.refundFor.id}` : sheet.copyFrom ? `copy_${sheet.copyFrom.id}` : "new")} tx={sheet.tx} refundFor={sheet.refundFor} copyFrom={sheet.copyFrom}
+          onDuplicate={(orig) => setSheet({ type: "expense", copyFrom: orig })} nameOf={nameOf} budgetAlertFor={budgetAlertFor}
           onRefund={(orig) => setSheet({ type: "expense", refundFor: orig, back: sheet.back })} viewedYm={ym} uid={user.uid} history={history} beforeAdd={pinIfNeeded} myName={me?.name} bans={bans}
           refundIndex={refundIndex} onEditOriginal={(orig) => setSheet({ type: "expense", tx: orig })} onMovedMonth={setYm} onClose={closeSheet} />
       )}

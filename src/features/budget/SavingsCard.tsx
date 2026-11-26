@@ -22,7 +22,7 @@ function Donut({ s }: { s: Summary }) {
   return (
     <div className="relative w-28 h-28 shrink-0 flex items-center justify-center">
       <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-label="월수입 배분 원형 그래프">
-        <circle cx="50" cy="50" r="38" fill="none" stroke="#F2F4F6" strokeWidth="11" />
+        <circle cx="50" cy="50" r="38" fill="none" className="stroke-toss-bg" strokeWidth="11" />
         {segs.map((g, i) => (
           <circle key={i} cx="50" cy="50" r="38" fill="none" stroke={g.color} strokeWidth="11"
             strokeDasharray={`${g.len} ${CIRC}`} strokeDashoffset={g.offset} className="donut-segment" />

@@ -46,7 +46,7 @@ export function LotteryCard({ uid, today, tickets, profiles, ban, nextBan, banBr
     else text = `꽝 ${sym}`;
     return (
       <div className="flex items-center gap-2 min-w-0">
-        <Avatar profile={who} size={22} />
+        <Avatar profile={who} size={22} zoomable />
         <span className="text-sm font-semibold text-toss-text shrink-0">{name}</span>
         <span className={`text-sm truncate ${t?.tier === "jackpot" ? "font-bold text-amber-600" : t?.tier === "love" ? "font-bold text-rose-500" : t?.tier === "bomb" ? "font-bold text-gray-800" : "text-toss-sub"}`}>{text}</span>
       </div>

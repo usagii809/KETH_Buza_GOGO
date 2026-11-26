@@ -2,13 +2,16 @@ import type { Goal, LotteryTicket, Profile, Transaction } from "../../lib/types"
 
 export const REACTIONS = ["👍", "❤️", "😱", "🥲"] as const;
 
-export type FeedItem =
-  | { kind: "record"; id: string; at: number; who: string; tx: Transaction }
-  | { kind: "reaction"; id: string; at: number; who: string; tx: Transaction; emoji: string }
-  | { kind: "lottery"; id: string; at: number; who: string; ticket: LotteryTicket }
-  | { kind: "coupon"; id: string; at: number; who: string; ticket: LotteryTicket }
-  | { kind: "goalMoney"; id: string; at: number; who: string; goal: Goal; amount: number; settle?: string }
-  | { kind: "goalNew"; id: string; at: number; who: string; goal: Goal };
+/** mine: 내가 한 일 (NEW · 새 소식 숫자엔 안 세요) */
+type Base = { id: string; at: number; who: string; mine: boolean };
+export type FeedItem = Base & (
+  | { kind: "record"; tx: Transaction }
+  | { kind: "reaction"; tx: Transaction; emoji: string }
+  | { kind: "lottery"; ticket: LotteryTicket }
+  | { kind: "coupon"; ticket: LotteryTicket }
+  | { kind: "goalMoney"; goal: Goal; amount: number; settle?: string }
+  | { kind: "goalNew"; goal: Goal }
+);
 
 /** 기록 말고 같이 보여줄 활동들 */
 export interface FeedExtras {
@@ -24,57 +27,60 @@ export interface FeedExtras {
 export const FEED_EXTRA_DAYS = 30;
 
 /**
- * 같이 보기 피드 (상대가 한 일만)
- * - 상대가 직접 남긴 기록 (자동 기록은 빼요)
- * - 내 기록에 상대가 남긴 반응
- * - 상대의 복권 결과 · 쿠폰 사용 · 저축 목표에 넣고 뺀 돈 · 월말 정산 · 새 저축 목표
+ * 같이 보기 피드 (둘이 한 일 전부, 탭에서 전체 · 나 · 상대로 나눠 봐요)
+ * - 직접 남긴 기록 (자동 기록은 빼요)
+ * - 상대 기록에 남긴 반응 (내 기록에 상대가 · 상대 기록에 내가)
+ * - 복권 결과 · 쿠폰 사용 · 저축 목표에 넣고 뺀 돈 · 월말 정산 · 새 저축 목표
  */
-export function buildFeed(txs: Transaction[], uid: string, profiles: Profile[], max = 40, extras: FeedExtras = {}): FeedItem[] {
-  const nameOf = (id?: string) => profiles.find((p) => p.uid === id)?.name || "상대";
+export function buildFeed(txs: Transaction[], uid: string, profiles: Profile[], max = 60, extras: FeedExtras = {}): FeedItem[] {
+  const nameOf = (id?: string) => profiles.find((p) => p.uid === id)?.name || (id === uid ? "나" : "상대");
   const items: FeedItem[] = [];
   const seen = new Set<string>();
   for (const tx of txs) {
     if (seen.has(tx.id)) continue;
     seen.add(tx.id);
-    if (tx.createdBy && tx.createdBy !== uid && !tx.auto) {
-      items.push({ kind: "record", id: `r_${tx.id}`, at: Number(tx.createdAt) || 0, who: nameOf(tx.createdBy), tx });
+    if (tx.createdBy && !tx.auto) {
+      items.push({ kind: "record", id: `r_${tx.id}`, at: Number(tx.createdAt) || 0, who: nameOf(tx.createdBy), mine: tx.createdBy === uid, tx });
     }
-    if (tx.createdBy === uid && tx.reactions) {
+    if (tx.createdBy && tx.reactions) {
       for (const [rid, r] of Object.entries(tx.reactions)) {
-        if (rid === uid || !r || !r.e) continue;
-        items.push({ kind: "reaction", id: `x_${tx.id}_${rid}`, at: Number(r.at) || 0, who: nameOf(rid), tx, emoji: r.e });
+        // 자기 기록에 자기가 단 반응은 소식이 아니에요
+        if (rid === tx.createdBy || !r || !r.e) continue;
+        items.push({ kind: "reaction", id: `x_${tx.id}_${rid}`, at: Number(r.at) || 0, who: nameOf(rid), mine: rid === uid, tx, emoji: r.e });
       }
     }
   }
   const since = extras.since ?? Date.now() - FEED_EXTRA_DAYS * 86400000;
-  const isPartner = (id?: string) => !!id && id !== uid;
+  const known = (id?: string) => !!id;
 
   // 복권: 오늘의 복권은 날마다 있어서 한 사람당 하루 한 장
   const tickets = new Map<string, LotteryTicket>();
   for (const t of [...(extras.tickets || []), ...(extras.coupons || [])]) tickets.set(t.id, t);
   for (const t of tickets.values()) {
-    if (!isPartner(t.uid)) continue;
+    if (!known(t.uid)) continue;
+    const mine = t.uid === uid;
     const revealedAt = Number(t.revealedAt || t.createdAt) || 0;
-    if (t.revealed && revealedAt >= since) items.push({ kind: "lottery", id: `l_${t.id}`, at: revealedAt, who: nameOf(t.uid), ticket: t });
+    if (t.revealed && revealedAt >= since) items.push({ kind: "lottery", id: `l_${t.id}`, at: revealedAt, who: nameOf(t.uid), mine, ticket: t });
     const usedAt = Number(t.usedAt) || 0;
-    if (usedAt >= since) items.push({ kind: "coupon", id: `c_${t.id}`, at: usedAt, who: nameOf(t.uid), ticket: t });
+    if (usedAt >= since) items.push({ kind: "coupon", id: `c_${t.id}`, at: usedAt, who: nameOf(t.uid), mine, ticket: t });
   }
 
   for (const g of extras.goals || []) {
     const createdAt = Number(g.createdAt) || 0;
-    if (isPartner(g.createdBy) && createdAt >= since) items.push({ kind: "goalNew", id: `gn_${g.id}`, at: createdAt, who: nameOf(g.createdBy), goal: g });
+    if (known(g.createdBy) && createdAt >= since) items.push({ kind: "goalNew", id: `gn_${g.id}`, at: createdAt, who: nameOf(g.createdBy), mine: g.createdBy === uid, goal: g });
     (g.history || []).forEach((h, i) => {
       const at = Number(h.at) || 0;
       const amount = Number(h.amount) || 0;
-      if (!isPartner(h.by) || at < since || !amount) return;
-      items.push({ kind: "goalMoney", id: `gm_${g.id}_${at}_${i}`, at, who: nameOf(h.by), goal: g, amount, ...(h.settle ? { settle: h.settle } : {}) });
+      if (!known(h.by) || at < since || !amount) return;
+      items.push({ kind: "goalMoney", id: `gm_${g.id}_${at}_${i}`, at, who: nameOf(h.by), mine: h.by === uid, goal: g, amount, ...(h.settle ? { settle: h.settle } : {}) });
     });
   }
 
   return items.sort((a, b) => b.at - a.at).slice(0, max);
 }
 
-export const countUnseen = (items: FeedItem[], lastSeen: number) => items.filter((i) => i.at > lastSeen).length;
+/** 새 소식 = 내가 마지막으로 본 뒤에 상대가 한 일 (내가 한 일은 안 세요) */
+export const countUnseen = (items: FeedItem[], lastSeen: number) => items.filter((i) => !i.mine && i.at > lastSeen).length;
 
 /** 방금 · 5분 전 · 3시간 전 · 어제 · 11월 3일 */
 export function timeAgo(at: number, now = Date.now()): string {

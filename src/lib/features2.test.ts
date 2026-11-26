@@ -16,20 +16,24 @@ const tx = (date: string, category: string, amount: number, extra: Partial<Trans
 const profiles: Profile[] = [{ uid: "me", name: "태형" }, { uid: "you", name: "경은" }];
 
 describe("같이 보기 피드", () => {
-  it("상대 기록과 내 기록에 달린 반응만, 최신순", () => {
+  it("둘의 기록 · 서로 남긴 반응을 최신순으로, 새 소식은 상대 것만 세요", () => {
     const txs = [
-      tx("2026-11-20", "foodCafe", 5000, { createdBy: "you", createdAt: 100 }),
+      tx("2026-11-20", "foodCafe", 5000, { createdBy: "you", createdAt: 100, reactions: { me: { e: "❤️", at: 600 } } }),
       tx("2026-11-20", "livingTelecom", 55000, { createdBy: "you", createdAt: 300, auto: true }),
       tx("2026-11-21", "foodIngredients", 30000, { createdBy: "me", createdAt: 200, reactions: { you: { e: "👍", at: 400 }, me: { e: "❤️", at: 500 } } }),
       tx("2026-11-21", "foodDining", 20000, { createdBy: "me", createdAt: 250 })
     ];
     const feed = buildFeed(txs, "me", profiles);
-    expect(feed.map((f) => f.kind)).toEqual(["reaction", "record"]);
-    expect(feed[0]).toMatchObject({ who: "경은", emoji: "👍", at: 400 });
-    expect(feed[1]).toMatchObject({ who: "경은", at: 100 });
-    expect(countUnseen(feed, 150)).toBe(1);
+    expect(feed.map((f) => [f.kind, f.who, f.mine, f.at])).toEqual([
+      ["reaction", "태형", true, 600], // 내가 경은 기록에
+      ["reaction", "경은", false, 400], // 경은이 내 기록에 (내 기록에 내가 단 ❤️는 빼요)
+      ["record", "태형", true, 250],
+      ["record", "태형", true, 200],
+      ["record", "경은", false, 100] // 자동 기록은 빼요
+    ]);
+    expect(countUnseen(feed, 150)).toBe(1); // 내 활동(600 · 250 · 200)은 안 세요
   });
-  it("상대의 복권 · 쿠폰 사용 · 저축 목표 · 정산도 같이 보여요 (내 활동과 오래된 건 빼요)", () => {
+  it("복권 · 쿠폰 사용 · 저축 목표 · 정산도 둘 다 보여요 (오래된 건 빼요)", () => {
     const tk = (id: string, uid: string, extra: Partial<LotteryTicket>): LotteryTicket =>
       ({ id, uid, date: "2026-11-25", symbols: ["💎", "💎", "💎"], tier: "prize", rank: 2, prize: "💆 어깨 안마 10분 이용권", revealed: true, ...extra });
     const goal = {
@@ -48,12 +52,13 @@ describe("같이 보기 피드", () => {
       coupons: [tk("t1", "you", { revealedAt: 3000, usedAt: 3500 })],
       goals: [goal]
     });
-    expect(feed.map((f) => [f.kind, f.at])).toEqual([
-      ["coupon", 3500], ["lottery", 3000], ["goalMoney", 2200], ["goalMoney", 2100], ["goalMoney", 2000], ["goalNew", 1000]
+    expect(feed.map((f) => [f.kind, f.at, f.who])).toEqual([
+      ["coupon", 3500, "경은"], ["lottery", 3100, "태형"], ["lottery", 3000, "경은"], ["goalMoney", 2300, "태형"],
+      ["goalMoney", 2200, "경은"], ["goalMoney", 2100, "경은"], ["goalMoney", 2000, "경은"], ["goalNew", 1000, "경은"]
     ]);
-    expect(feed.every((f) => f.who === "경은")).toBe(true);
-    expect(feed[2]).toMatchObject({ settle: "2026-10", amount: 50000 });
-    expect(countUnseen(feed, 2150)).toBe(3);
+    expect(feed.filter((f) => f.mine).map((f) => f.at)).toEqual([3100, 2300]);
+    expect(feed[4]).toMatchObject({ settle: "2026-10", amount: 50000 });
+    expect(countUnseen(feed, 2150)).toBe(3); // 3500 · 3000 · 2200 (내 3100 · 2300은 빼요)
   });
   it("몇 분 전 / 어제", () => {
     const now = new Date(2026, 10, 23, 10, 0).getTime();

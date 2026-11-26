@@ -160,7 +160,7 @@ function Dashboard({ user }: { user: User }) {
 
   // 💌 같이 보기: 상대 기록 + 내 기록에 달린 반응
   const feedTxs = useFeedTxs();
-  const feed = useMemo(() => buildFeed(feedTxs, user.uid, shared.profiles, 40, { tickets, coupons, goals: shared.goals }),
+  const feed = useMemo(() => buildFeed(feedTxs, user.uid, shared.profiles, 60, { tickets, coupons, goals: shared.goals }),
     [feedTxs, user.uid, shared.profiles, tickets, coupons, shared.goals]);
   const seenKey = `feedSeen_${user.uid}`;
   // 처음 쓰는 날엔 지난 소식이 한꺼번에 NEW로 뜨지 않게 지금부터 세요

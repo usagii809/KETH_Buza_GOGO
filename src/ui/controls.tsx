@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, useState, type InputHTMLAttributes } from "react";
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type InputHTMLAttributes } from "react";
 import { evalAmount, formatExpr, hasOperator } from "../lib/calcExpr";
 import { formatAmountInput, parseAmount } from "../lib/format";
 
@@ -48,11 +48,30 @@ export function QuickAddChips({ amounts, onAdd }: { amounts: [number, string][];
 }
 
 export function Segmented<T extends string>({ options, value, onChange }: { options: [T, string][]; value: T; onChange: (v: T) => void }) {
+  // 고른 칸 뒤의 하얀 배경이 옆으로 미끄러져 가요
+  const wrap = useRef<HTMLDivElement>(null);
+  const [pill, setPill] = useState<{ x: number; w: number; animate: boolean } | null>(null);
+  const idx = options.findIndex(([v]) => v === value);
+  useLayoutEffect(() => {
+    const measure = (animate: boolean) => {
+      const btn = wrap.current?.querySelectorAll<HTMLButtonElement>("button[data-seg]")[idx];
+      if (btn) setPill((p) => ({ x: btn.offsetLeft, w: btn.offsetWidth, animate: animate && !!p }));
+    };
+    measure(true);
+    // 글자가 바뀌거나(예: "경은 2") 화면 크기가 바뀌면 다시 재요
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => measure(false)) : null;
+    if (ro && wrap.current) ro.observe(wrap.current);
+    return () => ro?.disconnect();
+  }, [idx, options.map(([, l]) => l).join("|")]);
   return (
-    <div className="flex items-center gap-1 bg-toss-bg p-1 rounded-xl">
+    <div ref={wrap} className="relative flex items-center gap-1 bg-toss-bg p-1 rounded-xl">
+      {pill && (
+        <span aria-hidden="true" className={`absolute top-1 bottom-1 left-0 rounded-lg bg-white shadow-sm ${pill.animate ? "seg-pill" : ""}`}
+          style={{ transform: `translateX(${pill.x}px)`, width: pill.w }} />
+      )}
       {options.map(([v, label]) => (
-        <button key={v} type="button" onClick={() => onChange(v)}
-          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${v === value ? "bg-white text-toss-text shadow-sm" : "text-toss-sub"}`}>
+        <button key={v} type="button" data-seg onClick={() => onChange(v)} aria-pressed={v === value}
+          className={`relative px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${v === value ? `text-toss-text ${pill ? "" : "bg-white shadow-sm"}` : "text-toss-sub"}`}>
           {label}
         </button>
       ))}

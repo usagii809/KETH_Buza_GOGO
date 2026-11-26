@@ -198,3 +198,40 @@ html.dark [class*="to-yellow-"]:not(.to-yellow-500), html.dark [class*="to-pink-
 @media (prefers-reduced-motion: reduce) {
   .animate-app-in { animation: none; }
 }
+
+/* ── 움직임: 시트 닫힘 · 배경 어두워짐 ── */
+@keyframes sheet-down {
+  from { transform: translateY(var(--drag-y, 0px)); opacity: 1; }
+  to { transform: translateY(110%); opacity: 0.9; }
+}
+.animate-sheet-down {
+  animation: sheet-down 0.22s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+@media (min-width: 640px) {
+  /* 큰 화면에선 가운데 창이라 살짝 작아지며 사라져요 */
+  @keyframes sheet-down-center { to { transform: scale(0.96); opacity: 0; } }
+  .animate-sheet-down { animation-name: sheet-down-center; }
+}
+@keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+.animate-backdrop-in { animation: backdrop-in 0.2s ease-out; }
+.animate-backdrop-out { animation: backdrop-out 0.22s ease-in forwards; }
+
+/* ── 움직임: 새 기록이 목록에 들어올 때 ── */
+@keyframes row-in {
+  0% { opacity: 0; transform: translateY(-6px); background-color: rgb(var(--toss-blue) / 0.12); }
+  40% { opacity: 1; transform: none; }
+  100% { background-color: transparent; }
+}
+.animate-row-in { animation: row-in 1.2s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* ── 움직임: 탭(하루 · 이번 주 · 이번 달) 고르는 하얀 칸이 미끄러져요 ── */
+.seg-pill {
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), width 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet-down, .animate-backdrop-in, .animate-backdrop-out, .animate-row-in { animation: none; }
+  .animate-sheet-down, .animate-backdrop-out { opacity: 0; }
+  .seg-pill { transition: none; }
+}

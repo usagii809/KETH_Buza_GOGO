@@ -25,6 +25,13 @@ export function TransactionList({ txs, ym, now, refundIndex, onEdit, onSearchAll
   // 처음엔 최근 15건 정도만, '더 보기'로 20건씩 더
   const [limit, setLimit] = useState(PAGE);
   useEffect(() => setLimit(PAGE), [ym, filter, query]);
+  // ✨ 이 달을 연 뒤에 새로 생긴 기록(내가 · 상대가 방금 적은 것)은 위에서 살짝 내려오며 반짝여요
+  const [openedAt, setOpenedAt] = useState(() => Date.now());
+  useEffect(() => setOpenedAt(Date.now()), [ym]);
+  const isFresh = (tx: Transaction) => {
+    const c = Number(tx.createdAt) || 0;
+    return c > openedAt && Date.now() - c < 5000;
+  };
 
   const filtered = txs.filter((tx) => matchTx(tx, filter, query));
   const household = filtered.filter((tx) => !tx.company);
@@ -132,7 +139,7 @@ export function TransactionList({ txs, ym, now, refundIndex, onEdit, onSearchAll
                 const orig = tx.refundOf ? refundIndex?.byId.get(tx.refundOf) : undefined;
                 return (
                   <button key={tx.id} type="button" onClick={() => onEdit(tx)}
-                    className="tx-row w-full text-left py-3 px-2 -mx-2 flex items-center justify-between gap-3 rounded-xl hover:bg-toss-bg active:bg-toss-bg transition">
+                    className={`tx-row w-full text-left py-3 px-2 -mx-2 flex items-center justify-between gap-3 rounded-xl hover:bg-toss-bg active:bg-toss-bg transition ${isFresh(tx) ? "animate-row-in" : ""}`}>
                     <div className="min-w-0 flex-1">
                       <p className="text-base font-bold text-toss-text truncate">{tx.memo || tx.items || cat.label}</p>
                       {tx.memo && tx.items && <p className="text-sm text-toss-sub truncate">{tx.items}</p>}

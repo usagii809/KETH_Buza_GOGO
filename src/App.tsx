@@ -48,7 +48,7 @@ import { confetti } from "./features/fun/confetti";
 import { isOurDay } from "./features/fun/eggs";
 import { store } from "./lib/storage";
 import { useFeedback } from "./ui/feedback";
-import { SheetNavContext } from "./ui/Sheet";
+import { SHEET_EXIT_MS, SheetExitContext, SheetNavContext } from "./ui/Sheet";
 
 type SheetKind =
   | { type: "expense"; tx?: Transaction; refundFor?: Transaction; copyFrom?: Transaction }
@@ -81,6 +81,20 @@ function Dashboard({ user }: { user: User }) {
   const [sheet, setSheet] = useState<OpenSheet>(null);
   /** 한 단계 뒤로 (이전 창이 없으면 닫기) */
   const closeSheet = useCallback(() => setSheet((s) => s?.back ?? null), []);
+  // 시트가 닫히면 0.22초 더 그려두고(아래로 스르륵) 빼요. 그리는 도중에 바로 바꿔서 시트가 깜빡이지 않게
+  const [prevSheet, setPrevSheet] = useState<OpenSheet>(sheet);
+  const [exitingSheet, setExitingSheet] = useState<OpenSheet>(null);
+  if (sheet !== prevSheet) {
+    setPrevSheet(sheet);
+    setExitingSheet(sheet ? null : prevSheet);
+  }
+  useEffect(() => {
+    if (!exitingSheet) return;
+    const t = window.setTimeout(() => setExitingSheet(null), SHEET_EXIT_MS);
+    return () => window.clearTimeout(t);
+  }, [exitingSheet]);
+  /** 화면에 그릴 시트 (닫히는 중이면 방금 닫은 시트) */
+  const view = sheet ?? exitingSheet;
   const closeAllSheets = useCallback(() => setSheet(null), []);
   /** 지금 창 위에 새 창 열기 (‹ 뒤로 누르면 지금 창으로 돌아와요) */
   const openOver = useCallback((next: SheetKind) => setSheet((cur) => ({ ...next, ...(cur ? { back: cur } : {}) })), []);
@@ -133,6 +147,19 @@ function Dashboard({ user }: { user: User }) {
   }, [now]);
 
   const month = useMonthData(ym);
+  // ↔ 달을 넘기면 다음 달은 오른쪽에서, 이전 달은 왼쪽에서 밀려 들어와요 (끝나면 transform이 남지 않게 Web Animations로)
+  const monthRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const shownYm = useRef(ym);
+  useEffect(() => {
+    const prev = shownYm.current;
+    shownYm.current = ym;
+    if (prev === ym || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const dir = ym > prev ? 1 : -1;
+    const ease = "cubic-bezier(0.22, 1, 0.36, 1)";
+    monthRef.current?.animate?.([{ transform: `translateX(${dir * 36}px)`, opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 320, easing: ease });
+    titleRef.current?.animate?.([{ transform: `translateX(${dir * 14}px)`, opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 260, easing: ease });
+  }, [ym]);
   // 🌱 첫 로딩: 이 달 기록 · 예산을 받으면 로딩 화면을 걷어요 (인터넷이 느려도 4초면 걷어요 · 달을 넘길 땐 다시 안 띄워요)
   const [booted, setBooted] = useState(false);
   useEffect(() => { if (!booted && month.txsLoaded && month.overrideLoaded) setBooted(true); }, [booted, month.txsLoaded, month.overrideLoaded]);
@@ -345,7 +372,7 @@ function Dashboard({ user }: { user: User }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shared.recurringLoaded, shared.categoriesLoaded, shared.recurring, now, user.uid, toast]);
 
-  const goal = sheet?.type === "goal" && sheet.goalId ? shared.goals.find((g) => g.id === sheet.goalId) ?? null : null;
+  const goal = view?.type === "goal" && view.goalId ? shared.goals.find((g) => g.id === view.goalId) ?? null : null;
   const openGoal = (g: Goal, prefill = 0) => setSheet({ type: "goal", goalId: g.id, mode: "deposit", prefill });
 
 
@@ -390,7 +417,7 @@ function Dashboard({ user }: { user: User }) {
           <span onClick={onTitleTap} className="text-sm font-bold text-toss-blue tracking-tight select-none">태형이와 경은이의 부자 되기 프로젝트!!</span>
           <div className="flex items-center gap-2 mt-1.5">
             <NavButton label="이전 달" d="M15 19l-7-7 7-7" onClick={() => setYm(shiftMonth(ym, -1))} />
-            <h1 className="text-xl font-bold text-toss-text tracking-tight num px-1 whitespace-nowrap">{period.y}년 {period.m}월</h1>
+            <h1 ref={titleRef} className="text-xl font-bold text-toss-text tracking-tight num px-1 whitespace-nowrap">{period.y}년 {period.m}월</h1>
             <NavButton label="다음 달" d="M9 5l7 7-7 7" onClick={() => setYm(shiftMonth(ym, 1))} />
           </div>
         </div>
@@ -412,6 +439,7 @@ function Dashboard({ user }: { user: User }) {
 
       </header>
 
+      <div ref={monthRef}>
       {month.error && <div className="mb-4 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-sm text-toss-red font-medium leading-relaxed">{month.error}</div>}
 
       <QuipBubble s={summary} period={period} now={now} override={jackpotToday ? "🍗🍺 오늘은 복권 1등! 묻지도 따지지도 않고 치맥 GO!" : todayBan && !banBroken ? `💣 이번 주는 외식 금지! (${todayBan.by}의 폭탄) 일요일까지 집밥 🍚` : null} />
@@ -445,6 +473,7 @@ function Dashboard({ user }: { user: User }) {
       )}
       <TransactionList txs={month.txs} ym={ym} now={now} refundIndex={refundIndex} onEdit={(tx) => setSheet({ type: "expense", tx })}
         onSearchAll={(query) => setSheet({ type: "search", state: { ...DEFAULT_SEARCH, query } })} />
+      </div>
 
       <div className="fixed bottom-5 left-0 right-0 z-30 flex justify-center pointer-events-none px-4" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <button type="button" onClick={() => setSheet({ type: "expense" })}
@@ -458,34 +487,36 @@ function Dashboard({ user }: { user: User }) {
         onDone={() => setLiveQueue((q) => q.slice(1))} />
 
       <SheetNavContext.Provider value={sheetNav}>
-      {sheet?.type === "expense" && (
-        <ExpenseSheet key={sheet.tx?.id ?? (sheet.refundFor ? `refund_${sheet.refundFor.id}` : sheet.copyFrom ? `copy_${sheet.copyFrom.id}` : "new")} tx={sheet.tx} refundFor={sheet.refundFor} copyFrom={sheet.copyFrom}
+      <SheetExitContext.Provider value={!sheet && !!view}>
+      {view?.type === "expense" && (
+        <ExpenseSheet key={view.tx?.id ?? (view.refundFor ? `refund_${view.refundFor.id}` : view.copyFrom ? `copy_${view.copyFrom.id}` : "new")} tx={view.tx} refundFor={view.refundFor} copyFrom={view.copyFrom}
           onDuplicate={(orig) => setSheet({ type: "expense", copyFrom: orig })} nameOf={nameOf} budgetAlertFor={budgetAlertFor}
-          onRefund={(orig) => setSheet({ type: "expense", refundFor: orig, back: sheet.back })} viewedYm={ym} uid={user.uid} history={history} beforeAdd={pinIfNeeded} myName={me?.name} bans={bans}
+          onRefund={(orig) => setSheet({ type: "expense", refundFor: orig, back: view.back })} viewedYm={ym} uid={user.uid} history={history} beforeAdd={pinIfNeeded} myName={me?.name} bans={bans}
           refundIndex={refundIndex} onEditOriginal={(orig) => setSheet({ type: "expense", tx: orig })} onMovedMonth={setYm} onClose={closeSheet} />
       )}
-      {sheet?.type === "budget" && <BudgetSheet period={period} budget={month.budget} onClose={closeSheet} />}
-      {sheet?.type === "settings" && (
+      {view?.type === "budget" && <BudgetSheet period={period} budget={month.budget} onClose={closeSheet} />}
+      {view?.type === "settings" && (
         <SettingsSheet uid={user.uid} me={me} nameLocked={!!emailName} email={user.email} ym={ym} txs={month.txs} defaultBudget={month.defaultBudget} rules={shared.recurring}
           onOpenRecurring={() => openOver({ type: "recurring" })} onOpenCategories={() => openOver({ type: "categories" })} onClose={closeSheet} />
       )}
-      {sheet?.type === "categories" && <CategorySheet config={shared.categoryConfig} onClose={closeSheet} />}
-      {sheet?.type === "search" && (
-        <SearchSheet initial={sheet.state} now={now} onClose={closeSheet}
+      {view?.type === "categories" && <CategorySheet config={shared.categoryConfig} onClose={closeSheet} />}
+      {view?.type === "search" && (
+        <SearchSheet initial={view.state} now={now} onClose={closeSheet}
           onEdit={(tx, state) => setSheet({ type: "expense", tx, back: { type: "search", state } })} />
       )}
-      {sheet?.type === "year" && (
-        <YearSheet initialYear={sheet.year} now={now} defaultBudget={month.defaultBudget} noSpendStart={noSpendStart}
+      {view?.type === "year" && (
+        <YearSheet initialYear={view.year} now={now} defaultBudget={month.defaultBudget} noSpendStart={noSpendStart}
           firstYear={noSpendStart ? Number(noSpendStart.slice(0, 4)) : null}
           onOpenMonth={(target) => { setYm(target); setSheet(null); window.scrollTo({ top: 0, behavior: "smooth" }); }} onClose={closeSheet} />
       )}
-      {sheet?.type === "recurring" && <RecurringSheet rules={shared.recurring} onClose={closeSheet} />}
-      {sheet?.type === "lottery" && <LotterySheet uid={user.uid} myName={me?.name} today={today} onClose={closeSheet} onOpenCoupons={() => openOver({ type: "coupons" })} />}
-      {sheet?.type === "coupons" && <CouponSheet uid={user.uid} coupons={coupons} profiles={shared.profiles} onClose={closeSheet} />}
-      {sheet?.type === "feed" && <FeedSheet uid={user.uid} items={feed} profiles={shared.profiles} lastSeen={sheet.lastSeen} onClose={closeSheet} />}
-      {sheet?.type === "goal" && (
-        <GoalSheet key={sheet.goalId ?? "new"} goal={goal} mode={sheet.mode} prefill={sheet.prefill} planned={planned} now={now} onClose={closeSheet} />
+      {view?.type === "recurring" && <RecurringSheet rules={shared.recurring} onClose={closeSheet} />}
+      {view?.type === "lottery" && <LotterySheet uid={user.uid} myName={me?.name} today={today} onClose={closeSheet} onOpenCoupons={() => openOver({ type: "coupons" })} />}
+      {view?.type === "coupons" && <CouponSheet uid={user.uid} coupons={coupons} profiles={shared.profiles} onClose={closeSheet} />}
+      {view?.type === "feed" && <FeedSheet uid={user.uid} items={feed} profiles={shared.profiles} lastSeen={view.lastSeen} onClose={closeSheet} />}
+      {view?.type === "goal" && (
+        <GoalSheet key={view.goalId ?? "new"} goal={goal} mode={view.mode} prefill={view.prefill} planned={planned} now={now} onClose={closeSheet} />
       )}
+            </SheetExitContext.Provider>
       </SheetNavContext.Provider>
     </div>
     </>

@@ -34,6 +34,11 @@ function unlockScroll() {
   window.scrollTo(0, savedY);
 }
 
+/** 시트가 닫히는 중인지 (App이 닫힌 시트를 0.22초 더 그려두면서 알려줘요 → 아래로 스르륵) */
+export const SheetExitContext = createContext(false);
+/** 닫히는 애니메이션 길이 (App과 맞춰요) */
+export const SHEET_EXIT_MS = 220;
+
 /** 창 안에서 다른 창을 열었을 때: ‹ 뒤로 = 한 단계, ✕ = 전부 닫기 */
 export const SheetNavContext = createContext<{ canGoBack: boolean; closeAll: () => void } | null>(null);
 
@@ -43,6 +48,7 @@ export function Sheet({ title, subtitle, onClose, children, footer }: SheetProps
   const nav = useContext(SheetNavContext);
   const canGoBack = !!nav?.canGoBack;
   const drag = useRef<{ startY: number; dy: number } | null>(null);
+  const exiting = useContext(SheetExitContext);
 
   // 뒤 화면 잠금은 열릴 때 한 번만 (onClose가 바뀔 때마다 풀었다 잠그면 화면이 튀어요)
   useEffect(() => {
@@ -68,18 +74,21 @@ export function Sheet({ title, subtitle, onClose, children, footer }: SheetProps
     const el = sheetRef.current;
     if (!el || !drag.current) return;
     el.style.transition = "";
-    if (drag.current.dy > 90) onClose();
-    else el.style.transform = "";
+    if (drag.current.dy > 90) {
+      // 끌어내린 자리에서 이어서 내려가요
+      el.style.setProperty("--drag-y", `${drag.current.dy}px`);
+      onClose();
+    } else el.style.transform = "";
     drag.current = null;
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-none"
+      className={`fixed inset-0 z-50 bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-none ${exiting ? "animate-backdrop-out pointer-events-none" : "animate-backdrop-in"}`}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div ref={sheetRef} role="dialog" aria-modal="true"
-        className="sheet animate-sheet-up w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-xl">
+      <div ref={sheetRef} role="dialog" aria-modal="true" aria-hidden={exiting || undefined}
+        className={`sheet ${exiting ? "animate-sheet-down" : "animate-sheet-up"} w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-xl`}>
         <div className="shrink-0 bg-white border-b border-toss-border" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
           <div className="flex justify-center pt-2.5 sm:hidden"><span className="w-10 h-1.5 rounded-full bg-toss-border" /></div>
           <div className="flex items-center justify-between gap-3 px-5 pt-3 pb-3.5">

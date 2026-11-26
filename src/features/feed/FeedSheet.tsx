@@ -40,8 +40,8 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
     try {
       if ("tx" in target) await setReaction(target.tx.id, uid, next);
       else await setActivityReaction(target.activity.id, uid, next);
-      // 🔔 반응을 남겼을 때만 상대에게 알려요 (지울 땐 조용히)
-      if (next) {
+      // 🔔 처음 반응을 남겼을 때만 상대에게 알려요 (이모지만 바꾸거나 지울 땐 조용히 · 알림 폭탄 방지)
+      if (next && !current) {
         if ("tx" in target) notify.reaction(next, target.tx);
         else notify.activityReaction(next, target.activity);
       }

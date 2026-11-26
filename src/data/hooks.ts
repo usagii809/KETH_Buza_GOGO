@@ -165,13 +165,16 @@ export function useCoupons() {
 /** 새 소식 피드용: 최근 30일 안에 남긴 기록 (실시간) */
 export function useFeedTxs() {
   const [txs, setTxs] = useState<Transaction[]>([]);
+  // 처음 한 번 받았는지 (그 전엔 '새 소식' 알림을 판단하지 않아요)
+  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     const since = Date.now() - FEED_DAYS * 86400000;
     return onSnapshot(feedQuery(since), (snap) => {
       setTxs(snap.docs.map((d) => withId<Transaction>(d.id, d.data())));
-    }, (err) => console.warn("새 소식 구독 참고:", err));
+      setLoaded(true);
+    }, (err) => { console.warn("새 소식 구독 참고:", err); setLoaded(true); });
   }, []);
-  return txs;
+  return { txs, loaded };
 }
 
 /** 같이 보기: 복권 · 쿠폰 · 저축 소식에 달린 반응 (소식 id → uid → 반응) */

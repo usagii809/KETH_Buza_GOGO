@@ -333,7 +333,7 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label htmlFor="expenseAmount" className="text-sm font-medium text-toss-sub">{refund ? "얼마 돌려받았나요?" : "얼마 썼나요?"}</label>
-            <button type="button" onClick={() => setAmount(0)} className="text-xs font-semibold text-toss-sub hover:text-toss-text">지우기</button>
+            <button type="button" onClick={() => setAmount(0)} aria-label="금액 비우기" className="text-xs font-semibold text-toss-sub hover:text-toss-text">금액 비우기</button>
           </div>
           <CalcMoneyInput id="expenseAmount" value={amount} onChange={setAmount} />
           {refund && original ? (

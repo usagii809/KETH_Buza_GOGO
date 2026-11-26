@@ -195,7 +195,7 @@ function Dashboard({ user }: { user: User }) {
   const myCoupons = useMemo(() => groupCoupons(coupons, user.uid).mine.length, [coupons, user.uid]);
 
   // 💌 같이 보기: 상대 기록 + 내 기록에 달린 반응
-  const feedTxs = useFeedTxs();
+  const { txs: feedTxs, loaded: feedLoaded } = useFeedTxs();
   const feedReactions = useFeedReactions();
   const feed = useMemo(() => buildFeed(feedTxs, user.uid, shared.profiles, 60, { tickets, coupons, goals: shared.goals, reactions: feedReactions }),
     [feedTxs, user.uid, shared.profiles, tickets, coupons, shared.goals, feedReactions]);
@@ -217,12 +217,14 @@ function Dashboard({ user }: { user: User }) {
   useEffect(() => {
     // 내 프로필(계정에 저장된 읽은 시각)을 받은 뒤에만 알려줘요
     // 앱을 연 뒤에 온 소식은 아래 💌 앱 안 알림이 보여줘요
+    // (기록 소식을 처음 받기 전엔 판단하지 않아요 · 안 그러면 0건으로 보고 넘어가요)
+    if (!feedLoaded || feedToasted.current) return;
     if (liveKnown.current) { feedToasted.current = true; return; }
-    if (feedToasted.current || !me || unseen === 0) return;
+    if (!me || unseen === 0) return;
     feedToasted.current = true;
     const partnerName = shared.profiles.find((p) => p.uid !== user.uid)?.name || "상대";
     toast(`💌 ${partnerName} 님 새 소식 ${unseen}건이 있어요`);
-  }, [unseen, me, shared.profiles, user.uid, toast]);
+  }, [unseen, me, feedLoaded, shared.profiles, user.uid, toast]);
   const openFeed = () => {
     setSheet({ type: "feed", lastSeen: feedSeen });
     const t = Date.now();
@@ -255,7 +257,7 @@ function Dashboard({ user }: { user: User }) {
   // (처음 불러온 소식은 빼고 · 같이 보기를 보고 있으면 안 띄워요 · 설정에서 끈 알림 종류도 빼요)
   const [liveQueue, setLiveQueue] = useState<LiveNote[]>([]);
   useEffect(() => {
-    if (!me) return;
+    if (!me || !feedLoaded) return;
     if (!liveKnown.current) { liveKnown.current = new Set(feed.map((f) => f.id)); return; }
     const known = liveKnown.current;
     const fresh = feed.filter((f) => !known.has(f.id));
@@ -276,7 +278,7 @@ function Dashboard({ user }: { user: User }) {
       : notes.map(({ f, msg }) => ({ id: f.id, title: msg.title, body: msg.body, profile: partnerProfile }));
     setLiveQueue((q) => [...q, ...add].slice(-5));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feed, me]);
+  }, [feed, me, feedLoaded]);
 
   // 같이 보기를 열면 쌓여 있던 앱 안 알림은 버려요
   useEffect(() => { if (sheet?.type === "feed") setLiveQueue([]); }, [sheet?.type]);

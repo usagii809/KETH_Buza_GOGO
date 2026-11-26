@@ -82,7 +82,11 @@ export async function enablePush(uid: string, mute: PushKind[] = []): Promise<"o
   const perm = await Notification.requestPermission();
   if (perm !== "granted") return "denied";
   try {
-    const reg = await navigator.serviceWorker.ready;
+    // 서비스 워커가 아직 안 깔렸으면 기다리되, 10초 넘으면 포기 (버튼이 계속 '처리 중'에 머물지 않게)
+    const reg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("서비스 워커 준비 시간 초과")), 10000))
+    ]);
     const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) }));
     const j = sub.toJSON();
     const id = await subId(sub.endpoint);
@@ -130,8 +134,7 @@ export async function notifyPartner(msg: PushMessage) {
     await fetch(`${PUSH_WORKER_URL.replace(/\/$/, "")}/notify`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(msg),
-      keepalive: true
+      body: JSON.stringify(msg)
     });
   } catch (err) {
     console.warn("알림 보내기 참고:", err);

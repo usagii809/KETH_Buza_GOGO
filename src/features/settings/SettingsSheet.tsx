@@ -116,6 +116,8 @@ export function SettingsSheet({ uid, me, nameLocked, email, ym, txs, defaultBudg
   };
 
   const logout = async () => {
+    // 🔔 이 기기 알림은 로그아웃하면 꺼요 (다른 계정으로 들어와도 예전 사람 알림이 오지 않게)
+    try { if (await isPushOn()) await disablePush(); } catch { /* 무시 */ }
     try { await signOut(auth); toast("로그아웃했어요. 또 만나요 👋"); } catch { toast("로그아웃하지 못했어요"); }
   };
 

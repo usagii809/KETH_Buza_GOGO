@@ -56,7 +56,7 @@ export function activityReactionMsg(who: string, emoji: string, t: ActivityItem)
 
 /** 복권 긁기 */
 export function lotteryMsg(who: string, t: Pick<LotteryTicket, "tier" | "rank" | "prize">): PushMessage {
-  if (t.tier === "bomb") return { kind: "lottery", title: `💣 ${nim(who)} 복권에서 폭탄이 나왔어요!`, body: "다음 주(월~일)는 외식·배달 금지예요", tag: "lottery" };
+  if (t.tier === "bomb") return { kind: "lottery", title: `💣 ${nim(who)} 복권에서 폭탄이 나왔어요!`, body: "다음 주 일주일간 외식·배달 금지예요", tag: "lottery" };
   const big = t.tier === "jackpot" || t.tier === "prize" || t.tier === "love";
   if (big) return { kind: "lottery", title: `🎉 ${nim(who)}이 복권에 당첨됐어요!`, body: [tierTitle(t.tier, t.rank), t.prize].filter(Boolean).join(" · "), tag: "lottery" };
   return { kind: "lottery", title: `🎟️ ${nim(who)}이 오늘의 복권을 긁었어요`, body: tierTitle(t.tier, t.rank), tag: "lottery" };

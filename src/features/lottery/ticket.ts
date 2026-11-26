@@ -31,7 +31,7 @@ export const PRIZE_TABLE: PrizeRow[] = [
   { symbol: "🍀", tier: "prize", rank: 4, chance: 0.07, prize: "🎫 로또 한 장 사주기" },
   { symbol: "🍒", tier: "prize", rank: 5, chance: 0.08, prize: "🏃 심부름 1회 이용권" },
   { symbol: LOVE_SYMBOL, tier: "love", rank: 0, chance: 0.06, prize: "💋 뽀뽀 해주기" },
-  { symbol: "💣", tier: "bomb", rank: 0, chance: 0.06, prize: "다음 주 외식 금지! 월~일 둘 다 외식·배달 봉인 🔒" }
+  { symbol: "💣", tier: "bomb", rank: 0, chance: 0.06, prize: "다음 주 일주일간 외식·배달 봉인 🔒" }
 ];
 
 /** 화면에 보여줄 당첨표 (숨겨진 하트는 빼고) */

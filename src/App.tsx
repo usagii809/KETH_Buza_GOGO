@@ -449,7 +449,9 @@ function Dashboard({ user }: { user: User }) {
       <div ref={monthRef}>
       {month.error && <div className="mb-4 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-sm text-toss-red font-medium leading-relaxed">{month.error}</div>}
 
-      <QuipBubble s={summary} period={period} now={now} override={jackpotToday ? { text: "🍗🍺 오늘은 복권 1등! 묻지도 따지지도 않고 치맥 GO GO!", fx: { kind: "pop", emojis: ["🍗", "🍺"] } } : todayBan && !banBroken ? { text: `💣 이번 주는 외식 · 배달 금지! (${todayBan.by}의 폭탄) 일요일까지 집밥 🍚`, fx: { kind: "rain", emojis: ["💣", "😭"] } } : null} />
+      <QuipBubble s={summary} period={period} now={now}
+        override={jackpotToday ? { text: "🍗🍺 오늘은 복권 1등! 묻지도 따지지도 않고 치맥 GO GO!", fx: { kind: "pop", emojis: ["🍗", "🍺"] } } : null}
+        ban={todayBan ? { to: todayBan.to, by: todayBan.by } : null} />
       {/* 이번 달: 날마다 바뀌는 정보(예산 · 무지출 · 복권 · 흐름)를 위로, 예산을 안 바꾸면 그대로인 저축 계획은 아래로.
           지난달: 결과(성적표 · 정산 · 모은 돈)가 먼저 */}
       {period.state === "current" ? (

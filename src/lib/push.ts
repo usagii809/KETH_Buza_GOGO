@@ -1,8 +1,9 @@
 // 🔔 알림(웹 푸시): 이 기기를 알림 받을 기기로 등록하고, 상대에게 알림을 보내요
-import { deleteDoc, setDoc, updateDoc } from "firebase/firestore";
+import { deleteDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { refs } from "../data/db";
 import { auth } from "./firebase";
 import { PUSH_WORKER_URL, VAPID_PUBLIC_KEY } from "./pushConfig";
+import { getPrefs } from "./prefs";
 
 /** 알림 종류 (설정에서 종류별로 끌 수 있어요) */
 export const PUSH_KINDS = [
@@ -78,7 +79,7 @@ function deviceName() {
  * 알림 켜기 (버튼을 누른 순간에 불러야 해요 · 아이폰은 그래야 허락 창이 떠요)
  * 반환: on = 켜짐 / denied = 허락 안 함 / error = 실패
  */
-export async function enablePush(uid: string, mute: PushKind[] = []): Promise<"on" | "denied" | "error"> {
+export async function enablePush(uid: string, mute: PushKind[] = (getPrefs().pushMute || []) as PushKind[]): Promise<"on" | "denied" | "error"> {
   const perm = await Notification.requestPermission();
   if (perm !== "granted") return "denied";
   try {
@@ -110,10 +111,10 @@ export async function disablePush() {
   if (id) await deleteDoc(refs.pushSub(id)).catch((err) => console.warn("알림 기기 지우기 참고:", err));
 }
 
-/** 이 기기에서 안 받을 알림 종류 저장 */
-export async function setPushMute(mute: PushKind[]) {
-  const id = store.get(SUB_ID_KEY);
-  if (id) await updateDoc(refs.pushSub(id), { mute });
+/** 안 받을 알림 종류를 내 모든 기기(폰 · 웹)에 똑같이 적용 */
+export async function setPushMute(uid: string, mute: PushKind[]) {
+  const snap = await getDocs(query(refs.pushSubs(), where("uid", "==", uid)));
+  await Promise.all(snap.docs.map((d) => updateDoc(d.ref, { mute })));
 }
 
 // ── 보내기 ──

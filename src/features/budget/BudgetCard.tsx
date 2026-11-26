@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CATEGORIES, CATEGORY_MAP, GROUPS, budgetOf, isHiddenCategory, normalizeCategory, type Budget } from "../../lib/categories";
 import type { PeriodInfo } from "../../lib/dates";
 import { formatKRW, formatShort } from "../../lib/format";
-import { store } from "../../lib/storage";
+import { setPref, usePref } from "../../lib/prefs";
 import type { Transaction } from "../../lib/types";
 import { Card, ProgressBar, Segmented } from "../../ui/controls";
 import { compareWithPrev, computeAllowance, getStatus, pctChange, STATUS, type Allowance, type AvailableMode, type Summary } from "./calc";
@@ -10,11 +10,14 @@ import { compareWithPrev, computeAllowance, getStatus, pctChange, STATUS, type A
 const TITLES: Record<AvailableMode, string> = { day: "하루 가용 예산", week: "이번 주 가용 예산", month: "이번 달 가용 예산" };
 
 export function BudgetCard({ budget, s, period, txs, prevTxs }: { budget: Budget; s: Summary; period: PeriodInfo; txs: Transaction[]; prevTxs: Transaction[] }) {
+  const saved = usePref("periodMode");
   const [mode, setMode] = useState<AvailableMode>(() => {
-    const v = store.get("periodMode", "day");
+    const v = saved || "day";
     return v === "week" || v === "month" ? v : "day";
   });
-  const changeMode = (m: AvailableMode) => { setMode(m); store.set("periodMode", m); };
+  // 다른 기기에서 바꾸면 따라가요
+  useEffect(() => { if (saved && saved !== mode) setMode(saved); }, [saved]);
+  const changeMode = (m: AvailableMode) => { setMode(m); setPref("periodMode", m); };
   const [help, setHelp] = useState<"variable" | "food" | null>(null);
   const toggleHelp = (k: "variable" | "food") => setHelp((h) => (h === k ? null : k));
 

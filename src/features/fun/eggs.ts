@@ -26,29 +26,35 @@ export function expenseEgg(amount: number, memo = "", items = "", rand: () => nu
   return null;
 }
 
+/** 오늘의 한마디를 누르면 터지는 효과: pop = 누른 자리에서 팡팡 · rain = 하늘에서 와르르 · float = 몽글몽글 피어올라요 */
+export interface QuipFx {
+  kind: "pop" | "rain" | "float";
+  emojis: string[];
+}
+
 interface DateEgg {
   text: string;
   /** 우리만의 날: 그날 처음 앱을 열면 꽃가루 */
   ours?: boolean;
+  /** 한마디를 누를 때마다 터지는 효과 */
+  fx?: QuipFx;
 }
 
 const DATE_EGGS: Record<string, DateEgg> = {
-  "01-01": { text: "새해 복 많이 받으세요! 올해는 진짜 부자 되는 해 🧧" },
-  "02-12": { text: "경은이 생일 축하해 🎂 오늘의 주인공은 통장 말고 경은이!", ours: true },
-  "02-14": { text: "초콜릿은 사랑, 영수증은 현실이에요 🍫" },
-  "03-14": { text: "사탕은 달고, 저축은 더 달아요 🍬" },
-  "06-28": { text: "결혼기념일 축하해요 💍 우리 둘이 같이라서 부자 되는 중", ours: true },
-  "08-09": { text: "태형이 생일 축하해 🎂 오늘만큼은 태형이가 재벌 모드!", ours: true },
-  "11-11": { text: "빼빼로는 1+1으로 사는 게 국룰이에요 🍫" },
-  "12-12": { text: "오늘은 우리가 사귄 날 💑 사랑도 통장도 복리로 불어나는 중", ours: true },
-  "12-24": { text: "산타 할아버지도 오늘은 가계부 쓰는 중이래요 🎅" },
-  "12-25": { text: "메리 크리스마스! 선물은 통장 잔고로 받을게요 🎄" },
+  "01-01": { text: "새해 복 많이 받으세요🧧" },
+  "02-12": { text: "경은아 생일 축하해 🎂 사랑한다❤️", ours: true, fx: { kind: "pop", emojis: ["🎂", "🥳"] } },
+  "06-28": { text: "오늘은 결혼기념일💍 항상 행복하자🥂", ours: true, fx: { kind: "pop", emojis: ["💍"] } },
+  "08-09": { text: "오늘은 탱이의 생일!! 🎂 어서 축하해주거라🥳", ours: true, fx: { kind: "pop", emojis: ["🎂", "🥳"] } },
+  "12-12": { text: "우리가 사귄 날 💑 경은이를 만난 건 내 인생 최고의 행운😘", ours: true, fx: { kind: "float", emojis: ["❤️"] } },
+  "12-25": { text: "🎄메리 크리스마스~! 🎅", fx: { kind: "pop", emojis: ["🎄", "🎅"] } },
   "12-31": { text: "올해도 수고했어요. 내년엔 한강뷰에서 만나요 🎆" }
 };
 
 /** 기념일에는 오늘의 한마디가 특별 문구로 바뀌어요 */
 export const dateEgg = (date: string): string | null => DATE_EGGS[date.slice(5)]?.text ?? null;
 /** 생일·기념일 같은 우리만의 날인지 */
+/** 기념일 한마디를 누를 때 효과 (없으면 null) */
+export const dateEggFx = (date: string): QuipFx | null => DATE_EGGS[date.slice(5)]?.fx ?? null;
 export const isOurDay = (date: string): boolean => !!DATE_EGGS[date.slice(5)]?.ours;
 
 /** 무지출 연속 일수마다 한 단계씩 자라서, 8일째에 한강뷰 도착 🌉 */

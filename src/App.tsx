@@ -5,6 +5,7 @@ import { useAuthUser, useCoupons, useFeedReactions, useFeedTxs, useLottery, useM
 import { buildFeed, countUnseen } from "./features/feed/calc";
 import { FeedSheet } from "./features/feed/FeedSheet";
 import { setPushSender } from "./lib/push";
+import { getPrefs, setPref, syncPrefs } from "./lib/prefs";
 import { Splash } from "./ui/Splash";
 import { LiveBanner, type LiveNote } from "./features/feed/LiveBanner";
 import { feedItemMsg } from "./features/feed/notifyText";
@@ -46,7 +47,6 @@ import { isHousehold, type Goal, type Transaction } from "./lib/types";
 import { nameForEmail } from "./lib/people";
 import { confetti } from "./features/fun/confetti";
 import { isOurDay } from "./features/fun/eggs";
-import { store } from "./lib/storage";
 import { useFeedback } from "./ui/feedback";
 import { SHEET_EXIT_MS, SheetExitContext, SheetNavContext } from "./ui/Sheet";
 
@@ -138,13 +138,6 @@ function Dashboard({ user }: { user: User }) {
     }
   };
 
-  // 🤫 생일·기념일에는 그날 처음 앱을 열 때 꽃가루
-  useEffect(() => {
-    const today = todayStr(now);
-    if (!isOurDay(today) || store.get(`ourDay_${today}`, "")) return;
-    store.set(`ourDay_${today}`, "1");
-    setTimeout(confetti, 600);
-  }, [now]);
 
   const month = useMonthData(ym);
   // ↔ 달을 넘기면 다음 달은 오른쪽에서, 이전 달은 왼쪽에서 밀려 들어와요 (끝나면 transform이 남지 않게 Web Animations로)
@@ -199,17 +192,16 @@ function Dashboard({ user }: { user: User }) {
   const feedReactions = useFeedReactions();
   const feed = useMemo(() => buildFeed(feedTxs, user.uid, shared.profiles, 60, { tickets, coupons, goals: shared.goals, reactions: feedReactions }),
     [feedTxs, user.uid, shared.profiles, tickets, coupons, shared.goals, feedReactions]);
-  const seenKey = `feedSeen_${user.uid}`;
-  // 처음 쓰는 날엔 지난 소식이 한꺼번에 NEW로 뜨지 않게 지금부터 세요
-  const [localSeen, setLocalSeen] = useState(() => {
-    const v = Number(store.get(seenKey, "0"));
-    if (v) return v;
-    const t = Date.now() - 86400000;
-    store.set(seenKey, String(t));
-    return t;
-  });
-  // 읽은 시각은 계정(내 프로필)에도 저장해요 → 폰에서 읽으면 웹에서도 읽은 걸로
-  const feedSeen = Math.max(localSeen, Number(me?.feedSeenAt) || 0);
+  // 읽은 시각은 계정(내 프로필 feedSeenAt) 하나만 기준 → 폰 · 웹 어디서 봐도 NEW · 새 소식 수가 같아요
+  // (방금 연 시각은 계정에 저장되기 전까지 잠깐 이 화면에서만 들고 있어요)
+  const [openedFeedAt, setOpenedFeedAt] = useState(0);
+  // 처음 쓰는 계정이면 지난 소식이 한꺼번에 NEW로 뜨지 않게 하루 전부터 세요
+  const [firstUseSeen] = useState(() => Date.now() - 86400000);
+  const feedSeen = Math.max(openedFeedAt, Number(me?.feedSeenAt) || 0) || firstUseSeen;
+  // 계정에 읽은 시각이 아직 없으면 지금 기준을 저장해서 다른 기기도 같은 기준으로 세게 해요
+  useEffect(() => {
+    if (me && !me.feedSeenAt) saveProfile(user.uid, { feedSeenAt: firstUseSeen }).catch((err) => console.warn("읽은 시각 저장 참고:", err));
+  }, [me, user.uid, firstUseSeen]);
   const unseen = countUnseen(feed, feedSeen);
   // 💌 앱 안 알림이 이미 알고 있는 소식 id (처음 불러온 소식은 안 띄우려고)
   const liveKnown = useRef<Set<string> | null>(null);
@@ -228,8 +220,7 @@ function Dashboard({ user }: { user: User }) {
   const openFeed = () => {
     setSheet({ type: "feed", lastSeen: feedSeen });
     const t = Date.now();
-    store.set(seenKey, String(t));
-    setLocalSeen(t);
+    setOpenedFeedAt(t);
     saveProfile(user.uid, { feedSeenAt: t }).catch((err) => console.warn("읽은 시각 저장 참고:", err));
   };
 
@@ -264,7 +255,7 @@ function Dashboard({ user }: { user: User }) {
     fresh.forEach((f) => known.add(f.id));
     if (sheet?.type === "feed" || document.visibilityState !== "visible") return;
     let mute: string[] = [];
-    try { mute = JSON.parse(localStorage.getItem("pushMute") || "[]"); } catch { /* 무시 */ }
+    mute = getPrefs().pushMute || [];
     const notes = fresh
       .filter((f) => !f.mine && f.at > Date.now() - 5 * 60000)
       .map((f) => ({ f, msg: feedItemMsg(f) }))
@@ -282,6 +273,20 @@ function Dashboard({ user }: { user: User }) {
 
   // 같이 보기를 열면 쌓여 있던 앱 안 알림은 버려요
   useEffect(() => { if (sheet?.type === "feed") setLiveQueue([]); }, [sheet?.type]);
+
+  // 🤫 생일·기념일에는 그날 처음 앱을 열 때 꽃가루 (계정에 기억 → 폰에서 봤으면 웹에선 다시 안 터져요)
+  const prefsReady = !!me;
+  useEffect(() => {
+    const today = todayStr(now);
+    if (!prefsReady || !isOurDay(today) || getPrefs().ourDaySeen === today) return;
+    setPref("ourDaySeen", today);
+    setTimeout(confetti, 600);
+  }, [now, prefsReady]);
+
+  // 🔄 내 설정(화면 모드 · 탭 · 알림 종류 등)은 계정과 맞춰요 → 폰 · 웹 어디서 열어도 같게
+  useEffect(() => {
+    if (me) syncPrefs(user.uid, (patch) => saveProfile(user.uid, { prefs: patch }), me.prefs);
+  }, [me, user.uid]);
 
   // 알림 문구에 들어갈 내 이름
   useEffect(() => { setPushSender(me?.name); }, [me?.name]);
@@ -444,7 +449,7 @@ function Dashboard({ user }: { user: User }) {
       <div ref={monthRef}>
       {month.error && <div className="mb-4 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-sm text-toss-red font-medium leading-relaxed">{month.error}</div>}
 
-      <QuipBubble s={summary} period={period} now={now} override={jackpotToday ? "🍗🍺 오늘은 복권 1등! 묻지도 따지지도 않고 치맥 GO!" : todayBan && !banBroken ? `💣 이번 주는 외식 금지! (${todayBan.by}의 폭탄) 일요일까지 집밥 🍚` : null} />
+      <QuipBubble s={summary} period={period} now={now} override={jackpotToday ? { text: "🍗🍺 오늘은 복권 1등! 묻지도 따지지도 않고 치맥 GO GO!", fx: { kind: "pop", emojis: ["🍗", "🍺"] } } : todayBan && !banBroken ? { text: `💣 이번 주는 외식 · 배달 금지! (${todayBan.by}의 폭탄) 일요일까지 집밥 🍚`, fx: { kind: "rain", emojis: ["💣", "😭"] } } : null} />
       {/* 이번 달: 날마다 바뀌는 정보(예산 · 무지출 · 복권 · 흐름)를 위로, 예산을 안 바꾸면 그대로인 저축 계획은 아래로.
           지난달: 결과(성적표 · 정산 · 모은 돈)가 먼저 */}
       {period.state === "current" ? (

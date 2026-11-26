@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { PeriodInfo } from "../../lib/dates";
 import { compactKRW, formatKRW, formatShort } from "../../lib/format";
-import { store } from "../../lib/storage";
+import { setPref, usePref } from "../../lib/prefs";
 import type { Transaction } from "../../lib/types";
 import { Card, Segmented } from "../../ui/controls";
 import { sumByCategory, sumUsage } from "../budget/calc";
@@ -68,16 +68,17 @@ function CompareRow({ label, value, max, cls }: { label: string; value: number; 
 }
 
 type Mode = "day" | "week" | "month";
-const MODE_KEY = "trendMode";
-const MONTHS_KEY = "trendMonths";
 
 /** 막대 그래프: 일별(그달 날짜) · 주별(그달 주) · 월별(3 · 6 · 12개월). 막대를 누르면 자세히 */
 function SpendChart({ ym, txs, recentTxs, today }: { ym: string; txs: Transaction[]; recentTxs: Transaction[]; today: string }) {
-  const [mode, setModeState] = useState<Mode>(() => (["day", "week", "month"].includes(store.get(MODE_KEY, "month")) ? store.get(MODE_KEY, "month") as Mode : "month"));
-  const [months, setMonthsState] = useState(() => [3, 6, 12].includes(Number(store.get(MONTHS_KEY, "6"))) ? Number(store.get(MONTHS_KEY, "6")) : 6);
+  // 고른 보기 방식은 계정에 저장 → 폰 · 웹 어디서나 같게
+  const savedMode = usePref("trendMode");
+  const savedMonths = usePref("trendMonths");
+  const mode: Mode = savedMode && ["day", "week", "month"].includes(savedMode) ? savedMode : "month";
+  const months = savedMonths && [3, 6, 12].includes(savedMonths) ? savedMonths : 6;
   const [picked, setPicked] = useState<string | null>(null);
-  const setMode = (m: Mode) => { setModeState(m); store.set(MODE_KEY, m); setPicked(null); };
-  const setMonths = (n: number) => { setMonthsState(n); store.set(MONTHS_KEY, String(n)); setPicked(null); };
+  const setMode = (m: Mode) => { setPref("trendMode", m); setPicked(null); };
+  const setMonths = (n: number) => { setPref("trendMonths", n); setPicked(null); };
 
   const bars: Bar[] = useMemo(() => {
     if (mode === "day") return buildDayBars(ym, txs, today);

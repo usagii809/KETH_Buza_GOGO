@@ -264,8 +264,10 @@ describe("이스터 에그", () => {
   });
   it("기념일 문구", () => {
     expect(dateEgg("2026-12-25")).toContain("크리스마스");
-    expect(dateEgg("2027-02-12")).toContain("경은이 생일");
-    expect(dateEgg("2027-08-09")).toContain("태형이 생일");
+    expect(dateEgg("2027-02-12")).toBe("경은아 생일 축하해 🎂 사랑한다❤️");
+    expect(dateEgg("2027-08-09")).toBe("오늘은 탱이의 생일!! 🎂 어서 축하해주거라🥳");
+    expect(dateEgg("2027-02-14")).toBeNull(); // 밸런타인 · 화이트데이 · 빼빼로 · 이브는 뺐어요
+    expect(dateEgg("2026-12-24")).toBeNull();
     expect(dateEgg("2027-06-28")).toContain("결혼기념일");
     expect(dateEgg("2026-12-12")).toContain("사귄 날");
     expect(isOurDay("2026-12-12")).toBe(true);
@@ -451,5 +453,17 @@ describe("지출 흐름 일별 · 주별", () => {
 
   it("지난달을 보면 진행 중인 날이 없어요", () => {
     expect(buildDayBars("2026-10", [], "2026-11-26").some((b) => b.inProgress || b.future)).toBe(false);
+  });
+});
+
+describe("기념일 한마디 누르기 효과", () => {
+  it("날짜마다 정해진 이모지가 터져요", async () => {
+    const { dateEggFx } = await import("../features/fun/eggs");
+    expect(dateEggFx("2027-06-28")).toEqual({ kind: "pop", emojis: ["💍"] });
+    expect(dateEggFx("2027-02-12")?.emojis).toEqual(["🎂", "🥳"]);
+    expect(dateEggFx("2027-08-09")?.emojis).toEqual(["🎂", "🥳"]);
+    expect(dateEggFx("2026-12-12")).toEqual({ kind: "float", emojis: ["❤️"] });
+    expect(dateEggFx("2026-12-25")?.emojis).toEqual(["🎄", "🎅"]);
+    expect(dateEggFx("2027-01-01")).toBeNull(); // 새해 · 12/31은 문구만
   });
 });

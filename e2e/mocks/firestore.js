@@ -58,6 +58,8 @@ const apply = (path, data, merge) => {
     if (v && v.__del) delete cur[k];
     else if (v && v.__inc !== undefined) cur[k] = (cur[k] || 0) + v.__inc;
     else if (v && v.__union) cur[k] = (cur[k] || []).concat(v.__union);
+    // setDoc(..., {merge:true})는 진짜 Firestore처럼 안쪽 객체도 합쳐요
+    else if (merge && v && typeof v === "object" && !Array.isArray(v) && cur[k] && typeof cur[k] === "object" && !Array.isArray(cur[k])) cur[k] = { ...cur[k], ...v };
     else cur[k] = v;
   }
   store.set(path, cur);

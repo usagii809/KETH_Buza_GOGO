@@ -14,6 +14,7 @@ import { getThemePref, setThemePref, type ThemePref } from "../../lib/theme";
 import { APP_BUILT_AT, APP_SHA, APP_VERSION, builtAtLabel, fetchServerVersion, isNewer, updateToLatest, type ServerVersion } from "../../lib/version";
 import { Sheet } from "../../ui/Sheet";
 import { Segmented } from "../../ui/controls";
+import { setPref, usePref } from "../../lib/prefs";
 import { disablePush, enablePush, isPushOn, PUSH_KINDS, pushReady, pushSupport, setPushMute, type PushKind } from "../../lib/push";
 
 function download(blob: Blob, filename: string) {
@@ -236,9 +237,8 @@ function NotifyRow({ uid }: { uid: string }) {
   const support = pushSupport();
   const [on, setOn] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
-  const [mute, setMute] = useState<PushKind[]>(() => {
-    try { return JSON.parse(localStorage.getItem("pushMute") || "[]"); } catch { return []; }
-  });
+  // 안 받을 알림 종류는 계정에 저장 → 내 폰 · 웹 모든 기기에 똑같이
+  const mute = (usePref("pushMute") || []) as PushKind[];
   useEffect(() => { isPushOn().then(setOn).catch(() => setOn(false)); }, []);
   const denied = support === "ok" && Notification.permission === "denied";
 
@@ -262,9 +262,8 @@ function NotifyRow({ uid }: { uid: string }) {
   };
   const flip = (k: PushKind) => {
     const next = mute.includes(k) ? mute.filter((m) => m !== k) : [...mute, k];
-    setMute(next);
-    try { localStorage.setItem("pushMute", JSON.stringify(next)); } catch { /* 무시 */ }
-    setPushMute(next).catch(() => toast("저장하지 못했어요"));
+    setPref("pushMute", next);
+    setPushMute(uid, next).catch((err) => console.warn("알림 종류 저장 참고:", err));
   };
 
   const sub = !pushReady() ? "알림 서버를 연결하면 켤 수 있어요"
@@ -308,7 +307,9 @@ function NotifyRow({ uid }: { uid: string }) {
 
 /** 🌙 화면 모드: 자동 · 밝게 · 어둡게 (이 기기에만 저장) */
 function ThemeRow() {
-  const [pref, setPref] = useState<ThemePref>(getThemePref);
+  // 계정에 저장된 값을 따라가요 (다른 기기에서 바꿔도 여기 표시가 바뀌어요)
+  usePref("theme");
+  const pref: ThemePref = getThemePref();
   return (
     <div id="themeRow" className="flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl bg-toss-bg">
       <div className="min-w-0">
@@ -316,7 +317,7 @@ function ThemeRow() {
         <p className="text-xs text-toss-sub">자동은 아이폰 설정 따라가요</p>
       </div>
       <Segmented options={[["auto", "자동"], ["light", "밝게"], ["dark", "어둡게"]]} value={pref}
-        onChange={(v) => { setPref(v); setThemePref(v); }} />
+        onChange={(v) => setThemePref(v)} />
     </div>
   );
 }

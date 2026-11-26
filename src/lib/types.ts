@@ -83,6 +83,8 @@ export interface Profile {
   photo?: string;
   /** '같이 보기'를 마지막으로 연 시각 (기기가 달라도 같은 계정이면 읽음으로) */
   feedSeenAt?: number;
+  /** 내 설정 (화면 모드 · 탭 선택 · 알림 종류 등) → 어느 기기에서 열어도 똑같이 */
+  prefs?: import("./prefs").Prefs;
 }
 
 export type LotteryTier = "jackpot" | "prize" | "love" | "bomb" | "almost" | "lose";

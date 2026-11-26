@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { shiftMonth, todayYm, type PeriodInfo } from "../../lib/dates";
-import { store } from "../../lib/storage";
+import { getPrefs, setPref, usePref } from "../../lib/prefs";
 import type { Transaction } from "../../lib/types";
 import { useFeedback } from "../../ui/feedback";
 import type { Summary } from "../budget/calc";
@@ -24,6 +24,7 @@ interface Props {
 /** 이번 달 화면: "성적표 도착" 배너 / 지난 달 화면: 결산 카드 */
 export function ReportSection({ period, s, txs, prevTxs, now, noSpendStart, onOpenLastMonth, settle, insights }: Props) {
   const { toast } = useFeedback();
+  const reportSeen = usePref("reportSeen") || [];
   const lastMonth = shiftMonth(todayYm(now), -1);
   const showCard = period.state === "past" && txs.length > 0;
 
@@ -32,15 +33,16 @@ export function ReportSection({ period, s, txs, prevTxs, now, noSpendStart, onOp
   // 처음 열어볼 때만: 확인 표시 + 계획 달성(🥇)이면 꽃가루
   useEffect(() => {
     if (!showCard) return;
-    const key = `reportSeen_${period.key}`;
-    if (store.get(key, "")) return;
-    store.set(key, "1");
+    // 열어본 성적표는 계정에 저장 → 폰에서 봤으면 웹에서도 '도착' 알림 · 꽃가루가 다시 안 나와요
+    const seen = getPrefs().reportSeen || [];
+    if (seen.includes(period.key)) return;
+    setPref("reportSeen", [...seen, period.key].sort().slice(-36));
     if (r?.emoji === "🥇") confetti();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showCard, period.key]);
 
   if (period.state === "current") {
-    const unseen = prevTxs.length > 0 && !store.get(`reportSeen_${lastMonth}`, "");
+    const unseen = prevTxs.length > 0 && !reportSeen.includes(lastMonth);
     if (!unseen) return null;
     return (
       <button type="button" onClick={onOpenLastMonth}

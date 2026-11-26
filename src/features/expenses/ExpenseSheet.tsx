@@ -3,7 +3,7 @@ import { addExpense, deleteExpense, deleteExpenses, localFirst, restoreExpenses,
 import { CATEGORY_MAP, GROUPS, SPENDERS, normalizeCategory, normalizeSpender, visibleCategories, type CategoryKey } from "../../lib/categories";
 import { defaultDateForMonth, todayStr } from "../../lib/dates";
 import { formatKRW, formatShort } from "../../lib/format";
-import { store } from "../../lib/storage";
+import { getPrefs, setPref } from "../../lib/prefs";
 import { isRefund, type Spender, type Transaction } from "../../lib/types";
 import { CalcMoneyInput, QuickAddChips, inputClass, primaryButton } from "../../ui/controls";
 import { useFeedback } from "../../ui/feedback";
@@ -58,8 +58,8 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
   const [refund, setRefund] = useState(tx ? isRefund(tx) : !!refundFor);
   const [memo, setMemo] = useState(base?.memo || "");
   const [items, setItems] = useState(base?.items || "");
-  const [category, setCategory] = useState<CategoryKey>(normalizeCategory(base ? base.category : store.get("lastCategory", "foodIngredients")));
-  const [spender, setSpender] = useState<Spender>(normalizeSpender(base ? base.spender : store.get("lastSpender", myName || "공동")));
+  const [category, setCategory] = useState<CategoryKey>(normalizeCategory(base ? base.category : getPrefs().lastCategory || "foodIngredients"));
+  const [spender, setSpender] = useState<Spender>(normalizeSpender(base ? base.spender : getPrefs().lastSpender || myName || "공동"));
   const [date, setDate] = useState(tx?.date || (refundFor || copyFrom ? todayStr() : defaultDateForMonth(viewedYm)));
   const [company, setCompany] = useState(!!base?.company);
   // ↩️ 이 환불이 연결된 원래 결제 (환불 · 부분취소 버튼으로 왔으면 고정, 아니면 아래 목록에서 골라요)
@@ -167,8 +167,8 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
         saved = await localFirst(addExpense(input, uid));
         notify.record(input); // 🔔 상대 폰에 알림
         if (!refund) {
-          store.set("lastCategory", category);
-          store.set("lastSpender", spender);
+          setPref("lastCategory", category);
+          setPref("lastSpender", spender);
         }
       }
       onClose();

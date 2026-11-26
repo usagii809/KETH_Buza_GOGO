@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 
 interface SheetProps {
   title: ReactNode;
@@ -34,9 +34,14 @@ function unlockScroll() {
   window.scrollTo(0, savedY);
 }
 
-/** 아래에서 올라오는 시트. 바깥 탭 · ESC · 손잡이를 아래로 끌어서 닫기 */
+/** 창 안에서 다른 창을 열었을 때: ‹ 뒤로 = 한 단계, ✕ = 전부 닫기 */
+export const SheetNavContext = createContext<{ canGoBack: boolean; closeAll: () => void } | null>(null);
+
+/** 아래에서 올라오는 시트. 바깥 탭 · ESC · 손잡이를 아래로 끌어서 닫기 (모두 한 단계 뒤로) */
 export function Sheet({ title, subtitle, onClose, children, footer }: SheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
+  const nav = useContext(SheetNavContext);
+  const canGoBack = !!nav?.canGoBack;
   const drag = useRef<{ startY: number; dy: number } | null>(null);
 
   // 뒤 화면 잠금은 열릴 때 한 번만 (onClose가 바뀔 때마다 풀었다 잠그면 화면이 튀어요)
@@ -78,11 +83,15 @@ export function Sheet({ title, subtitle, onClose, children, footer }: SheetProps
         <div className="shrink-0 bg-white border-b border-toss-border" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
           <div className="flex justify-center pt-2.5 sm:hidden"><span className="w-10 h-1.5 rounded-full bg-toss-border" /></div>
           <div className="flex items-center justify-between gap-3 px-5 pt-3 pb-3.5">
-            <div className="min-w-0">
+            {canGoBack && (
+              <button type="button" onClick={onClose} aria-label="뒤로"
+                className="sheet-back w-8 h-8 shrink-0 -ml-1 rounded-full flex items-center justify-center text-xl text-toss-sub hover:bg-toss-bg transition">‹</button>
+            )}
+            <div className="min-w-0 flex-1">
               <h3 className="text-lg font-bold text-toss-text truncate">{title}</h3>
               {subtitle && <p className="text-xs text-toss-sub mt-0.5">{subtitle}</p>}
             </div>
-            <button type="button" onClick={onClose} aria-label="닫기"
+            <button type="button" onClick={canGoBack ? nav!.closeAll : onClose} aria-label={canGoBack ? "모두 닫기" : "닫기"}
               className="w-8 h-8 shrink-0 rounded-full bg-toss-bg flex items-center justify-center text-toss-sub hover:bg-gray-200 transition">✕</button>
           </div>
         </div>

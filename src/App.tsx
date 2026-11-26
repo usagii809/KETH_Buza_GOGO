@@ -44,10 +44,10 @@ import { confetti } from "./features/fun/confetti";
 import { isOurDay } from "./features/fun/eggs";
 import { store } from "./lib/storage";
 import { useFeedback } from "./ui/feedback";
+import { SheetNavContext } from "./ui/Sheet";
 
-type OpenSheet =
-  /** back: 닫으면 돌아갈 시트 (검색에서 기록을 열었을 때) */
-  | { type: "expense"; tx?: Transaction; refundFor?: Transaction; back?: OpenSheet }
+type SheetKind =
+  | { type: "expense"; tx?: Transaction; refundFor?: Transaction }
   | { type: "search"; state: SearchState }
   | { type: "year"; year: number }
   | { type: "categories" }
@@ -57,8 +57,10 @@ type OpenSheet =
   | { type: "lottery" }
   | { type: "coupons" }
   | { type: "feed"; lastSeen: number }
-  | { type: "goal"; goalId: string | null; mode: "deposit" | "edit"; prefill?: number }
-  | null;
+  | { type: "goal"; goalId: string | null; mode: "deposit" | "edit"; prefill?: number };
+/** back: 닫으면(‹ 뒤로) 돌아갈 창 (예: 설정 → 카테고리 관리, 검색 → 기록) */
+type OpenSheet = (SheetKind & { back?: OpenSheet }) | null;
+const sheetDepth = (s: OpenSheet): number => (s ? 1 + sheetDepth(s.back ?? null) : 0);
 
 export default function App() {
   const user = useAuthUser();
@@ -72,7 +74,38 @@ function Dashboard({ user }: { user: User }) {
   const now = useNow();
   const [ym, setYm] = useState(() => todayYm());
   const [sheet, setSheet] = useState<OpenSheet>(null);
-  const closeSheet = useCallback(() => setSheet((s) => (s?.type === "expense" && s.back ? s.back : null)), []);
+  /** 한 단계 뒤로 (이전 창이 없으면 닫기) */
+  const closeSheet = useCallback(() => setSheet((s) => s?.back ?? null), []);
+  const closeAllSheets = useCallback(() => setSheet(null), []);
+  /** 지금 창 위에 새 창 열기 (‹ 뒤로 누르면 지금 창으로 돌아와요) */
+  const openOver = useCallback((next: SheetKind) => setSheet((cur) => ({ ...next, ...(cur ? { back: cur } : {}) })), []);
+
+  const sheetNav = useMemo(() => ({ canGoBack: !!sheet?.back, closeAll: closeAllSheets }), [sheet, closeAllSheets]);
+
+  // 📱 휴대폰 · 브라우저 '뒤로가기'로 창을 한 단계씩 닫아요 (앱을 나가지 않게).
+  // 창이 열릴 때마다 방문 기록을 하나씩 쌓고, 버튼으로 닫으면 쌓은 만큼 되돌려요.
+  const historyDepth = useRef(0);
+  const ignorePops = useRef(0);
+  useEffect(() => {
+    const depth = sheetDepth(sheet);
+    if (depth > historyDepth.current) {
+      for (let i = historyDepth.current; i < depth; i++) window.history.pushState({ sheet: i + 1 }, "");
+    } else if (depth < historyDepth.current) {
+      ignorePops.current++;
+      window.history.go(depth - historyDepth.current);
+    }
+    historyDepth.current = depth;
+  }, [sheet]);
+  useEffect(() => {
+    const onPop = () => {
+      if (ignorePops.current > 0) { ignorePops.current--; return; }
+      if (historyDepth.current === 0) return;
+      historyDepth.current--;
+      setSheet((s) => s?.back ?? null);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   // 🤫 프로젝트 이름을 빠르게 7번 누르면…
   const titleTaps = useRef<number[]>([]);
@@ -345,6 +378,7 @@ function Dashboard({ user }: { user: User }) {
         </button>
       </div>
 
+      <SheetNavContext.Provider value={sheetNav}>
       {sheet?.type === "expense" && (
         <ExpenseSheet key={sheet.tx?.id ?? (sheet.refundFor ? `refund_${sheet.refundFor.id}` : "new")} tx={sheet.tx} refundFor={sheet.refundFor}
           onRefund={(orig) => setSheet({ type: "expense", refundFor: orig, back: sheet.back })} viewedYm={ym} uid={user.uid} history={history} beforeAdd={pinIfNeeded} myName={me?.name} bans={bans}
@@ -353,7 +387,7 @@ function Dashboard({ user }: { user: User }) {
       {sheet?.type === "budget" && <BudgetSheet period={period} budget={month.budget} onClose={closeSheet} />}
       {sheet?.type === "settings" && (
         <SettingsSheet uid={user.uid} me={me} nameLocked={!!emailName} email={user.email} ym={ym} txs={month.txs} defaultBudget={month.defaultBudget} rules={shared.recurring}
-          onOpenRecurring={() => setSheet({ type: "recurring" })} onOpenCategories={() => setSheet({ type: "categories" })} onClose={closeSheet} />
+          onOpenRecurring={() => openOver({ type: "recurring" })} onOpenCategories={() => openOver({ type: "categories" })} onClose={closeSheet} />
       )}
       {sheet?.type === "categories" && <CategorySheet config={shared.categoryConfig} onClose={closeSheet} />}
       {sheet?.type === "search" && (
@@ -366,12 +400,13 @@ function Dashboard({ user }: { user: User }) {
           onOpenMonth={(target) => { setYm(target); setSheet(null); window.scrollTo({ top: 0, behavior: "smooth" }); }} onClose={closeSheet} />
       )}
       {sheet?.type === "recurring" && <RecurringSheet rules={shared.recurring} onClose={closeSheet} />}
-      {sheet?.type === "lottery" && <LotterySheet uid={user.uid} myName={me?.name} today={today} onClose={closeSheet} onOpenCoupons={() => setSheet({ type: "coupons" })} />}
+      {sheet?.type === "lottery" && <LotterySheet uid={user.uid} myName={me?.name} today={today} onClose={closeSheet} onOpenCoupons={() => openOver({ type: "coupons" })} />}
       {sheet?.type === "coupons" && <CouponSheet uid={user.uid} coupons={coupons} profiles={shared.profiles} onClose={closeSheet} />}
       {sheet?.type === "feed" && <FeedSheet uid={user.uid} items={feed} profiles={shared.profiles} lastSeen={sheet.lastSeen} onClose={closeSheet} />}
       {sheet?.type === "goal" && (
         <GoalSheet key={sheet.goalId ?? "new"} goal={goal} mode={sheet.mode} prefill={sheet.prefill} planned={planned} now={now} onClose={closeSheet} />
       )}
+      </SheetNavContext.Provider>
     </div>
   );
 }

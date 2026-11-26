@@ -6,7 +6,7 @@ import type { PushMessage } from "../../lib/push";
 import type { Goal, LotteryTicket, Transaction } from "../../lib/types";
 import { couponLabel } from "../lottery/coupons";
 import { tierTitle } from "../lottery/ticket";
-import type { ActivityItem } from "./calc";
+import type { ActivityItem, FeedItem } from "./calc";
 
 type TxLike = Pick<Transaction, "amount" | "category" | "memo" | "spender"> & Partial<Pick<Transaction, "company">>;
 type GoalLike = Pick<Goal, "name" | "emoji"> & Partial<Pick<Goal, "target">>;
@@ -79,4 +79,17 @@ export function goalMoneyMsg(who: string, g: GoalLike, amount: number): PushMess
 
 export function settleMsg(who: string, ym: string, g: GoalLike, amount: number): PushMessage {
   return { kind: "goal", title: `🧾 ${nim(who)}이 ${Number(ym.slice(5))}월 정산을 했어요`, body: `남은 돈 ${formatKRW(amount)} → ${g.emoji} ${g.name}` };
+}
+
+/** 같이 보기 소식 하나 → 받는 사람 입장 한 줄 (앱 안 알림 · 폰 알림 같은 문구) */
+export function feedItemMsg(it: FeedItem): PushMessage {
+  switch (it.kind) {
+    case "record": return recordMsg(it.who, it.tx);
+    case "reaction": return reactionMsg(it.who, it.emoji, it.tx);
+    case "actReaction": return activityReactionMsg(it.who, it.emoji, it.target);
+    case "lottery": return lotteryMsg(it.who, it.ticket);
+    case "coupon": return couponMsg(it.who, it.ticket);
+    case "goalNew": return goalNewMsg(it.who, it.goal);
+    case "goalMoney": return it.settle ? settleMsg(it.who, it.settle, it.goal, it.amount) : goalMoneyMsg(it.who, it.goal, it.amount);
+  }
 }

@@ -5,6 +5,8 @@ import { useAuthUser, useCoupons, useFeedReactions, useFeedTxs, useLottery, useM
 import { buildFeed, countUnseen } from "./features/feed/calc";
 import { FeedSheet } from "./features/feed/FeedSheet";
 import { setPushSender } from "./lib/push";
+import { LiveBanner, type LiveNote } from "./features/feed/LiveBanner";
+import { feedItemMsg } from "./features/feed/notifyText";
 import { CouponSheet } from "./features/lottery/CouponSheet";
 import { groupCoupons } from "./features/lottery/coupons";
 import { InsightCard } from "./features/report/InsightCard";
@@ -176,9 +178,13 @@ function Dashboard({ user }: { user: User }) {
   // 읽은 시각은 계정(내 프로필)에도 저장해요 → 폰에서 읽으면 웹에서도 읽은 걸로
   const feedSeen = Math.max(localSeen, Number(me?.feedSeenAt) || 0);
   const unseen = countUnseen(feed, feedSeen);
+  // 💌 앱 안 알림이 이미 알고 있는 소식 id (처음 불러온 소식은 안 띄우려고)
+  const liveKnown = useRef<Set<string> | null>(null);
   const feedToasted = useRef(false);
   useEffect(() => {
     // 내 프로필(계정에 저장된 읽은 시각)을 받은 뒤에만 알려줘요
+    // 앱을 연 뒤에 온 소식은 아래 💌 앱 안 알림이 보여줘요
+    if (liveKnown.current) { feedToasted.current = true; return; }
     if (feedToasted.current || !me || unseen === 0) return;
     feedToasted.current = true;
     const partnerName = shared.profiles.find((p) => p.uid !== user.uid)?.name || "상대";
@@ -212,6 +218,36 @@ function Dashboard({ user }: { user: User }) {
     if (sheet?.type !== "feed") openFeed();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantFeed, me]);
+  // 💌 앱을 보고 있을 때 상대 소식이 새로 오면 아래에 살짝 띄워요
+  // (처음 불러온 소식은 빼고 · 같이 보기를 보고 있으면 안 띄워요 · 설정에서 끈 알림 종류도 빼요)
+  const [liveQueue, setLiveQueue] = useState<LiveNote[]>([]);
+  useEffect(() => {
+    if (!me) return;
+    if (!liveKnown.current) { liveKnown.current = new Set(feed.map((f) => f.id)); return; }
+    const known = liveKnown.current;
+    const fresh = feed.filter((f) => !known.has(f.id));
+    fresh.forEach((f) => known.add(f.id));
+    if (sheet?.type === "feed" || document.visibilityState !== "visible") return;
+    let mute: string[] = [];
+    try { mute = JSON.parse(localStorage.getItem("pushMute") || "[]"); } catch { /* 무시 */ }
+    const notes = fresh
+      .filter((f) => !f.mine && f.at > Date.now() - 5 * 60000)
+      .map((f) => ({ f, msg: feedItemMsg(f) }))
+      .filter(({ msg }) => !mute.includes(msg.kind))
+      .sort((a, b) => a.f.at - b.f.at);
+    if (!notes.length) return;
+    const partnerProfile = shared.profiles.find((p) => p.uid !== user.uid) || null;
+    // 한꺼번에 많이 오면(오프라인 뒤 등) 한 줄로 묶어요
+    const add: LiveNote[] = notes.length > 3
+      ? [{ id: `many_${Date.now()}`, title: `💌 ${notes[0].f.who} 님 새 소식 ${notes.length}건`, body: "눌러서 같이 보기", profile: partnerProfile }]
+      : notes.map(({ f, msg }) => ({ id: f.id, title: msg.title, body: msg.body, profile: partnerProfile }));
+    setLiveQueue((q) => [...q, ...add].slice(-5));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feed, me]);
+
+  // 같이 보기를 열면 쌓여 있던 앱 안 알림은 버려요
+  useEffect(() => { if (sheet?.type === "feed") setLiveQueue([]); }, [sheet?.type]);
+
   // 알림 문구에 들어갈 내 이름
   useEffect(() => { setPushSender(me?.name); }, [me?.name]);
 
@@ -410,6 +446,9 @@ function Dashboard({ user }: { user: User }) {
           <span>지출 기록</span>
         </button>
       </div>
+
+      <LiveBanner note={sheet?.type === "feed" ? null : liveQueue[0] || null} onOpen={() => { setLiveQueue([]); openFeed(); }}
+        onDone={() => setLiveQueue((q) => q.slice(1))} />
 
       <SheetNavContext.Provider value={sheetNav}>
       {sheet?.type === "expense" && (

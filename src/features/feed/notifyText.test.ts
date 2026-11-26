@@ -34,3 +34,12 @@ describe("🔔 알림 문구 (받는 사람 입장)", () => {
     expect(settleMsg("경은", "2026-11", g, 300000)).toMatchObject({ title: "🧾 경은 님이 11월 정산을 했어요", body: "남은 돈 300,000원 → ✈️ 여행" });
   });
 });
+
+describe("앱 안 알림 문구", () => {
+  it("같이 보기 소식을 받는 사람 입장 한 줄로", async () => {
+    const { feedItemMsg } = await import("./notifyText");
+    const base = { at: 1, who: "경은", mine: false };
+    expect(feedItemMsg({ ...base, kind: "record", id: "r1", tx: { id: "x", date: "2026-11-27", yearMonth: "2026-11", ...tx() } as never }).title).toBe("💳 경은 님이 동해식당에서 12,000원 썼어요");
+    expect(feedItemMsg({ ...base, kind: "goalMoney", id: "g", goal: { id: "g1", name: "여행", emoji: "✈️", target: 1, saved: 0 } as never, amount: 30000, settle: "2026-11" }).title).toBe("🧾 경은 님이 11월 정산을 했어요");
+  });
+});

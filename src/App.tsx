@@ -5,6 +5,7 @@ import { useAuthUser, useCoupons, useFeedReactions, useFeedTxs, useLottery, useM
 import { buildFeed, countUnseen } from "./features/feed/calc";
 import { FeedSheet } from "./features/feed/FeedSheet";
 import { setPushSender } from "./lib/push";
+import { Splash } from "./ui/Splash";
 import { LiveBanner, type LiveNote } from "./features/feed/LiveBanner";
 import { feedItemMsg } from "./features/feed/notifyText";
 import { CouponSheet } from "./features/lottery/CouponSheet";
@@ -67,7 +68,8 @@ const sheetDepth = (s: OpenSheet): number => (s ? 1 + sheetDepth(s.back ?? null)
 
 export default function App() {
   const user = useAuthUser();
-  if (user === undefined) return <div className="min-h-screen" />;
+  // 로그인 확인 중에는 index.html과 같은 로딩 화면을 그대로 이어서 보여줘요
+  if (user === undefined) return <Splash />;
   if (!user) return <LoginView />;
   return <Dashboard user={user} />;
 }
@@ -131,6 +133,10 @@ function Dashboard({ user }: { user: User }) {
   }, [now]);
 
   const month = useMonthData(ym);
+  // 🌱 첫 로딩: 이 달 기록 · 예산을 받으면 로딩 화면을 걷어요 (인터넷이 느려도 4초면 걷어요 · 달을 넘길 땐 다시 안 띄워요)
+  const [booted, setBooted] = useState(false);
+  useEffect(() => { if (!booted && month.txsLoaded && month.overrideLoaded) setBooted(true); }, [booted, month.txsLoaded, month.overrideLoaded]);
+  useEffect(() => { const t = window.setTimeout(() => setBooted(true), 4000); return () => window.clearTimeout(t); }, []);
   const shared = useSharedData();
   // 👯 같은 지출 경고에 쓸 이름 (uid → 태형/경은)
   const nameOf = useCallback((uid?: string) => shared.profiles.find((p) => p.uid === uid)?.name, [shared.profiles]);
@@ -373,7 +379,10 @@ function Dashboard({ user }: { user: User }) {
   );
   const noSpendEl = <NoSpendCard period={period} txs={txs} prevTxs={prevTxs} now={now} start={noSpendStart} best={best} />;
   return (
-    <div className="max-w-lg mx-auto px-4 pt-3 pb-10">
+    <>
+    {/* 🌱 이 달 기록 · 예산을 처음 받을 때까지 로딩 화면, 받으면 스르륵 걷혀요 */}
+    <Splash done={booted} />
+    <div className={`max-w-lg mx-auto px-4 pt-3 pb-10 ${booted ? "animate-app-in" : "opacity-0"}`}>
       <header className="flex items-center justify-between py-2 mb-3">
         <div>
           <span onClick={onTitleTap} className="text-sm font-bold text-toss-blue tracking-tight select-none">태형이와 경은이의 부자 되기 프로젝트!!</span>
@@ -481,6 +490,7 @@ function Dashboard({ user }: { user: User }) {
       )}
       </SheetNavContext.Provider>
     </div>
+    </>
   );
 }
 

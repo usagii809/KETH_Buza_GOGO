@@ -185,3 +185,16 @@ html.dark [class*="to-yellow-"]:not(.to-yellow-500), html.dark [class*="to-pink-
 @media (prefers-reduced-motion: reduce) {
   .animate-live-in { animation: none; }
 }
+
+/* 🌱 로딩 화면이 걷히면 화면이 살짝 올라오며 나타나요 */
+@keyframes app-in {
+  from { transform: translateY(10px); opacity: 0; }
+  /* 끝나면 transform을 아예 없애요 (남아 있으면 '지출 기록' 버튼 같은 고정 요소가 같이 스크롤돼요) */
+  to { transform: none; opacity: 1; }
+}
+.animate-app-in {
+  animation: app-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-app-in { animation: none; }
+}

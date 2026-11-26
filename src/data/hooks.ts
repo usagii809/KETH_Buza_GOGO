@@ -31,6 +31,8 @@ export function useMonthData(ym: string) {
   const [txs, setTxs] = useState<Transaction[]>([]);
   const [prevTxs, setPrevTxs] = useState<Transaction[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // 이 달 기록을 한 번이라도 받았는지 (첫 로딩 화면을 언제 걷을지)
+  const [txsLoaded, setTxsLoaded] = useState(false);
 
   useEffect(() => onSnapshot(refs.defaultBudget(), (snap) => {
     setError(null);
@@ -43,6 +45,7 @@ export function useMonthData(ym: string) {
     setOverrideLoaded(false);
     setTxs([]);
     setPrevTxs([]);
+    setTxsLoaded(false);
     let alive = true;
 
     const unsubMonth = onSnapshot(refs.month(ym), (snap) => {
@@ -55,7 +58,8 @@ export function useMonthData(ym: string) {
     const unsubTx = onSnapshot(monthQuery(ym), { includeMetadataChanges: true }, (snap) => {
       setError(null);
       setTxs(snap.docs.map((d) => ({ ...withId<Transaction>(d.id, d.data()), ...(d.metadata.hasPendingWrites ? { pending: true } : {}) })).sort(byDateDesc));
-    }, (err) => setError(errorMessage(err)));
+      setTxsLoaded(true);
+    }, (err) => { setError(errorMessage(err)); setTxsLoaded(true); });
 
     loadMonthTransactions(shiftMonth(ym, -1))
       .then((list) => { if (alive) setPrevTxs(list); })
@@ -65,7 +69,7 @@ export function useMonthData(ym: string) {
   }, [ym]);
 
   const budget = useMemo(() => (override ? { ...defaultBudget, ...override } : defaultBudget), [defaultBudget, override]);
-  return { defaultBudget, override, overrideLoaded, budget, txs, prevTxs, error };
+  return { defaultBudget, override, overrideLoaded, budget, txs, prevTxs, error, txsLoaded };
 }
 
 /** 보고 있는 달 이전 (n-1)개월 기록 (월별 그래프용, 1회 조회) */

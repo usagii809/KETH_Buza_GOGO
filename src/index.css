@@ -239,16 +239,6 @@ html.dark [class*="to-yellow-"]:not(.to-yellow-500), html.dark [class*="to-pink-
 /* 🍗🍺 · 💣😭 이모지 효과 (오늘의 한마디를 누르면) */
 .emoji-fx { position: fixed; inset: 0; pointer-events: none; z-index: 80; overflow: hidden; }
 .emoji-fx span { position: absolute; line-height: 1; will-change: transform, opacity; }
-.emoji-pop {
-  transform: translate(-50%, -50%);
-  animation: emoji-pop 1.2s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
-}
-@keyframes emoji-pop {
-  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
-  12% { opacity: 1; }
-  45% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.15) rotate(calc(var(--r) * 0.5)); opacity: 1; }
-  100% { transform: translate(calc(-50% + var(--dx) * 1.2), calc(-50% + var(--dy) + var(--fall))) scale(0.9) rotate(var(--r)); opacity: 0; }
-}
 .emoji-rain {
   top: -48px;
   animation-name: emoji-rain;
@@ -261,18 +251,4 @@ html.dark [class*="to-yellow-"]:not(.to-yellow-500), html.dark [class*="to-pink-
   100% { transform: translateY(calc(100vh + 60px)) rotate(var(--r)); opacity: 0.6; }
 }
 
-/* ❤️ 몽글몽글: 작게 생겨나 좌우로 살랑이며 위로 퍼지다 사라져요 */
-.emoji-float {
-  transform: translate(-50%, -50%) scale(0.2);
-  opacity: 0;
-  animation-name: emoji-float;
-  animation-timing-function: ease-out;
-  animation-fill-mode: both;
-}
-@keyframes emoji-float {
-  0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
-  15% { transform: translate(calc(-50% + var(--sway)), calc(-50% - var(--rise) * 0.15)) scale(1); opacity: 1; }
-  45% { transform: translate(calc(-50% + var(--dx) * 0.5 - var(--sway)), calc(-50% - var(--rise) * 0.5)) scale(1.1); opacity: 0.95; }
-  75% { transform: translate(calc(-50% + var(--dx) * 0.8 + var(--sway)), calc(-50% - var(--rise) * 0.8)) scale(1.05); opacity: 0.7; }
-  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% - var(--rise))) scale(0.9); opacity: 0; }
-}
+.emoji-burst { transform: translate(-50%, -50%) scale(0.4); will-change: transform, opacity; }

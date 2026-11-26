@@ -25,37 +25,99 @@ export function confetti() {
   setTimeout(() => box.remove(), 3500);
 }
 
-/** 🍗🍺 누른 자리에서 이모지가 사방으로 팡팡 튀어요 */
-export function emojiPop(emojis: string[], x: number, y: number, count = 14) {
+interface BurstOpts {
+  count: number;
+  /** 처음 속도 (px/프레임, 60fps 기준) */
+  speed: [number, number];
+  /** 공기 저항 (1에 가까울수록 오래 미끄러져요) */
+  drag: number;
+  /** 중력 (+면 아래로, -면 위로 둥실) */
+  gravity: number;
+  /** 사는 시간 (초) */
+  life: [number, number];
+  size: [number, number];
+  /** 좌우로 살랑이는 폭 (px) */
+  sway?: number;
+  /** 위쪽으로 더 튀게 (px/프레임) */
+  lift?: number;
+  spin?: number;
+  /** 나오는 시간을 흩뿌리기 (초) */
+  stagger?: number;
+}
+
+/** 이모지 입자를 물리 계산으로 움직여요: 쭉 뻗어 퍼졌다가 → 느려지며 둥실 → 천천히 사라져요 */
+function burst(emojis: string[], x: number, y: number, o: BurstOpts) {
   if (typeof document === "undefined") return;
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
   const box = document.createElement("div");
   box.className = "emoji-fx";
   box.setAttribute("aria-hidden", "true");
-  for (let i = 0; i < count; i++) {
-    const e = document.createElement("span");
-    const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.6;
-    const dist = 70 + Math.random() * 90;
-    e.textContent = emojis[i % emojis.length];
-    e.className = "emoji-pop";
-    e.style.cssText = [
-      `left:${x}px`, `top:${y}px`,
-      `font-size:${22 + Math.random() * 14}px`,
-      `--dx:${Math.cos(angle) * dist}px`,
-      // 위로 튀었다가 아래로 떨어지게 (중력 느낌)
-      `--dy:${Math.sin(angle) * dist - 40}px`,
-      `--fall:${120 + Math.random() * 80}px`,
-      `--r:${Math.random() * 540 - 270}deg`,
-      `animation-delay:${Math.random() * 0.06}s`
-    ].join(";");
-    box.appendChild(e);
-  }
+  // 화면 크기에 맞춰 퍼지는 거리 (폰 390px 기준 1)
+  const reach = Math.min(window.innerWidth, 600) / 390;
+  const rnd = (a: number, b: number) => a + Math.random() * (b - a);
+  const parts = Array.from({ length: o.count }, (_, i) => {
+    const el = document.createElement("span");
+    el.textContent = emojis[i % emojis.length];
+    el.className = "emoji-burst";
+    el.style.cssText = `left:${x}px;top:${y}px;font-size:${rnd(o.size[0], o.size[1])}px;opacity:0`;
+    box.appendChild(el);
+    const angle = (Math.PI * 2 * i) / o.count + rnd(-0.35, 0.35);
+    const sp = rnd(o.speed[0], o.speed[1]) * reach;
+    return {
+      el, x: 0, y: 0,
+      vx: Math.cos(angle) * sp,
+      vy: Math.sin(angle) * sp - (o.lift ?? 0) * reach,
+      rot: rnd(-20, 20), vr: rnd(-1, 1) * (o.spin ?? 8),
+      life: rnd(o.life[0], o.life[1]),
+      delay: Math.random() * (o.stagger ?? 0.06),
+      phase: Math.random() * Math.PI * 2
+    };
+  });
   document.body.appendChild(box);
-  setTimeout(() => box.remove(), 1400);
+  const start = performance.now();
+  let last = start;
+  const tick = (now: number) => {
+    const t = (now - start) / 1000;
+    const k = Math.min(3, (now - last) / 16.67);
+    last = now;
+    let alive = 0;
+    const drag = Math.pow(o.drag, k);
+    for (const p of parts) {
+      const age = t - p.delay;
+      if (age < 0) { alive++; continue; }
+      if (age > p.life) { p.el.style.opacity = "0"; continue; }
+      alive++;
+      p.vx *= drag;
+      p.vy = p.vy * drag + o.gravity * k * reach;
+      p.x += p.vx * k;
+      p.y += p.vy * k;
+      p.rot += p.vr * k;
+      p.vr *= drag;
+      const sway = o.sway ? Math.sin(age * 3 + p.phase) * o.sway * Math.min(1, age) : 0;
+      const grow = Math.min(1, age / 0.15);
+      const fade = age > p.life - 0.8 ? Math.max(0, (p.life - age) / 0.8) : 1;
+      p.el.style.transform = `translate(-50%, -50%) translate(${p.x + sway}px, ${p.y}px) rotate(${p.rot}deg) scale(${0.3 + 0.7 * grow})`;
+      p.el.style.opacity = String(Math.min(grow * 1.5, fade));
+    }
+    if (alive > 0) requestAnimationFrame(tick);
+    else box.remove();
+  };
+  requestAnimationFrame(tick);
+  setTimeout(() => box.remove(), 7000); // 혹시 멈춰도 정리
+}
+
+/** 🍗🍺 · 💍 · 🎂🥳 · 🎄🎅 누른 자리에서 폭죽처럼 화면 가득 퍼졌다가 둥실 떠서 천천히 내려앉아요 */
+export function emojiPop(emojis: string[], x: number, y: number) {
+  burst(emojis, x, y, { count: 34, speed: [6, 13], drag: 0.962, gravity: 0.045, life: [2.6, 3.8], size: [24, 44], lift: 2.5, spin: 9, sway: 6 });
+}
+
+/** ❤️ 누른 자리에서 하트가 몽글몽글 사방으로 천천히 퍼지며 둥실 떠올라요 */
+export function emojiFloat(emojis: string[], x: number, y: number) {
+  burst(emojis, x, y, { count: 26, speed: [2.5, 6.5], drag: 0.975, gravity: -0.035, life: [3, 4.4], size: [20, 46], spin: 2, sway: 14, stagger: 0.9 });
 }
 
 /** 💣😭 하늘에서 이모지가 비처럼 쏟아져요 */
-export function emojiRain(emojis: string[], count = 26) {
+export function emojiRain(emojis: string[], count = 42) {
   if (typeof document === "undefined") return;
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
   const box = document.createElement("div");
@@ -68,38 +130,13 @@ export function emojiRain(emojis: string[], count = 26) {
     e.style.cssText = [
       `left:${Math.random() * 96}%`,
       `font-size:${22 + Math.random() * 16}px`,
-      `animation-delay:${Math.random() * 0.7}s`,
-      `animation-duration:${1.3 + Math.random() * 0.9}s`,
+      `animation-delay:${Math.random() * 1.1}s`,
+      `animation-duration:${1.6 + Math.random() * 1.2}s`,
       `--r:${Math.random() * 120 - 60}deg`
     ].join(";");
     box.appendChild(e);
   }
   document.body.appendChild(box);
-  setTimeout(() => box.remove(), 3200);
+  setTimeout(() => box.remove(), 4200);
 }
 
-/** ❤️ 누른 자리에서 하트가 몽글몽글 피어올라 퍼져요 */
-export function emojiFloat(emojis: string[], x: number, y: number, count = 12) {
-  if (typeof document === "undefined") return;
-  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-  const box = document.createElement("div");
-  box.className = "emoji-fx";
-  box.setAttribute("aria-hidden", "true");
-  for (let i = 0; i < count; i++) {
-    const e = document.createElement("span");
-    e.textContent = emojis[i % emojis.length];
-    e.className = "emoji-float";
-    e.style.cssText = [
-      `left:${x + (Math.random() - 0.5) * 40}px`, `top:${y}px`,
-      `font-size:${18 + Math.random() * 18}px`,
-      `--dx:${(Math.random() - 0.5) * 180}px`,
-      `--rise:${160 + Math.random() * 180}px`,
-      `--sway:${(Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 18)}px`,
-      `animation-delay:${Math.random() * 0.45}s`,
-      `animation-duration:${1.8 + Math.random() * 0.9}s`
-    ].join(";");
-    box.appendChild(e);
-  }
-  document.body.appendChild(box);
-  setTimeout(() => box.remove(), 3400);
-}

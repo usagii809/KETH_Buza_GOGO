@@ -313,9 +313,11 @@ function Dashboard({ user }: { user: User }) {
   const windowStart = useMemo(() => todayStr(new Date(now.getTime() - HISTORY_DAYS * 86400000)), [now]);
   const localBest = useMemo(() => {
     if (!shared.historyLoaded || !shared.firstRecordLoaded) return null;
-    const all = [...new Map([...shared.history, ...month.prevTxs, ...month.txs].map((t) => [t.id, t])).values()].filter(isHousehold);
+    // feedTxs(최근 30일 실시간)도 넣어요: 다른 달을 보고 있으면 month.txs에 이번 달 새 지출이 없어서
+    // 무지출이 길어진 것처럼 잘못 계산 → '최장 기록 경신'이 엉뚱하게 터지는 걸 막아요
+    const all = [...new Map([...shared.history, ...feedTxs, ...month.prevTxs, ...month.txs].map((t) => [t.id, t])).values()].filter(isHousehold);
     return longestStreak(spentByDate(all), noSpendStart, windowStart, todayStr(now));
-  }, [shared.historyLoaded, shared.firstRecordLoaded, shared.history, month.prevTxs, month.txs, noSpendStart, windowStart, now]);
+  }, [shared.historyLoaded, shared.firstRecordLoaded, shared.history, feedTxs, month.prevTxs, month.txs, noSpendStart, windowStart, now]);
   const best = pickBest(shared.noSpendBest, localBest, windowStart);
   useEffect(() => {
     if (!localBest || !best) return;

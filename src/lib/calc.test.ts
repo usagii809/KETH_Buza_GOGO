@@ -467,12 +467,3 @@ describe("기념일 한마디 누르기 효과", () => {
     expect(dateEggFx("2027-01-01")).toBeNull(); // 새해 · 12/31은 문구만
   });
 });
-
-describe("외식 금지 이름표", () => {
-  it("오늘 포함 남은 날 · 마지막 날은 오늘까지", async () => {
-    const { banChipText } = await import("../features/quips/QuipBubble");
-    expect(banChipText("2026-11-23", "2026-11-29")).toBe("외식 금지 · 7일 남음"); // 월요일
-    expect(banChipText("2026-11-27", "2026-11-29")).toBe("외식 금지 · 3일 남음"); // 금 · 토 · 일
-    expect(banChipText("2026-11-29", "2026-11-29")).toBe("외식 금지 · 오늘까지");
-  });
-});

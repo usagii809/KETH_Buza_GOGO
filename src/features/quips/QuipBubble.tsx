@@ -22,12 +22,6 @@ export interface QuipBan {
   by: string;
 }
 
-/** 이름표 문구: "외식 금지 · 3일 남음" / 마지막 날엔 "외식 금지 · 오늘까지" (오늘 포함해서 세요) */
-export function banChipText(today: string, to: string): string {
-  const days = Math.round((new Date(`${to}T00:00:00`).getTime() - new Date(`${today}T00:00:00`).getTime()) / 86400000) + 1;
-  return days <= 1 ? "외식 금지 · 오늘까지" : `외식 금지 · ${days}일 남음`;
-}
-
 /**
  * override: 오늘 복권 1등 같은 특별한 날의 문구
  * ban: 외식 금지 주간이면 모드 이름표 옆에 💣 이름표 (한마디는 평소 · 기념일 문구 그대로)
@@ -46,7 +40,8 @@ export function QuipBubble({ s, period, now, override, ban }: { s: Summary; peri
   const banNow = period.state === "current" ? ban : null;
   // 누르면: 특별한 날 효과가 먼저, 없으면 폭탄 주간엔 💣😭 와르르
   const fx: QuipFx | undefined = special?.fx ?? (banNow ? { kind: "rain", emojis: ["💣", "😭"] } : undefined);
-  const banLabel = banNow ? banChipText(today, banNow.to) : "";
+  // 이름표는 깔끔하게 "💣 외식 금지"만 (언제까지인지는 복권 카드에 나와요)
+  const banLabel = "외식 금지";
   const onTap = (e: React.MouseEvent) => {
     if (!fx) return;
     // 키보드로 누르면 clientX가 0이라 말풍선 가운데에서 터지게

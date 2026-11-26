@@ -61,16 +61,19 @@ function burst(emojis: string[], x: number, y: number, o: BurstOpts) {
     el.className = "emoji-burst";
     el.style.cssText = `left:${x}px;top:${y}px;font-size:${rnd(o.size[0], o.size[1])}px;opacity:0`;
     box.appendChild(el);
-    const angle = (Math.PI * 2 * i) / o.count + rnd(-0.35, 0.35);
-    const sp = rnd(o.speed[0], o.speed[1]) * reach;
+    // 방향도 거리도 제각각 → 동그란 고리가 아니라 가까이 · 멀리 고루 흩어져요
+    const angle = Math.random() * Math.PI * 2;
+    const sp = (o.speed[0] + (o.speed[1] - o.speed[0]) * Math.pow(Math.random(), 0.7)) * reach;
     return {
       el, x: 0, y: 0,
       vx: Math.cos(angle) * sp,
-      vy: Math.sin(angle) * sp - (o.lift ?? 0) * reach,
+      vy: Math.sin(angle) * sp - (o.lift ?? 0) * reach * rnd(0.6, 1.4),
       rot: rnd(-20, 20), vr: rnd(-1, 1) * (o.spin ?? 8),
       life: rnd(o.life[0], o.life[1]),
       delay: Math.random() * (o.stagger ?? 0.06),
-      phase: Math.random() * Math.PI * 2
+      phase: Math.random() * Math.PI * 2,
+      // 입자마다 공기 저항도 조금씩 달라요
+      drag: o.drag + rnd(-0.006, 0.004)
     };
   });
   document.body.appendChild(box);
@@ -81,8 +84,8 @@ function burst(emojis: string[], x: number, y: number, o: BurstOpts) {
     const k = Math.min(3, (now - last) / 16.67);
     last = now;
     let alive = 0;
-    const drag = Math.pow(o.drag, k);
     for (const p of parts) {
+      const drag = Math.pow(p.drag, k);
       const age = t - p.delay;
       if (age < 0) { alive++; continue; }
       if (age > p.life) { p.el.style.opacity = "0"; continue; }
@@ -106,9 +109,9 @@ function burst(emojis: string[], x: number, y: number, o: BurstOpts) {
   setTimeout(() => box.remove(), 7000); // 혹시 멈춰도 정리
 }
 
-/** 🍗🍺 · 💍 · 🎂🥳 · 🎄🎅 누른 자리에서 폭죽처럼 화면 가득 퍼졌다가 둥실 떠서 천천히 내려앉아요 */
+/** 🍗🍺 · 💍 · 🎂🥳 · 🎄🎅 누른 자리에서 가까이 · 멀리 제각각 튀어올랐다가 포물선을 그리며 떨어져요 */
 export function emojiPop(emojis: string[], x: number, y: number) {
-  burst(emojis, x, y, { count: 34, speed: [6, 13], drag: 0.962, gravity: 0.045, life: [2.6, 3.8], size: [24, 44], lift: 2.5, spin: 9, sway: 6 });
+  burst(emojis, x, y, { count: 40, speed: [2, 12], drag: 0.985, gravity: 0.11, life: [2.6, 3.6], size: [24, 44], lift: 3, spin: 7 });
 }
 
 /** ❤️ 누른 자리에서 하트가 몽글몽글 사방으로 천천히 퍼지며 둥실 떠올라요 */

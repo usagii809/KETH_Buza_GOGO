@@ -45,6 +45,28 @@ describe("환불 · 부분취소", () => {
     expect(countNoSpendDays(nov, map, "2026-11-03", "2026-11-01")).toBe(2);
   });
 
+  it("같은 날 전액 취소하면 무지출, 부분취소면 남은 금액만큼 지출", () => {
+    const list = [
+      // 11/5: 배달 2만 원 주문 → 같은 날 전액 취소 (연결된 환불) → 무지출
+      tx("2026-11-05", "foodDining", 20000, { id: "d1", memo: "배민" }), tx("2026-11-05", "foodDining", -20000, { refundOf: "d1", memo: "배민" }),
+      // 11/6: 연결은 없지만 같은 사용처로 같은 날 취소 → 무지출
+      tx("2026-11-06", "foodDining", 15000, { memo: "쿠팡이츠" }), tx("2026-11-06", "foodDining", -15000, { memo: "쿠팡이츠" }),
+      // 11/7: 3만 원 중 1만 원만 취소 → 2만 원 지출
+      tx("2026-11-07", "essentialClothing", 30000, { id: "c1" }), tx("2026-11-07", "essentialClothing", -10000, { refundOf: "c1" }),
+      // 11/8: 오늘 5천 원 쓰고, 지난주(11/1) 결제를 오늘 환불 → 오늘은 지출한 날
+      tx("2026-11-01", "essentialClothing", 50000, { id: "old" }), tx("2026-11-08", "foodCafe", 5000), tx("2026-11-08", "essentialClothing", -50000, { refundOf: "old" }),
+      // 11/9: 주문 2건 중 1건만 취소 → 남은 1건만큼 지출
+      tx("2026-11-09", "foodDining", 12000, { id: "a" }), tx("2026-11-09", "foodDining", 8000, { id: "b" }), tx("2026-11-09", "foodDining", -12000, { refundOf: "a" })
+    ];
+    const map = spentByDate(list);
+    expect(map["2026-11-05"]).toBeUndefined();
+    expect(map["2026-11-06"]).toBeUndefined();
+    expect(map["2026-11-07"]).toBe(20000);
+    expect(map["2026-11-01"]).toBe(50000);
+    expect(map["2026-11-08"]).toBe(5000);
+    expect(map["2026-11-09"]).toBe(8000);
+  });
+
   it("환불은 사용처 추천 횟수에 안 들어가요", () => {
     const idx = buildMemoIndex([tx("2026-11-01", "foodDining", 1000, { memo: "쿠팡" }), tx("2026-11-02", "foodDining", -1000, { memo: "쿠팡" })]);
     expect(idx[0].total).toBe(1);

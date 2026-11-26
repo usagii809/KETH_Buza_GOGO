@@ -75,6 +75,8 @@ export interface Profile {
   name?: "태형" | "경은";
   /** data:image/jpeg;base64,… (192px) */
   photo?: string;
+  /** '같이 보기'를 마지막으로 연 시각 (기기가 달라도 같은 계정이면 읽음으로) */
+  feedSeenAt?: number;
 }
 
 export type LotteryTier = "jackpot" | "prize" | "love" | "bomb" | "almost" | "lose";

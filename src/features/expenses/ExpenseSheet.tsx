@@ -11,6 +11,7 @@ import { Sheet } from "../../ui/Sheet";
 import { confetti } from "../fun/confetti";
 import { expenseEgg } from "../fun/eggs";
 import { buildMemoIndex, suggestItems, suggestMemos } from "./memo";
+import type { DiningBan } from "../lottery/ticket";
 
 interface Props {
   /** 있으면 수정, 없으면 새 기록 */
@@ -27,14 +28,14 @@ interface Props {
   beforeAdd: (ym: string) => Promise<void>;
   /** 내 이름 (프로필) — 처음 기록할 때 기본 '누가' */
   myName?: string;
-  /** 💣 강제 무지출 데이 (날짜 → 폭탄 긁은 사람) */
-  forcedDays?: Record<string, string>;
+  /** 💣 외식 금지 (날짜 → 금지 기간) */
+  bans?: Record<string, DiningBan>;
   /** 다른 달 날짜로 저장했을 때 그 달로 이동 */
   onMovedMonth: (ym: string) => void;
   onClose: () => void;
 }
 
-export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, beforeAdd, myName, forcedDays = {}, onMovedMonth, onClose }: Props) {
+export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, beforeAdd, myName, bans = {}, onMovedMonth, onClose }: Props) {
   const { toast, confirm } = useFeedback();
   // 환불을 새로 적을 때는 원래 결제 내용을 그대로 가져와요
   const base = tx || refundFor;
@@ -75,11 +76,12 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
       });
       if (!ok) return;
     }
-    // 💣 강제 무지출 데이에 새 지출을 적으려 하면 한 번 더 물어봐요 (회사 돈·환불은 괜찮아요)
-    if (!tx && !isCompany && !refund && forcedDays[date]) {
+    // 💣 외식 금지 주간에 외식·배달을 새로 적으려 하면 한 번 더 물어봐요 (회사 돈·환불은 괜찮아요)
+    const ban = bans[date];
+    if (!tx && !isCompany && !refund && ban && category === "foodDining") {
       const ok = await confirm({
-        title: "💣 오늘은 강제 무지출 데이!",
-        message: `${forcedDays[date]}의 폭탄 때문에 오늘은 지갑 봉인이에요.\n그래도 기록할까요?`,
+        title: "💣 이번 주는 외식 금지!",
+        message: `${ban.by}의 폭탄 때문에 ${Number(ban.to.slice(5, 7))}월 ${Number(ban.to.slice(8))}일(일)까지 외식·배달은 봉인이에요.\n그래도 기록할까요?`,
         okText: "그래도 기록"
       });
       if (!ok) return;

@@ -1,4 +1,4 @@
-import { nextDay } from "../../lib/dates";
+import { toDateStr } from "../../lib/dates";
 import type { LotteryTicket, LotteryTier, Profile } from "../../lib/types";
 
 /** 1등 그림 */
@@ -31,7 +31,7 @@ export const PRIZE_TABLE: PrizeRow[] = [
   { symbol: "🍀", tier: "prize", rank: 4, chance: 0.07, prize: "🎫 로또 한 장 사주기" },
   { symbol: "🍒", tier: "prize", rank: 5, chance: 0.08, prize: "🏃 심부름 1회 이용권" },
   { symbol: LOVE_SYMBOL, tier: "love", rank: 0, chance: 0.06, prize: "💋 뽀뽀 해주기" },
-  { symbol: "💣", tier: "bomb", rank: 0, chance: 0.06, prize: "내일은 강제 무지출 데이! 둘 다 하루 동안 지갑 봉인 🔒" }
+  { symbol: "💣", tier: "bomb", rank: 0, chance: 0.06, prize: "다음 주 외식 금지! 월~일 둘 다 외식·배달 봉인 🔒" }
 ];
 
 /** 화면에 보여줄 당첨표 (숨겨진 하트는 빼고) */
@@ -101,14 +101,59 @@ export const isJackpotSymbol = (s: string) => s === JACKPOT_SYMBOL || s === "7";
 /** 예전 숫자 복권(digits)도 읽을 수 있게 */
 export const symbolsOf = (t: { symbols?: string[]; digits?: number[] }) => t.symbols ?? (t.digits || []).map(String);
 
-/** 💣💣💣이 나온 다음 날 = 강제 무지출 데이. 날짜 → 폭탄 긁은 사람 이름 */
-export function forcedNoSpendDays(tickets: LotteryTicket[], profiles: Profile[] = []): Record<string, string> {
-  const days: Record<string, string> = {};
-  tickets.forEach((t) => {
-    if (t.tier !== "bomb" || !t.revealed) return;
-    const name = profiles.find((p) => p.uid === t.uid)?.name || t.name || "누군가";
-    const d = nextDay(t.date);
-    days[d] = days[d] ? `${days[d]}·${name}` : name;
-  });
+/** 💣 외식 금지 기간 */
+export interface DiningBan {
+  /** 금지 시작 (폭탄 다음 주 월요일) */
+  from: string;
+  /** 금지 끝 (그 주 일요일) */
+  to: string;
+  /** 폭탄 긁은 사람 (둘 다면 "태형·경은") */
+  by: string;
+}
+
+/** 그 날짜가 든 주의 일요일 (월요일 시작) */
+export function sundayOf(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const day = new Date(y, m - 1, d).getDay();
+  return toDateStr(new Date(y, m - 1, d + ((7 - day) % 7)));
+}
+
+const addDays = (date: string, n: number) => {
+  const [y, m, d] = date.split("-").map(Number);
+  return toDateStr(new Date(y, m - 1, d + n));
+};
+
+/**
+ * 💣💣💣이 나오면 다음 주 월요일 ~ 일요일 동안 둘 다 외식·배달 금지.
+ * 날짜 → 그날 걸린 금지
+ */
+export function diningBanDays(tickets: LotteryTicket[], profiles: Profile[] = []): Record<string, DiningBan> {
+  const days: Record<string, DiningBan> = {};
+  tickets
+    .filter((t) => t.tier === "bomb" && t.revealed && t.date)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .forEach((t) => {
+      const name = profiles.find((p) => p.uid === t.uid)?.name || t.name || "누군가";
+      const from = addDays(sundayOf(t.date), 1);
+      const to = addDays(from, 6);
+      for (let i = 0; i < 7; i++) {
+        const ds = addDays(from, i);
+        const prev = days[ds];
+        days[ds] = prev
+          ? { ...prev, by: prev.by.split("·").includes(name) ? prev.by : `${prev.by}·${name}` }
+          : { from, to, by: name };
+      }
+    });
   return days;
+}
+
+/** 오늘 이후 처음 시작하는 외식 금지 (예고용, 없으면 null) */
+export function upcomingDiningBan(bans: Record<string, DiningBan>, today: string): DiningBan | null {
+  const next = Object.values(bans).filter((b) => b.from > today).sort((a, b) => a.from.localeCompare(b.from))[0];
+  return next || null;
+}
+
+/** 외식 금지 주간에 한 외식·배달인지 (회사 돈 · 환불 · 자동 기록은 빼요) */
+export function breaksDiningBan(tx: { date: string; category?: string; amount?: number; company?: boolean; auto?: boolean }, bans: Record<string, DiningBan>): boolean {
+  return !!bans[tx.date] && tx.category === "foodDining" && !tx.company && !tx.auto && (Number(tx.amount) || 0) > 0;
 }

@@ -24,7 +24,7 @@ import { longestStreak, pickBest, spentByDate } from "./features/noSpend/calc";
 import { NoSpendCard } from "./features/noSpend/NoSpendCard";
 import { RecurringSheet } from "./features/recurring/RecurringSheet";
 import { LotteryCard } from "./features/lottery/LotteryCard";
-import { forcedNoSpendDays } from "./features/lottery/ticket";
+import { breaksDiningBan, diningBanDays, upcomingDiningBan } from "./features/lottery/ticket";
 import { LotterySheet } from "./features/lottery/LotterySheet";
 import { QuipBubble } from "./features/quips/QuipBubble";
 import { Avatar } from "./ui/Avatar";
@@ -109,13 +109,14 @@ function Dashboard({ user }: { user: User }) {
 
   // 🎟️ 오늘의 복권
   const today = todayStr(now);
-  // 지난달 말일 것까지 불러와요 (말일에 터진 폭탄 → 1일 강제 무지출)
-  const lotteryFrom = toDateStr(new Date(now.getFullYear(), now.getMonth(), 0));
+  // 지난달 마지막 두 주 것까지 불러와요 (지난달 말에 터진 폭탄 → 이번 달 첫 주 외식 금지)
+  const lotteryFrom = toDateStr(new Date(now.getFullYear(), now.getMonth(), -13));
   const tickets = useLottery(lotteryFrom);
   const jackpotToday = tickets.some((t) => t.date === today && t.tier === "jackpot" && t.revealed);
-  // 💣 폭탄 다음 날은 강제 무지출 데이
-  const forcedDays = useMemo(() => forcedNoSpendDays(tickets, shared.profiles), [tickets, shared.profiles]);
-  const bombBy = forcedDays[today] ?? null;
+  // 💣 폭탄 → 다음 주 월~일 외식·배달 금지
+  const bans = useMemo(() => diningBanDays(tickets, shared.profiles), [tickets, shared.profiles]);
+  const todayBan = bans[today] ?? null;
+  const nextBan = useMemo(() => upcomingDiningBan(bans, today), [bans, today]);
 
   // 🎫 쿠폰함
   const coupons = useCoupons();
@@ -156,6 +157,11 @@ function Dashboard({ user }: { user: User }) {
   // 🏢 회사 돈은 기록만 하고, 예산·저축·무지출·그래프·성적표 계산에서는 전부 빼요
   const txs = useMemo(() => month.txs.filter(isHousehold), [month.txs]);
   const prevTxs = useMemo(() => month.prevTxs.filter(isHousehold), [month.prevTxs]);
+  // 이번 주 외식 금지 중에 한 외식 횟수 (이번 달 화면에서만 셀 수 있어요: 지난달 말~이번 달 기록)
+  const banBroken = useMemo(() => {
+    if (!todayBan || ym !== todayYm(now)) return 0;
+    return [...month.prevTxs, ...month.txs].filter((tx) => tx.date >= todayBan.from && tx.date <= todayBan.to && breaksDiningBan(tx, bans)).length;
+  }, [todayBan, bans, month.prevTxs, month.txs, ym, now]);
   const recentHousehold = useMemo(() => recentTxs.filter(isHousehold), [recentTxs]);
 
   const period = useMemo(() => getPeriodInfo(ym, now), [ym, now]);
@@ -259,7 +265,7 @@ function Dashboard({ user }: { user: User }) {
       <span className="text-sm font-bold text-toss-blue">보기 →</span>
     </button>
   );
-  const noSpendEl = <NoSpendCard period={period} txs={txs} prevTxs={prevTxs} now={now} start={noSpendStart} best={best} forcedDays={forcedDays} />;
+  const noSpendEl = <NoSpendCard period={period} txs={txs} prevTxs={prevTxs} now={now} start={noSpendStart} best={best} />;
   return (
     <div className="max-w-lg mx-auto px-4 pt-3 pb-10">
       <header className="flex items-center justify-between py-2 mb-3">
@@ -295,7 +301,7 @@ function Dashboard({ user }: { user: User }) {
 
       {month.error && <div className="mb-4 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-sm text-toss-red font-medium leading-relaxed">{month.error}</div>}
 
-      <QuipBubble s={summary} period={period} now={now} override={jackpotToday ? "🍗🍺 오늘은 복권 1등! 묻지도 따지지도 않고 치맥 GO!" : bombBy ? `💣 오늘은 강제 무지출 데이! (어제 ${bombBy}의 폭탄) 지갑 봉인 🔒` : null} />
+      <QuipBubble s={summary} period={period} now={now} override={jackpotToday ? "🍗🍺 오늘은 복권 1등! 묻지도 따지지도 않고 치맥 GO!" : todayBan && !banBroken ? `💣 이번 주는 외식 금지! (${todayBan.by}의 폭탄) 일요일까지 집밥 🍚` : null} />
       {/* 이번 달: 날마다 바뀌는 정보(예산 · 무지출 · 복권 · 흐름)를 위로, 예산을 안 바꾸면 그대로인 저축 계획은 아래로.
           지난달: 결과(성적표 · 정산 · 모은 돈)가 먼저 */}
       {period.state === "current" ? (
@@ -304,7 +310,7 @@ function Dashboard({ user }: { user: User }) {
           {prevSettleEl}
           {budgetEl}
           {noSpendEl}
-          <LotteryCard uid={user.uid} today={today} tickets={tickets} profiles={shared.profiles} bombBy={bombBy} couponCount={myCoupons}
+          <LotteryCard uid={user.uid} today={today} tickets={tickets} profiles={shared.profiles} ban={todayBan} nextBan={nextBan} banBroken={banBroken} couponCount={myCoupons}
             onOpen={() => setSheet({ type: "lottery" })} onOpenCoupons={() => setSheet({ type: "coupons" })} />
           {trendEl}
           {insights && <InsightCard data={insights} />}
@@ -337,7 +343,7 @@ function Dashboard({ user }: { user: User }) {
 
       {sheet?.type === "expense" && (
         <ExpenseSheet key={sheet.tx?.id ?? (sheet.refundFor ? `refund_${sheet.refundFor.id}` : "new")} tx={sheet.tx} refundFor={sheet.refundFor}
-          onRefund={(orig) => setSheet({ type: "expense", refundFor: orig, back: sheet.back })} viewedYm={ym} uid={user.uid} history={history} beforeAdd={pinIfNeeded} myName={me?.name} forcedDays={forcedDays} onMovedMonth={setYm} onClose={closeSheet} />
+          onRefund={(orig) => setSheet({ type: "expense", refundFor: orig, back: sheet.back })} viewedYm={ym} uid={user.uid} history={history} beforeAdd={pinIfNeeded} myName={me?.name} bans={bans} onMovedMonth={setYm} onClose={closeSheet} />
       )}
       {sheet?.type === "budget" && <BudgetSheet period={period} budget={month.budget} onClose={closeSheet} />}
       {sheet?.type === "settings" && (

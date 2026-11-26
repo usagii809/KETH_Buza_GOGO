@@ -140,7 +140,7 @@ function describeActivity(it: ActivityItem, myName?: string) {
     const t = it.ticket;
     const big = t.tier === "jackpot" || t.tier === "prize" || t.tier === "love";
     const line = t.tier === "bomb"
-      ? <>{who} 님 복권에서 💣 폭탄이 나왔어요! 내일은 둘 다 강제 무지출 데이</>
+      ? <>{who} 님 복권에서 💣 폭탄이 나왔어요! 다음 주는 외식 금지</>
       : big ? <>{who} 님이 복권에 당첨됐어요! <b>{tierTitle(t.tier, t.rank)}</b></>
       : <>{who} 님이 오늘의 복권을 긁었어요 · {tierTitle(t.tier, t.rank)}</>;
     return {

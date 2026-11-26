@@ -14,8 +14,6 @@ interface Props {
   start: string | null;
   /** 지금까지 최장 연속 무지출 */
   best: StreakRecord | null;
-  /** 💣 강제 무지출 데이 (날짜 → 폭탄 긁은 사람) */
-  forcedDays?: Record<string, string>;
 }
 
 const md = (d: string) => `${Number(d.slice(5, 7))}월 ${Number(d.slice(8))}일`;
@@ -24,7 +22,7 @@ const md = (d: string) => `${Number(d.slice(5, 7))}월 ${Number(d.slice(8))}일`
  * 무지출 챌린지: 기록이 없는 날 = 무지출, 쓴 날 = 금액.
  * 연속 무지출 하루마다 한 단계씩 자라서 8일째에 한강뷰 🌉
  */
-export function NoSpendCard({ period, txs, prevTxs, now, start, best, forcedDays = {} }: Props) {
+export function NoSpendCard({ period, txs, prevTxs, now, start, best }: Props) {
   if (period.state === "future") return null;
   const monthEnd = `${period.key}-${String(period.dim).padStart(2, "0")}`;
   if (period.state === "past" && (!start || start > monthEnd)) return null; // 가계부를 쓰기 전의 달
@@ -40,8 +38,6 @@ export function NoSpendCard({ period, txs, prevTxs, now, start, best, forcedDays
   let msg: string;
   if (!start) msg = "첫 지출을 기록한 날부터 무지출을 세기 시작해요 🌱";
   else if (!isCurrent) msg = count > 0 ? `${period.m}월엔 무지출 ${count}일을 달성했어요 👏` : "이 달엔 무지출 날이 없었어요";
-  else if (forcedDays[today] && map[today] > 0) msg = "💣 강제 무지출 데이였는데… 다음 폭탄 땐 꼭 버텨봐요";
-  else if (forcedDays[today]) msg = "💣 오늘은 강제 무지출 데이! 오늘만 버티면 돼요";
   else if (map[today] > 0) msg = "오늘은 지출이 있었어요. 내일 새싹부터 다시 키워봐요 💪";
   else if (streak >= goal) msg = `${streak}일 연속 무지출! 드디어 한강뷰 입성 🌉`;
   else {
@@ -101,7 +97,7 @@ export function NoSpendCard({ period, txs, prevTxs, now, start, best, forcedDays
           return (
             <div key={d}
               className={`aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 ${run ? "bg-green-50" : before ? "bg-transparent" : "bg-toss-bg/70"} ${ds === today ? "ring-2 ring-toss-blue" : ""}`}>
-              <span className={`text-[11px] num leading-none ${forcedDays[ds] ? "font-bold text-gray-800" : future || before ? "text-toss-muted" : "text-toss-sub"}`}>{forcedDays[ds] ? `💣${d}` : d}</span>
+              <span className={`text-[11px] num leading-none ${future || before ? "text-toss-muted" : "text-toss-sub"}`}>{d}</span>
               {spent > 0 && !future
                 ? <span className="text-[11px] font-semibold text-toss-sub num leading-none">{compactKRW(spent)}</span>
                 : run ? <span className="text-base leading-none">{sproutEmoji(run)}</span> : null}

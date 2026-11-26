@@ -41,7 +41,7 @@ export function LotterySheet({ uid, myName, today, onClose, onOpenCoupons }: Pro
     if (ticket.tier === "jackpot") { confetti(); setTimeout(confetti, 900); toast("🎰🎰🎰 잭팟! 오늘은 치맥 GO!"); }
     else if (ticket.tier === "love") { confetti(); setTimeout(confetti, 700); toast("💕 숨겨진 하트 세 개! 뽀뽀 해주기 당첨"); }
     else if (ticket.tier === "prize") { confetti(); toast(`🎁 ${ticket.rank}등 당첨! 쿠폰함에 넣어뒀어요`); }
-    else if (ticket.tier === "bomb") toast("💣 펑! 내일은 둘 다 강제 무지출 데이예요");
+    else if (ticket.tier === "bomb") toast("💣 펑! 다음 주(월~일)는 외식·배달 금지예요");
   };
 
   const resultBg = ticket?.tier === "jackpot" ? "ruby-panel gold-shine text-amber-50"
@@ -115,7 +115,7 @@ function PrizeTable() {
                 : row.symbol.repeat(3)}
             </span>
             <span className="text-sm text-toss-text leading-snug">
-              {row.tier === "jackpot" ? "🍗🍺 치맥 GO! (묻지도 따지지도 않기)" : row.tier === "bomb" ? "🔒 내일 둘 다 강제 무지출" : row.prize}
+              {row.tier === "jackpot" ? "🍗🍺 치맥 GO! (묻지도 따지지도 않기)" : row.tier === "bomb" ? "🔒 다음 주 월~일 둘 다 외식·배달 금지" : row.prize}
             </span>
           </div>
         ))}

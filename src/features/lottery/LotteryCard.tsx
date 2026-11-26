@@ -1,7 +1,8 @@
 import type { LotteryTicket, Profile } from "../../lib/types";
 import { Avatar } from "../../ui/Avatar";
-import { symbolsOf } from "./ticket";
+import { symbolsOf, type DiningBan } from "./ticket";
 
+const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`;
 const isBombPair = (t: LotteryTicket) => symbolsOf(t).filter((x) => x === "💣").length === 2;
 
 interface Props {
@@ -10,8 +11,12 @@ interface Props {
   /** 지난달 말일 ~ 이번 달 복권 기록 (두 사람 모두) */
   tickets: LotteryTicket[];
   profiles: Profile[];
-  /** 오늘이 강제 무지출 데이면 폭탄을 긁은 사람 이름 */
-  bombBy: string | null;
+  /** 💣 오늘 걸려 있는 외식 금지 */
+  ban: DiningBan | null;
+  /** 💣 다음 주에 시작하는 외식 금지 (예고) */
+  nextBan: DiningBan | null;
+  /** 외식 금지 중에 한 외식 횟수 */
+  banBroken: number;
   /** 내가 가진, 아직 안 쓴 쿠폰 수 */
   couponCount: number;
   onOpen: () => void;
@@ -19,7 +24,7 @@ interface Props {
 }
 
 /** 대시보드의 '오늘의 복권' 카드: 아직이면 긁으러 가기, 긁었으면 둘의 결과 */
-export function LotteryCard({ uid, today, tickets, profiles, bombBy, couponCount, onOpen, onOpenCoupons }: Props) {
+export function LotteryCard({ uid, today, tickets, profiles, ban, nextBan, banBroken, couponCount, onOpen, onOpenCoupons }: Props) {
   const mine = tickets.find((t) => t.uid === uid && t.date === today);
   const partnerTicket = tickets.find((t) => t.uid !== uid && t.date === today);
   const partnerProfile = profiles.find((p) => p.uid !== uid) || null;
@@ -36,7 +41,7 @@ export function LotteryCard({ uid, today, tickets, profiles, bombBy, couponCount
     else if (t.tier === "jackpot") text = "👑 1등 🎰🎰🎰 치맥!";
     else if (t.tier === "love") text = "💕 숨겨진 하트! 뽀뽀 해주기";
     else if (t.tier === "prize") text = `${t.rank}등 ${t.prize}`;
-    else if (t.tier === "bomb") text = "💣💣💣 폭탄! 내일 강제 무지출";
+    else if (t.tier === "bomb") text = "💣💣💣 폭탄! 다음 주 외식 금지";
     else if (t.tier === "almost") text = isBombPair(t) ? `휴, 폭탄 피했다! ${sym}` : `아깝다! ${sym}`;
     else text = `꽝 ${sym}`;
     return (
@@ -62,9 +67,15 @@ export function LotteryCard({ uid, today, tickets, profiles, bombBy, couponCount
         </span>
       </div>
 
-      {bombBy && (
+      {ban && (
         <div className="mt-2 px-3 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold">
-          💣 오늘은 강제 무지출 데이! <span className="font-normal text-white/70">어제 {bombBy}의 폭탄</span>
+          💣 이번 주 외식·배달 금지 <span className="font-normal text-white/70">~{md(ban.to)}(일) · {ban.by}의 폭탄</span>
+          {banBroken > 0 && <span className="block text-xs font-normal text-amber-300 mt-0.5">😅 그런데 벌써 외식 {banBroken}번… 남은 날은 꼭 집밥!</span>}
+        </div>
+      )}
+      {!ban && nextBan && (
+        <div className="mt-2 px-3 py-2 rounded-xl bg-gray-100 text-gray-800 text-sm font-semibold">
+          💣 다음 주 외식·배달 금지 예고 <span className="font-normal text-toss-sub">{md(nextBan.from)}(월)~{md(nextBan.to)}(일) · {nextBan.by}의 폭탄</span>
         </div>
       )}
 

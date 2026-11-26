@@ -10,7 +10,7 @@ import { dueDateInMonth, getPeriodInfo } from "./dates";
 import { formatShort } from "./format";
 import { isHousehold, type Transaction } from "./types";
 import { matchTx } from "../features/expenses/filters";
-import { drawTicket, forcedNoSpendDays, LOSE_MESSAGE, LOVE_SYMBOL, PRIZE_TABLE, VISIBLE_PRIZES } from "../features/lottery/ticket";
+import { breaksDiningBan, diningBanDays, drawTicket, LOSE_MESSAGE, sundayOf, upcomingDiningBan, LOVE_SYMBOL, PRIZE_TABLE, VISIBLE_PRIZES } from "../features/lottery/ticket";
 import { nameForEmail, sha256Hex } from "./people";
 import type { LotteryTicket } from "./types";
 
@@ -386,11 +386,33 @@ describe("오늘의 복권", () => {
     expect(almost / 30000).toBeGreaterThan(0.37);
     expect(almost / 30000).toBeLessThan(0.43);
   });
-  it("폭탄 다음 날은 강제 무지출 데이 (말일 → 다음 달 1일)", () => {
-    const t = (date: string, tier: LotteryTicket["tier"], revealed = true): LotteryTicket =>
-      ({ id: date, uid: "u2", name: "경은", date, symbols: [], tier, prize: "", revealed });
-    const days = forcedNoSpendDays([t("2026-11-30", "bomb"), t("2026-11-10", "lose"), t("2026-11-12", "bomb", false)]);
-    expect(days).toEqual({ "2026-12-01": "경은" });
+  it("💣 폭탄 → 다음 주 월~일 외식 금지 (달을 넘어가도)", () => {
+    const t = (date: string, tier: LotteryTicket["tier"], revealed = true, extra: Partial<LotteryTicket> = {}): LotteryTicket =>
+      ({ id: date, uid: "u2", name: "경은", date, symbols: [], tier, prize: "", revealed, ...extra });
+    expect(sundayOf("2026-11-26")).toBe("2026-11-29"); // 목 → 일
+    expect(sundayOf("2026-11-29")).toBe("2026-11-29"); // 일 → 그날
+    expect(sundayOf("2026-11-30")).toBe("2026-12-06"); // 월 → 그 주 일
+    const bans = diningBanDays([t("2026-11-26", "bomb"), t("2026-11-10", "lose"), t("2026-11-12", "bomb", false)]);
+    expect(Object.keys(bans)).toEqual(["2026-11-30", "2026-12-01", "2026-12-02", "2026-12-03", "2026-12-04", "2026-12-05", "2026-12-06"]);
+    expect(bans["2026-12-02"]).toEqual({ from: "2026-11-30", to: "2026-12-06", by: "경은" });
+    // 일요일에 터지면 바로 다음 날부터
+    expect(Object.keys(diningBanDays([t("2026-11-29", "bomb")]))[0]).toBe("2026-11-30");
+    // 같은 주에 둘 다 터지면 이름을 합쳐요
+    const both = diningBanDays([t("2026-11-24", "bomb"), t("2026-11-26", "bomb", true, { id: "x", uid: "u1", name: "태형" })], [{ uid: "u1", name: "태형" }, { uid: "u2", name: "경은" }]);
+    expect(both["2026-12-01"].by).toBe("경은·태형");
+    // 예고: 아직 시작 안 한 금지
+    expect(upcomingDiningBan(bans, "2026-11-26")).toMatchObject({ from: "2026-11-30" });
+    expect(upcomingDiningBan(bans, "2026-12-01")).toBeNull();
+  });
+  it("💣 금지 주간의 외식·배달만 따지고, 회사 돈·환불·다른 항목은 빼요", () => {
+    const bans = diningBanDays([{ id: "b", uid: "u2", name: "경은", date: "2026-11-26", symbols: [], tier: "bomb", prize: "", revealed: true }]);
+    const d = (date: string, extra: Record<string, unknown> = {}) => ({ date, category: "foodDining", amount: 20000, ...extra });
+    expect(breaksDiningBan(d("2026-12-01"), bans)).toBe(true);
+    expect(breaksDiningBan(d("2026-11-27"), bans)).toBe(false); // 폭탄 나온 주는 괜찮아요
+    expect(breaksDiningBan(d("2026-12-07"), bans)).toBe(false); // 그다음 주
+    expect(breaksDiningBan(d("2026-12-01", { company: true }), bans)).toBe(false);
+    expect(breaksDiningBan(d("2026-12-01", { amount: -20000 }), bans)).toBe(false);
+    expect(breaksDiningBan(d("2026-12-01", { category: "foodCafe" }), bans)).toBe(false);
   });
 });
 

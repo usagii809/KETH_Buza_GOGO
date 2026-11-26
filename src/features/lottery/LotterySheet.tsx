@@ -4,7 +4,7 @@ import type { LotteryTicket } from "../../lib/types";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
 import { confetti, emojiFloat, emojiPop, emojiRain } from "../fun/confetti";
-import { drawTicket, isJackpotSymbol, JACKPOT_SYMBOL, LOVE_SYMBOL, LOSE_MESSAGE, symbolsOf, tierTitle, VISIBLE_PRIZES } from "./ticket";
+import { drawTicket, isJackpotSymbol, prizeText, JACKPOT_SYMBOL, LOVE_SYMBOL, LOSE_MESSAGE, symbolsOf, tierTitle, VISIBLE_PRIZES } from "./ticket";
 import { notify } from "../feed/notify";
 
 interface Props {
@@ -86,7 +86,7 @@ export function LotterySheet({ uid, myName, today, onClose, onOpenCoupons }: Pro
               ) : (
                 <p className={`font-bold ${ticket.tier === "love" ? "text-xl text-rose-500" : "text-lg"}`}>{ticket.tier === "almost" && symbolsOf(ticket).filter((x) => x === "💣").length === 2 ? "😮‍💨 휴, 살았다!" : tierTitle(ticket.tier, ticket.rank)}</p>
               )}
-              <p className="text-base font-semibold mt-1 whitespace-pre-line leading-relaxed">{ticket.tier === "lose" ? LOSE_MESSAGE : ticket.prize}</p>
+              <p className="text-base font-semibold mt-1 whitespace-pre-line leading-relaxed">{ticket.tier === "lose" ? LOSE_MESSAGE : prizeText(ticket)}</p>
               {(ticket.tier === "prize" || ticket.tier === "love" || ticket.tier === "jackpot") && onOpenCoupons && (
                 <button type="button" onClick={onOpenCoupons}
                   className={`mt-2 px-3 py-1.5 rounded-full text-xs font-bold ${ticket.tier === "jackpot" ? "bg-white/15 text-amber-50" : "bg-white text-indigo-600"}`}>

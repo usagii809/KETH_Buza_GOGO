@@ -1,10 +1,11 @@
+import { prizeText } from "./ticket";
 import type { LotteryTicket } from "../../lib/types";
 
 /** 쿠폰에 적을 이름 */
 export function couponLabel(t: LotteryTicket): string {
   if (t.tier === "jackpot") return "🍗🍺 치맥 쿠폰";
   if (t.tier === "love") return "💋 뽀뽀 쿠폰";
-  return t.prize;
+  return prizeText(t);
 }
 
 export interface CouponGroups {

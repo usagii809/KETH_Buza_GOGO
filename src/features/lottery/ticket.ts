@@ -34,6 +34,15 @@ export const PRIZE_TABLE: PrizeRow[] = [
   { symbol: "💣", tier: "bomb", rank: 0, chance: 0.06, prize: "다음 주 일주일간 외식·배달 봉인 🔒" }
 ];
 
+/**
+ * 화면에 보여줄 상품 문구: 지금 당첨표 문구를 써요
+ * (복권 문서에는 뽑을 때의 문구가 저장돼 있어서, 문구를 고쳐도 예전 복권에 옛 문구가 남지 않게)
+ */
+export function prizeText(t: Pick<LotteryTicket, "tier" | "rank" | "prize">): string {
+  const row = PRIZE_TABLE.find((r) => r.tier === t.tier && (t.tier !== "prize" || r.rank === t.rank));
+  return row?.prize ?? t.prize ?? "";
+}
+
 /** 화면에 보여줄 당첨표 (숨겨진 하트는 빼고) */
 export const VISIBLE_PRIZES = PRIZE_TABLE.filter((r) => r.tier !== "love");
 
@@ -89,7 +98,7 @@ export function tierTitle(tier: LotteryTier, rank = 0): string {
     case "jackpot": return "👑 1등! 🎰🎰🎰 치맥 당첨";
     case "prize": return `🎁 ${rank}등 당첨!`;
     case "love": return "💕 숨겨진 하트 당첨!";
-    case "bomb": return "💣 폭탄 세 개!";
+    case "bomb": return "💣 폭탄 발견!";
     case "almost": return "😮 아깝다!";
     default: return "꽝";
   }

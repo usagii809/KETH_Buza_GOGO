@@ -1,6 +1,6 @@
 import type { LotteryTicket, Profile } from "../../lib/types";
 import { Avatar } from "../../ui/Avatar";
-import { symbolsOf, type DiningBan } from "./ticket";
+import { prizeText, symbolsOf, type DiningBan } from "./ticket";
 
 const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`;
 const isBombPair = (t: LotteryTicket) => symbolsOf(t).filter((x) => x === "💣").length === 2;
@@ -40,7 +40,7 @@ export function LotteryCard({ uid, today, tickets, profiles, ban, nextBan, banBr
     if (!t || !t.revealed) text = "아직 안 긁었어요";
     else if (t.tier === "jackpot") text = "👑 1등 🎰🎰🎰 치맥!";
     else if (t.tier === "love") text = "💕 숨겨진 하트! 뽀뽀 해주기";
-    else if (t.tier === "prize") text = `${t.rank}등 ${t.prize}`;
+    else if (t.tier === "prize") text = `${t.rank}등 ${prizeText(t)}`;
     else if (t.tier === "bomb") text = "💣💣💣 폭탄! 다음 주 외식 금지";
     else if (t.tier === "almost") text = isBombPair(t) ? `휴, 폭탄 피했다! ${sym}` : `아깝다! ${sym}`;
     else text = `꽝 ${sym}`;

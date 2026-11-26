@@ -467,3 +467,12 @@ describe("기념일 한마디 누르기 효과", () => {
     expect(dateEggFx("2027-01-01")).toBeNull(); // 새해 · 12/31은 문구만
   });
 });
+
+describe("복권 상품 문구", () => {
+  it("예전에 뽑은 복권도 지금 당첨표 문구로 보여요", async () => {
+    const { prizeText } = await import("../features/lottery/ticket");
+    expect(prizeText({ tier: "bomb", rank: 0, prize: "다음 주 외식 금지! 월~일 둘 다 외식·배달 봉인 🔒" })).toBe("다음 주 일주일간 외식·배달 봉인 🔒");
+    expect(prizeText({ tier: "prize", rank: 3, prize: "옛 문구" })).toBe("🧽 설거지 면제권");
+    expect(prizeText({ tier: "lose", rank: 0, prize: "꽝 문구" })).toBe("꽝 문구");
+  });
+});

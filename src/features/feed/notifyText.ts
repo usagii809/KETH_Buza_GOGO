@@ -5,7 +5,7 @@ import { formatKRW } from "../../lib/format";
 import type { PushMessage } from "../../lib/push";
 import type { Goal, LotteryTicket, Transaction } from "../../lib/types";
 import { couponLabel } from "../lottery/coupons";
-import { symbolsOf } from "../lottery/ticket";
+import { prizeText, symbolsOf } from "../lottery/ticket";
 import type { ActivityItem, FeedItem } from "./calc";
 
 type TxLike = Pick<Transaction, "amount" | "category" | "memo" | "spender"> & Partial<Pick<Transaction, "company">>;
@@ -40,7 +40,7 @@ export function lotteryShort(t: Pick<LotteryTicket, "tier" | "rank" | "prize" | 
   const symbols = symbolsOf(t as LotteryTicket).join("");
   switch (t.tier) {
     case "jackpot": return { title: "복권 1등 당첨! 🍗🍺", detail: "치맥 쿠폰", symbols, big: true };
-    case "prize": return { title: `복권 ${t.rank}등 당첨! 🎁`, detail: t.prize, symbols, big: true };
+    case "prize": return { title: `복권 ${t.rank}등 당첨! 🎁`, detail: prizeText(t), symbols, big: true };
     case "love": return { title: "숨겨진 하트 당첨! 💕", detail: "뽀뽀 쿠폰", symbols, big: true };
     case "bomb": return { title: "💣 폭탄 발견!", detail: "다음 주 외식 금지", symbols, big: false };
     case "almost": return { title: "아깝다! 😮", detail: "아깝다!", symbols, big: false };

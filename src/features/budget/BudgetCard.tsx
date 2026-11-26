@@ -36,7 +36,7 @@ export function BudgetCard({ budget, s, period, txs, prevTxs }: { budget: Budget
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-5">
-        <AllowanceBox title="변동지출 전체" a={all} mode={effective} period={period} help={help === "variable"} onHelp={() => toggleHelp("variable")} />
+        <AllowanceBox title="변동지출" a={all} mode={effective} period={period} help={help === "variable"} onHelp={() => toggleHelp("variable")} />
         <AllowanceBox title="🍽️ 식비" a={food} mode={effective} period={period} help={help === "food"} onHelp={() => toggleHelp("food")} blue />
       </div>
 
@@ -159,7 +159,7 @@ function CalcHelp({ kind, a, mode, period, onClose }: { kind: "variable" | "food
   return (
     <div className="mb-5 -mt-2 p-3.5 rounded-2xl bg-toss-bg text-sm space-y-1 animate-sheet-up">
       <div className="flex items-center justify-between mb-1">
-        <p className="font-bold text-toss-text">{kind === "food" ? "🍽️ 식비" : "변동지출 전체"}는 이렇게 계산해요</p>
+        <p className="font-bold text-toss-text">{kind === "food" ? "🍽️ 식비는" : "변동지출은"} 이렇게 계산해요</p>
         <button type="button" onClick={onClose} aria-label="닫기" className="text-toss-sub px-1">✕</button>
       </div>
       {line(`이번 달 ${name} 예산`, formatKRW(a.monthBudget))}

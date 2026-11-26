@@ -106,7 +106,6 @@ function Dashboard({ user }: { user: User }) {
   useEffect(() => {
     if (emailName && me?.name !== emailName) saveProfile(user.uid, { name: emailName }).catch((err) => console.warn("프로필 이름 저장 참고:", err));
   }, [emailName, me?.name, user.uid]);
-  const partner = shared.profiles.find((p) => p.uid !== user.uid) || null;
 
   // 🎟️ 오늘의 복권
   const today = todayStr(now);
@@ -127,26 +126,30 @@ function Dashboard({ user }: { user: User }) {
   const feed = useMemo(() => buildFeed(feedTxs, user.uid, shared.profiles), [feedTxs, user.uid, shared.profiles]);
   const seenKey = `feedSeen_${user.uid}`;
   // 처음 쓰는 날엔 지난 소식이 한꺼번에 NEW로 뜨지 않게 지금부터 세요
-  const [feedSeen, setFeedSeen] = useState(() => {
+  const [localSeen, setLocalSeen] = useState(() => {
     const v = Number(store.get(seenKey, "0"));
     if (v) return v;
     const t = Date.now() - 86400000;
     store.set(seenKey, String(t));
     return t;
   });
+  // 읽은 시각은 계정(내 프로필)에도 저장해요 → 폰에서 읽으면 웹에서도 읽은 걸로
+  const feedSeen = Math.max(localSeen, Number(me?.feedSeenAt) || 0);
   const unseen = countUnseen(feed, feedSeen);
   const feedToasted = useRef(false);
   useEffect(() => {
-    if (feedToasted.current || unseen === 0) return;
+    // 내 프로필(계정에 저장된 읽은 시각)을 받은 뒤에만 알려줘요
+    if (feedToasted.current || !me || unseen === 0) return;
     feedToasted.current = true;
     const partnerName = shared.profiles.find((p) => p.uid !== user.uid)?.name || "상대";
     toast(`💌 ${partnerName} 님 새 소식 ${unseen}건이 있어요`);
-  }, [unseen, shared.profiles, user.uid, toast]);
+  }, [unseen, me, shared.profiles, user.uid, toast]);
   const openFeed = () => {
     setSheet({ type: "feed", lastSeen: feedSeen });
     const t = Date.now();
     store.set(seenKey, String(t));
-    setFeedSeen(t);
+    setLocalSeen(t);
+    saveProfile(user.uid, { feedSeenAt: t }).catch((err) => console.warn("읽은 시각 저장 참고:", err));
   };
 
   // 🏢 회사 돈은 기록만 하고, 예산·저축·무지출·그래프·성적표 계산에서는 전부 빼요
@@ -253,7 +256,6 @@ function Dashboard({ user }: { user: User }) {
         <button type="button" aria-label="내 프로필과 설정" onClick={() => setSheet({ type: "settings" })}
           className="relative w-12 h-12 shrink-0 rounded-full active:scale-95 transition">
           <Avatar profile={me} size={48} className="ring-2 ring-white shadow-sm" />
-          {partner && <Avatar profile={partner} size={22} className="absolute -left-1.5 -bottom-0.5 ring-2 ring-white" />}
         </button>
         </div>
 

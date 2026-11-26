@@ -6,6 +6,7 @@ import type { Transaction } from "../../lib/types";
 import { Card, Segmented } from "../../ui/controls";
 import { sumByCategory, sumUsage } from "../budget/calc";
 import { averageOf, buildDayBars, buildMonthBars, buildWeekBars, monthToBar, type Bar } from "./calc";
+import { Skeleton } from "../../ui/Loading";
 
 interface Props {
   period: PeriodInfo;
@@ -17,12 +18,14 @@ interface Props {
   txs: Transaction[];
   /** 보고 있는 달 이전 최대 11개월 기록 (회사 돈 뺀 것) */
   recentTxs: Transaction[];
+  /** 이 달보다 앞선 달은 아직 받는 중 (반짝이는 막대로) */
+  pendingBefore?: string | null;
   /** 오늘 (YYYY-MM-DD) */
   today: string;
 }
 
 /** 지난달 오늘과 비교 + 일별 · 주별 · 월별 지출 막대 */
-export function TrendCard({ period, spentSoFar, prevTxs, ym, txs, recentTxs, today }: Props) {
+export function TrendCard({ period, spentSoFar, prevTxs, ym, txs, recentTxs, pendingBefore, today }: Props) {
   if (period.state === "future") return null;
   const isCurrent = period.state === "current";
   const prevSoFar = sumUsage(sumByCategory(prevTxs, isCurrent ? period.day : null));
@@ -50,7 +53,7 @@ export function TrendCard({ period, spentSoFar, prevTxs, ym, txs, recentTxs, tod
       )}
 
       {/* 2) 일별 · 주별 · 월별 막대 */}
-      <SpendChart ym={ym} txs={txs} recentTxs={recentTxs} today={today} />
+      <SpendChart ym={ym} txs={txs} recentTxs={recentTxs} pendingBefore={pendingBefore} today={today} />
     </Card>
   );
 }
@@ -70,7 +73,7 @@ function CompareRow({ label, value, max, cls }: { label: string; value: number; 
 type Mode = "day" | "week" | "month";
 
 /** 막대 그래프: 일별(그달 날짜) · 주별(그달 주) · 월별(3 · 6 · 12개월). 막대를 누르면 자세히 */
-function SpendChart({ ym, txs, recentTxs, today }: { ym: string; txs: Transaction[]; recentTxs: Transaction[]; today: string }) {
+function SpendChart({ ym, txs, recentTxs, pendingBefore, today }: { ym: string; txs: Transaction[]; recentTxs: Transaction[]; pendingBefore?: string | null; today: string }) {
   // 고른 보기 방식은 계정에 저장 → 폰 · 웹 어디서나 같게
   const savedMode = usePref("trendMode");
   const savedMonths = usePref("trendMonths");
@@ -123,6 +126,15 @@ function SpendChart({ ym, txs, recentTxs, today }: { ym: string; txs: Transactio
           {bars.map((b, i) => {
             const on = b.key === sel.key;
             const has = b.count > 0;
+            // 아직 받는 중인 달: 반짝이는 막대 (높이는 들쭉날쭉하게)
+            if (mode === "month" && pendingBefore && b.key < pendingBefore) {
+              return (
+                <div key={b.key} className="flex-1 min-w-0 flex flex-col items-center justify-end h-full" aria-label={`${b.title} 불러오는 중`}>
+                  <Skeleton className={`w-full max-w-9 rounded-t-lg ${["h-[38%]", "h-[55%]", "h-[30%]", "h-[47%]"][i % 4]}`} />
+                  <span className="block h-5 pt-1.5 text-[11px] leading-none whitespace-nowrap text-toss-sub">{showLabel(i) ? b.label : ""}</span>
+                </div>
+              );
+            }
             return (
               <button key={b.key} type="button" onClick={() => setPicked(b.key)} disabled={b.future}
                 aria-label={`${b.title} ${formatKRW(b.total)}`}

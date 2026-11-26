@@ -50,6 +50,7 @@ import { confetti } from "./features/fun/confetti";
 import { isOurDay } from "./features/fun/eggs";
 import { useFeedback } from "./ui/feedback";
 import { SHEET_EXIT_MS, SheetExitContext, SheetNavContext } from "./ui/Sheet";
+import { MonthSkeleton, TopProgress } from "./ui/Loading";
 
 type SheetKind =
   | { type: "expense"; tx?: Transaction; refundFor?: Transaction; copyFrom?: Transaction }
@@ -177,7 +178,7 @@ function Dashboard({ user }: { user: User }) {
   // ④ 오래된 달 요약은 그래프가 화면에 보이거나, 카테고리 비교에 필요할 때만 읽어요
   const [trendSeen, setTrendSeen] = useState(false);
   const needOlderForInsights = shiftMonth(ym, -3) < shared.historyStart.slice(0, 7);
-  const recentTxs = useRecentMonths(ym, 12, hist, trendSeen || needOlderForInsights);
+  const { txs: recentTxs, pendingBefore: olderPending } = useRecentMonths(ym, 12, hist, trendSeen || needOlderForInsights);
   // 그래프 카드가 화면 근처에 오면 그때 오래된 달 요약을 읽어요 (한 번 보면 계속 유지)
   const trendObserver = useRef<IntersectionObserver | null>(null);
   const trendRef = useCallback((el: HTMLDivElement | null) => {
@@ -432,7 +433,7 @@ function Dashboard({ user }: { user: User }) {
       onNew={() => setSheet({ type: "goal", goalId: null, mode: "edit" })} />
   );
   const budgetEl = <BudgetCard budget={month.budget} s={summary} period={period} txs={txs} prevTxs={prevTxs} />;
-  const trendEl = <div ref={trendRef}><TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={prevTxs} ym={ym} txs={txs} recentTxs={recentHousehold} today={toDateStr(now)} /></div>;
+  const trendEl = <div ref={trendRef}><TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={prevTxs} ym={ym} txs={txs} recentTxs={recentHousehold} pendingBefore={olderPending} today={toDateStr(now)} /></div>;
   const yearEl = (
     <button type="button" id="openYearBtn" onClick={() => setSheet({ type: "year", year: period.y })}
       className="w-full mb-4 px-5 py-4 rounded-3xl bg-white shadow-sm border border-toss-border/60 flex items-center justify-between active:scale-[0.99] transition">
@@ -448,6 +449,8 @@ function Dashboard({ user }: { user: User }) {
     <>
     {/* 🌱 이 달 기록 · 예산을 처음 받을 때까지 로딩 화면, 받으면 스르륵 걷혀요 */}
     <Splash done={booted} />
+    {/* ⏳ 오래된 달로 넘겨서 그 달 기록을 받는 중이면 맨 위에 얇은 막대가 왔다 갔다 */}
+    <TopProgress show={booted && !month.txsLoaded} />
     <div className={`max-w-lg mx-auto px-4 pt-3 pb-10 ${booted ? "animate-app-in" : "opacity-0"}`}>
       {offline && (
         <div role="status" className="offline-banner sticky top-0 z-40 -mx-4 mb-2 px-4 py-2 bg-gray-900 text-white text-xs font-bold text-center" style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
@@ -489,6 +492,7 @@ function Dashboard({ user }: { user: User }) {
       )}
       {month.error && <div className="mb-4 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-sm text-toss-red font-medium leading-relaxed">{month.error}</div>}
 
+      {booted && !month.txsLoaded ? <MonthSkeleton /> : <>
       <QuipBubble s={summary} period={period} now={now}
         override={jackpotToday ? { text: "🍗🍺 오늘은 복권 1등! 묻지도 따지지도 않고 치맥 GO GO!", fx: { kind: "pop", emojis: ["🍗", "🍺"] } } : null}
         ban={todayBan ? { to: todayBan.to, by: todayBan.by } : null} />
@@ -520,7 +524,8 @@ function Dashboard({ user }: { user: User }) {
           {noSpendEl}
         </>
       )}
-      <TransactionList txs={month.txs} ym={ym} now={now} refundIndex={refundIndex} onEdit={(tx) => setSheet({ type: "expense", tx })}
+      </>}
+      <TransactionList loading={!month.txsLoaded} txs={month.txs} ym={ym} now={now} refundIndex={refundIndex} onEdit={(tx) => setSheet({ type: "expense", tx })}
         onSearchAll={(query) => setSheet({ type: "search", state: { ...DEFAULT_SEARCH, query } })} />
       </div>
 
@@ -561,7 +566,7 @@ function Dashboard({ user }: { user: User }) {
       {view?.type === "recurring" && <RecurringSheet rules={shared.recurring} onClose={closeSheet} />}
       {view?.type === "lottery" && <LotterySheet uid={user.uid} myName={me?.name} today={today} onClose={closeSheet} onOpenCoupons={() => openOver({ type: "coupons" })} />}
       {view?.type === "coupons" && <CouponSheet uid={user.uid} coupons={coupons} profiles={shared.profiles} onClose={closeSheet} />}
-      {view?.type === "feed" && <FeedSheet uid={user.uid} items={feed} profiles={shared.profiles} lastSeen={view.lastSeen} onClose={closeSheet} />}
+      {view?.type === "feed" && <FeedSheet loading={!feedLoaded} uid={user.uid} items={feed} profiles={shared.profiles} lastSeen={view.lastSeen} onClose={closeSheet} />}
       {view?.type === "goal" && (
         <GoalSheet key={view.goalId ?? "new"} goal={goal} mode={view.mode} prefill={view.prefill} planned={planned} now={now} onClose={closeSheet} />
       )}

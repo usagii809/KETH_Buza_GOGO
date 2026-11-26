@@ -8,6 +8,7 @@ import { Card } from "../../ui/controls";
 import { useFeedback } from "../../ui/feedback";
 import { FILTERS, matchTx, type FilterKey } from "./filters";
 import { refundStatus, type RefundIndex } from "./refunds";
+import { SkeletonRows } from "../../ui/Loading";
 
 const SPENDER_BADGE: Record<Spender, string> = {
   태형: "bg-blue-50 text-toss-blue",
@@ -17,7 +18,7 @@ const SPENDER_BADGE: Record<Spender, string> = {
 const PAGE = 15;
 const sum = (list: Transaction[]) => list.reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
 
-export function TransactionList({ txs, ym, now, refundIndex, onEdit, onSearchAll }: { txs: Transaction[]; ym: string; now: Date; refundIndex?: RefundIndex; onEdit: (tx: Transaction) => void; onSearchAll?: (query: string) => void }) {
+export function TransactionList({ txs, ym, now, refundIndex, onEdit, onSearchAll, loading = false }: { txs: Transaction[]; ym: string; now: Date; refundIndex?: RefundIndex; onEdit: (tx: Transaction) => void; onSearchAll?: (query: string) => void; loading?: boolean }) {
   const { toast } = useFeedback();
   const [filter, setFilter] = useState<FilterKey>("ALL");
   const [query, setQuery] = useState("");
@@ -70,6 +71,7 @@ export function TransactionList({ txs, ym, now, refundIndex, onEdit, onSearchAll
     summary = `${filtered.length}건 · ${formatKRW(sum(household))}`;
     if (company.length) summary += ` · 회사 돈 ${formatShort(sum(company))} 별도`;
   }
+  if (loading && txs.length === 0) summary = "불러오는 중…";
 
   return (
     <Card>
@@ -111,7 +113,9 @@ export function TransactionList({ txs, ym, now, refundIndex, onEdit, onSearchAll
         </button>
       )}
 
-      {groups.length === 0 ? (
+      {loading && txs.length === 0 ? (
+        <SkeletonRows n={4} />
+      ) : groups.length === 0 ? (
         <div className="py-10 text-center">
           <p className="text-base font-bold text-toss-text">{txs.length ? "조건에 맞는 기록이 없어요" : "아직 기록이 없어요"}</p>
           <p className="text-sm text-toss-sub mt-1">{txs.length ? "다른 필터나 검색어로 찾아보세요" : "아래 버튼으로 첫 지출을 남겨보세요"}</p>

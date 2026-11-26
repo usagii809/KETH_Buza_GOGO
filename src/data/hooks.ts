@@ -108,23 +108,28 @@ export function useRecentMonths(ym: string, n: number, hist: HistoryFeed, enable
   const months = useMemo(() => Array.from({ length: n - 1 }, (_, i) => shiftMonth(ym, i - (n - 1))), [ym, n]);
   const oldMonths = useMemo(() => months.filter((m) => m < startYm), [months, startYm]);
   const [old, setOld] = useState<Transaction[]>([]);
+  const [oldLoaded, setOldLoaded] = useState(false);
   useEffect(() => {
     let alive = true;
     setOld([]);
+    setOldLoaded(false);
     if (!enabled || !oldMonths.length) return;
     Promise.all(oldMonths.map((m) => {
       if (!oldMonthCache.has(m)) oldMonthCache.set(m, loadOldMonth(m).catch((err) => { oldMonthCache.delete(m); throw err; }));
       return oldMonthCache.get(m)!;
     }))
-      .then((lists) => { if (alive) setOld(lists.flat()); })
-      .catch((err) => console.warn("지난 달 요약 조회 참고:", err));
+      .then((lists) => { if (alive) { setOld(lists.flat()); setOldLoaded(true); } })
+      .catch((err) => { console.warn("지난 달 요약 조회 참고:", err); if (alive) setOldLoaded(true); });
     return () => { alive = false; };
   }, [enabled, oldMonths.join(",")]);
   const recent = useMemo(() => {
     const set = new Set(months.filter((m) => m >= startYm));
     return hist.txs.filter((t) => set.has(ymOf(t)));
   }, [hist.txs, months, startYm]);
-  return useMemo(() => [...old, ...recent], [old, recent]);
+  const txs = useMemo(() => [...old, ...recent], [old, recent]);
+  // 아직 받는 중인 오래된 달: 이 달(YYYY-MM)보다 앞선 달들 (그래프에서 반짝이는 막대로 보여줘요)
+  const pendingBefore = oldMonths.length && !oldLoaded ? startYm : null;
+  return { txs, pendingBefore };
 }
 
 /** 달과 상관없는 공유 데이터: 자동 기록 규칙, 저축 목표, 최근 기록(자동완성) */

@@ -12,6 +12,7 @@ import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
 import { REACTIONS, timeAgo, type ActivityItem, type FeedItem } from "./calc";
 import { offlineBlocked } from "../../lib/online";
+import { SkeletonRows } from "../../ui/Loading";
 
 interface Props {
   uid: string;
@@ -20,12 +21,14 @@ interface Props {
   /** 시트를 열기 전 마지막으로 본 시각 (그 뒤 소식에 NEW 표시) */
   lastSeen: number;
   onClose: () => void;
+  /** 소식을 아직 받는 중 */
+  loading?: boolean;
 }
 
 type Tab = "all" | "me" | "partner";
 
 /** 💌 같이 보기: 둘이 한 일을 전체 · 나 · 상대로 나눠 보고, 상대 기록에 반응해요 */
-export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
+export function FeedSheet({ uid, items, profiles, lastSeen, onClose, loading = false }: Props) {
   const { toast } = useFeedback();
   const partner = profiles.find((p) => p.uid !== uid) || null;
   const partnerName = partner?.name || "상대";
@@ -57,7 +60,9 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
       <div className="flex items-center justify-between mb-3">
         <Segmented options={[["all", "전체"], ["me", "나"], ["partner", partnerName + (newCount(false) ? ` ${newCount(false)}` : "")]]} value={tab} onChange={setTab} />
       </div>
-      {shown.length === 0 ? (
+      {loading && items.length === 0 ? (
+        <SkeletonRows n={4} />
+      ) : shown.length === 0 ? (
         <div className="py-12 text-center">
           <p className="text-base font-bold text-toss-text">아직 소식이 없어요</p>
           <p className="text-sm text-toss-sub mt-1">{tab === "me" ? "기록하거나 복권을 긁으면 여기에 남아요" : `${partnerName} 님이 기록하거나 복권을 긁으면 여기에 보여요`}</p>

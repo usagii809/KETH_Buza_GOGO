@@ -6,6 +6,7 @@ import type { LotteryTicket, Transaction } from "../../lib/types";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
 import { buildYearReport, type YearReport } from "./calc";
+import { LoadingDots, Skeleton } from "../../ui/Loading";
 
 interface Props {
   initialYear: number;
@@ -70,7 +71,13 @@ export function YearSheet({ initialYear, now, defaultBudget, noSpendStart, first
     } subtitle={year === thisYear ? `${now.getMonth() + 1}월 ${now.getDate()}일까지 기준이에요` : undefined} onClose={onClose}
       footer={report && report.recordCount > 0 ? <button type="button" onClick={share} className="flex-1 py-3 rounded-2xl bg-toss-bg text-sm font-bold text-toss-sub active:scale-[0.99] transition">결산 공유하기</button> : undefined}>
       {failed && <div className="p-3.5 rounded-2xl bg-red-50 text-toss-red text-sm font-medium">불러오지 못했어요. 인터넷 연결을 확인해 주세요.</div>}
-      {!report && !failed && <div className="py-16 text-center text-sm text-toss-sub">{year}년 기록을 모으는 중...</div>}
+      {!report && !failed && (
+        <div className="py-4 space-y-4">
+          <LoadingDots className="py-6">{year}년 기록을 모으는 중이에요</LoadingDots>
+          <Skeleton className="h-24 rounded-2xl" />
+          <Skeleton className="h-40 rounded-2xl" />
+        </div>
+      )}
       {report && report.recordCount === 0 && (
         <div className="py-14 text-center">
           <p className="text-4xl">📭</p>

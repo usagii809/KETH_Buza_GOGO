@@ -6,6 +6,7 @@ import { formatKRW, formatShort } from "../../lib/format";
 import { isRefund, type Transaction } from "../../lib/types";
 import { Sheet } from "../../ui/Sheet";
 import { searchTxs, summarizeSearch, yearsOf, type SearchKind, type SearchOptions, type SearchSpender } from "./calc";
+import { LoadingDots, SkeletonRows } from "../../ui/Loading";
 
 export interface SearchState extends SearchOptions {
   query: string;
@@ -75,7 +76,7 @@ export function SearchSheet({ initial, now, onEdit, onClose }: Props) {
 
         {failed && <div className="p-3.5 rounded-2xl bg-red-50 text-toss-red text-sm font-medium">기록을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</div>}
 
-        {!all && !failed && <div className="py-10 text-center text-sm text-toss-sub">기록을 불러오는 중...</div>}
+        {!all && !failed && <div className="py-4"><LoadingDots className="py-4">모든 기록을 불러오는 중이에요</LoadingDots><SkeletonRows n={5} /></div>}
 
         {all && !hasFilter && (
           <div className="py-8 text-center">

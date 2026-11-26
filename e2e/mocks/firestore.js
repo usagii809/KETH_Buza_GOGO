@@ -65,14 +65,17 @@ const dsnap = (r) => { const d = store.get(r.path); return { exists: () => !!d, 
 window.__reads = { total: 0, by: {} };
 const countRead = (label, n) => { window.__reads.total += n; window.__reads.by[label] = (window.__reads.by[label] || 0) + n; };
 const labelOf = (ref) => (ref.path || "").replace(/^ledgers\/shared_household\//, "").split("/")[0] + (ref.conds && ref.conds.length ? "?" + ref.conds.map((c) => c.f || c.orderBy || "limit").join(",") : "");
+// ⏳ 로딩 화면 시험용: ?slow=2000 이면 처음 받는 데 2초 걸려요
+const SLOW = Number(new URLSearchParams(location.search).get("slow") || 0);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const fire = (l) => setTimeout(() => {
   const snap = l.ref.col ? qsnap(l.ref) : dsnap(l.ref);
   if (!l.counted) { l.counted = true; countRead("listen:" + labelOf(l.ref), l.ref.col ? snap.docs.length : 1); }
   l.cb(snap);
-}, 5);
+}, l.counted ? 5 : (SLOW && l.ref.col ? SLOW : 5));
 // onSnapshot(ref, cb) 와 onSnapshot(ref, 옵션, cb) 둘 다 받아요
 export const onSnapshot = (ref, a, b) => { const cb = typeof a === "function" ? a : b; const l = { ref, cb }; listeners.add(l); fire(l); return () => listeners.delete(l); };
-export const getDocs = async (q) => { const s = qsnap(q); countRead("get:" + labelOf(q), s.docs.length || 1); return s; };
+export const getDocs = async (q) => { if (SLOW) await sleep(SLOW); const s = qsnap(q); countRead("get:" + labelOf(q), s.docs.length || 1); return s; };
 const apply = (path, data, merge) => {
   const cur = merge ? { ...(store.get(path) || {}) } : {};
   for (let [k, v] of Object.entries(data)) {
@@ -113,4 +116,4 @@ export const persistentLocalCache = () => ({});
 export const persistentMultipleTabManager = () => ({});
 export const orderBy = (f) => ({ orderBy: f });
 export const limit = (n) => ({ limit: n });
-export const getDoc = async (r) => { countRead("get:" + labelOf(r), 1); return dsnap(r); };
+export const getDoc = async (r) => { if (SLOW) await sleep(SLOW); countRead("get:" + labelOf(r), 1); return dsnap(r); };

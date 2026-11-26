@@ -7,6 +7,7 @@ import { confetti, emojiFloat, emojiPop, emojiRain } from "../fun/confetti";
 import { drawTicket, isJackpotSymbol, prizeText, JACKPOT_SYMBOL, LOVE_SYMBOL, LOSE_MESSAGE, symbolsOf, tierTitle, VISIBLE_PRIZES } from "./ticket";
 import { notify } from "../feed/notify";
 import { isOffline, OFFLINE_MSG, offlineBlocked } from "../../lib/online";
+import { LoadingDots, Skeleton } from "../../ui/Loading";
 
 interface Props {
   uid: string;
@@ -61,7 +62,12 @@ export function LotterySheet({ uid, myName, today, onClose, onOpenCoupons }: Pro
   return (
     <Sheet title="🎟️ 오늘의 복권" subtitle="하루 한 장! 🎰🎰🎰 나오면 바로 치맥 GO" onClose={onClose}>
       {!ticket ? (
-        <div className="h-40 flex items-center justify-center text-sm text-toss-sub">복권을 꺼내는 중…</div>
+        <div className="space-y-3">
+          <div className="h-36 rounded-2xl border-2 border-amber-200 bg-amber-50 flex items-center justify-center gap-3">
+            <Skeleton className="w-16 h-20 rounded-xl" /><Skeleton className="w-16 h-20 rounded-xl" /><Skeleton className="w-16 h-20 rounded-xl" />
+          </div>
+          <LoadingDots>복권을 꺼내는 중이에요</LoadingDots>
+        </div>
       ) : (
         <div className="space-y-4">
           {/* ? 를 누르면 당첨표 */}

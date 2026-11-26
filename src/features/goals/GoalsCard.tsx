@@ -79,7 +79,6 @@ function PlanBox({ plan }: { plan: MonthlyPlan }) {
         <span className="text-toss-sub">지금까지 {formatShort(plan.spent)} 썼어요 · </span>
         <b className={over ? "text-toss-red" : "text-toss-green"}>{over ? `${formatShort(-plan.left)} 넘었어요` : `${formatShort(plan.left)} 남았어요`}</b>
       </p>
-      {plan.perDay !== null && !over && <p className="text-xs text-toss-sub num mt-0.5">남은 날 동안 하루 {formatShort(plan.perDay)}씩 쓰면 돼요</p>}
       <p className={`text-xs mt-2 pt-2 border-t border-green-100 leading-relaxed ${plan.vsBudget < 0 ? "text-toss-red font-semibold" : "text-toss-sub"}`}>
         {plan.vsBudget >= 0
           ? `변동지출 예산 안에서만 쓰면 목표를 지킬 수 있어요 👍 (${formatShort(plan.vsBudget)} 여유)`

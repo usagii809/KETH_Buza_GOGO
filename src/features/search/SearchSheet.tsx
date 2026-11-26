@@ -140,7 +140,7 @@ export function SearchSheet({ initial, now, onEdit, onClose }: Props) {
         {shown < sum.count && (
           <button type="button" onClick={() => setLimit((l) => l + PAGE)}
             className="w-full py-3 rounded-xl bg-toss-bg text-sm font-bold text-toss-sub active:scale-[0.99] transition">
-            더 보기 <span className="font-normal num">· {sum.count - shown}건 남았어요</span>
+            {/* 누르면 보여줄 만큼만 숫자로 */}이전 기록 <span className="num">{Math.min(sum.count - shown, PAGE)}건</span> 더 보기
           </button>
         )}
       </div>

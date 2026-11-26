@@ -9,7 +9,7 @@ import { useState } from "react";
 import { Segmented } from "../../ui/controls";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
-import { MORE_REACTIONS, REACTIONS, timeAgo, type ActivityItem, type FeedItem } from "./calc";
+import { REACTIONS, timeAgo, type ActivityItem, type FeedItem } from "./calc";
 
 interface Props {
   uid: string;
@@ -171,29 +171,27 @@ function ReactionArea({ mine, reactions, uid, me, partner, partnerName, onReact 
   return <ReactionButtons my={reactions?.[uid]?.e} me={me} onReact={onReact} />;
 }
 
-/** 반응 버튼 4개 + 오른쪽 끝 ➕ (누르면 이모지가 더 펼쳐져요) */
+/** 내가 남긴 반응 + 오른쪽 끝 ➕ (누르면 이모지 판이 펼쳐져요) */
 function ReactionButtons({ my, me, onReact }: { my?: string; me: Profile | null; onReact: (current: string | undefined, emoji: string) => void }) {
   const [open, setOpen] = useState(false);
-  // 기본 4개 밖의 이모지로 반응했으면 그것도 버튼으로 보여줘요
-  const quick: string[] = my && !(REACTIONS as readonly string[]).includes(my) ? [...REACTIONS, my] : [...REACTIONS];
-  const chip = (selected: boolean) =>
-    `reaction shrink-0 w-9 h-8 rounded-full text-base leading-none flex items-center justify-center transition active:scale-90 ${selected ? "bg-toss-blueLight ring-2 ring-toss-blue" : "bg-black/[0.04] dark:bg-white/10"}`;
   return (
     <div className="mt-2 pl-12">
-      <div className="flex items-center gap-1.5">
-        {quick.map((e) => (
-          <button key={e} type="button" aria-label={`${e} 반응`} aria-pressed={my === e} onClick={() => onReact(my, e)} className={chip(my === e)}>{e}</button>
-        ))}
-        {/* 버튼이 5개면 자리가 좁아서 "반응했어요" 글자는 빼요 */}
-        {my && <span className="ml-1 flex items-center gap-1 text-xs text-toss-sub whitespace-nowrap"><Avatar profile={me} size={16} />{quick.length > REACTIONS.length ? "" : "반응했어요"}</span>}
-        <button type="button" aria-label={open ? "이모지 닫기" : "다른 이모지로 반응"} aria-expanded={open} onClick={() => setOpen((o) => !o)}
+      <div className="flex items-center gap-1.5 min-h-8">
+        {my && (
+          // 내 반응: 다시 누르면 취소
+          <button type="button" aria-label={`${my} 반응 취소`} onClick={() => onReact(my, my)}
+            className="reaction shrink-0 h-8 pl-2.5 pr-3 rounded-full bg-toss-blueLight ring-2 ring-toss-blue flex items-center gap-1.5 text-base leading-none active:scale-95 transition">
+            {my}<Avatar profile={me} size={16} /><span className="text-xs text-toss-sub">반응했어요</span>
+          </button>
+        )}
+        <button type="button" aria-label={open ? "이모지 닫기" : "이모지로 반응"} aria-expanded={open} onClick={() => setOpen((o) => !o)}
           className={`reaction-more ml-auto shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold leading-none transition active:scale-90 ${open ? "bg-toss-blue text-white rotate-45" : "bg-black/[0.04] dark:bg-white/10 text-toss-sub"}`}>
           +
         </button>
       </div>
       {open && (
         <div role="listbox" aria-label="이모지 고르기" className="emoji-picker mt-2 p-2 rounded-2xl bg-white dark:bg-toss-card border border-toss-border shadow-sm grid grid-cols-8 gap-0.5">
-          {MORE_REACTIONS.map((e) => (
+          {REACTIONS.map((e) => (
             <button key={e} type="button" role="option" aria-selected={my === e} aria-label={`${e} 반응`}
               onClick={() => { onReact(my, e); setOpen(false); }}
               className={`h-9 rounded-xl text-xl leading-none flex items-center justify-center active:scale-90 transition ${my === e ? "bg-toss-blueLight ring-2 ring-toss-blue" : "hover:bg-toss-bg"}`}>

@@ -13,6 +13,23 @@ function monthsLaterLabel(n: number, now: Date) {
 }
 
 /**
+ * 이번 달(달력 기준)에 이 목표에 넣은 돈 (뺀 돈은 빼요).
+ * 이번 달에 만든 목표는 처음 적어둔 '모은 돈'도 이번 달에 넣은 걸로 쳐요.
+ */
+export function goalThisMonth(g: Goal, now = new Date()): number {
+  const from = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
+  const inMonth = (at: number) => at >= from && at < to;
+  const hist = (g.history || []).filter((h) => h && h.at);
+  let sum = hist.filter((h) => inMonth(Number(h.at))).reduce((s, h) => s + (Number(h.amount) || 0), 0);
+  if (g.createdAt && inMonth(Number(g.createdAt))) {
+    const viaHistory = hist.reduce((s, h) => s + (Number(h.amount) || 0), 0);
+    sum += Math.max(0, (Number(g.saved) || 0) - viaHistory);
+  }
+  return sum;
+}
+
+/**
  * 달성 예상:
  * 1) 한 달(25일) 이상 모은 기록이 있으면 그 속도로
  * 2) 아니면 이번 달 계획 저축액을 매달 넣는다고 가정

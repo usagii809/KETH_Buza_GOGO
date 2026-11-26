@@ -1,7 +1,7 @@
 import { formatKRW, formatShort } from "../../lib/format";
 import type { Goal } from "../../lib/types";
 import { Card, ProgressBar } from "../../ui/controls";
-import { goalEta, goalPct, goalRemain, type MonthlyPlan } from "./calc";
+import { goalEta, goalPct, goalRemain, goalThisMonth, type MonthlyPlan } from "./calc";
 
 export function GoalsCard({ goals, planned, plan, now, onOpen, onNew }:
   { goals: Goal[]; planned: number; plan: MonthlyPlan | null; now: Date; onOpen: (g: Goal) => void; onNew: () => void }) {
@@ -37,6 +37,7 @@ export function GoalsCard({ goals, planned, plan, now, onOpen, onNew }:
                   <span>{formatShort(g.saved || 0)} / {formatShort(g.target || 0)}</span>
                   <span className="font-semibold">{remain > 0 ? `목표까지 ${formatShort(remain)}` : "달성 완료 🎉"}</span>
                 </div>
+                <MonthlyCheck g={g} now={now} />
                 {eta && <p className="text-xs font-semibold text-toss-blue mt-1">{eta}</p>}
               </button>
             );
@@ -44,6 +45,23 @@ export function GoalsCard({ goals, planned, plan, now, onOpen, onNew }:
         </div>
       )}
     </Card>
+  );
+}
+
+/** 이번 달 할 일: 매달 모을 돈을 이번 달에 넣었는지 */
+function MonthlyCheck({ g, now }: { g: Goal; now: Date }) {
+  const monthly = Number(g.monthly) || 0;
+  if (monthly <= 0 || goalRemain(g) <= 0) return null;
+  const done = goalThisMonth(g, now);
+  const m = now.getMonth() + 1;
+  if (done >= monthly) {
+    return <p className="text-xs font-semibold text-toss-green mt-1.5 num">✅ {m}월 {formatShort(monthly)} 다 넣었어요{done > monthly ? ` (+${formatShort(done - monthly)} 더)` : ""}</p>;
+  }
+  return (
+    <p className="text-xs text-toss-sub mt-1.5 num">
+      📅 {m}월 {formatShort(monthly)} 중 <b className={done > 0 ? "text-toss-text" : "text-toss-amber"}>{formatShort(Math.max(0, done))}</b> 넣었어요
+      {done > 0 && ` · ${formatShort(monthly - done)} 남았어요`}
+    </p>
   );
 }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { goalThisMonth } from "../features/goals/calc";
 import { computeSummary } from "../features/budget/calc";
 import { buildFeed, countUnseen, timeAgo } from "../features/feed/calc";
 import { couponLabel, groupCoupons } from "../features/lottery/coupons";
@@ -7,7 +8,7 @@ import { canSettle, settleOptions } from "../features/settle/calc";
 import { normalizeBudget } from "./categories";
 import { getPeriodInfo } from "./dates";
 import { josa } from "./josa";
-import type { LotteryTicket, Profile, Transaction } from "./types";
+import type { Goal, LotteryTicket, Profile, Transaction } from "./types";
 
 let seq = 0;
 const tx = (date: string, category: string, amount: number, extra: Partial<Transaction> = {}): Transaction =>
@@ -142,5 +143,24 @@ describe("매달 모을 돈", () => {
     expect(p.perDay).toBe(233100);
     expect(monthlyPlan([{ ...goals[0], monthly: 0 }], 4500000, 2020000, 1030000, 0, 8)).toBeNull();
     expect(goalEta(goals[0], 0, new Date(2026, 10, 23))).toBe("매달 30만원씩 모으면 2027년 12월에 달성해요");
+  });
+});
+
+describe("이번 달 저축 체크", () => {
+  const now = new Date(2026, 10, 26, 12);
+  const at = (m: number, d: number) => new Date(2026, m - 1, d, 9).getTime();
+  const g = (extra: Partial<Goal>): Goal => ({ id: "g", name: "비트코인", emoji: "📈", target: 10000000, saved: 0, monthly: 500000, ...extra });
+
+  it("이번 달에 넣은 돈만 더하고, 뺀 돈은 빼요", () => {
+    expect(goalThisMonth(g({ createdAt: at(9, 1), saved: 900000, history: [
+      { at: at(10, 5), amount: 500000 }, { at: at(11, 3), amount: 300000 }, { at: at(11, 20), amount: -100000 }, { at: at(12, 1), amount: 999 }
+    ] }), now)).toBe(200000);
+  });
+  it("이번 달에 만든 목표는 처음 적은 모은 돈도 이번 달로 쳐요", () => {
+    expect(goalThisMonth(g({ createdAt: at(11, 20), saved: 500000, history: [] }), now)).toBe(500000);
+    expect(goalThisMonth(g({ createdAt: at(11, 20), saved: 700000, history: [{ at: at(11, 25), amount: 200000 }] }), now)).toBe(700000);
+  });
+  it("지난달에 만든 목표의 처음 금액은 안 쳐요", () => {
+    expect(goalThisMonth(g({ createdAt: at(10, 20), saved: 500000, history: [] }), now)).toBe(0);
   });
 });

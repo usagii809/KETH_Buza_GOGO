@@ -306,12 +306,12 @@ function Dashboard({ user }: { user: User }) {
           지난달: 결과(성적표 · 정산 · 모은 돈)가 먼저 */}
       {period.state === "current" ? (
         <>
+          <LotteryCard uid={user.uid} today={today} tickets={tickets} profiles={shared.profiles} ban={todayBan} nextBan={nextBan} banBroken={banBroken} couponCount={myCoupons}
+            onOpen={() => setSheet({ type: "lottery" })} onOpenCoupons={() => setSheet({ type: "coupons" })} />
           {reportEl /* 이번 달엔 '지난달 성적표 나왔어요' 알림만 (안 본 경우) */}
           {prevSettleEl}
           {budgetEl}
           {noSpendEl}
-          <LotteryCard uid={user.uid} today={today} tickets={tickets} profiles={shared.profiles} ban={todayBan} nextBan={nextBan} banBroken={banBroken} couponCount={myCoupons}
-            onOpen={() => setSheet({ type: "lottery" })} onOpenCoupons={() => setSheet({ type: "coupons" })} />
           {trendEl}
           {insights && <InsightCard data={insights} />}
           {savingsEl}

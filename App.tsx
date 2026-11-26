@@ -34,7 +34,6 @@ import { CategorySheet } from "./features/settings/CategorySheet";
 import { SearchSheet, type SearchState } from "./features/search/SearchSheet";
 import { DEFAULT_SEARCH } from "./features/search/calc";
 import { YearSheet } from "./features/yearly/YearSheet";
-import { buildMonthBars } from "./features/trend/calc";
 import { TrendCard } from "./features/trend/TrendCard";
 import { plannedSavingsOf } from "./lib/categories";
 import { getPeriodInfo, shiftMonth, toDateStr, todayStr, todayYm } from "./lib/dates";
@@ -96,7 +95,8 @@ function Dashboard({ user }: { user: User }) {
 
   const month = useMonthData(ym);
   const shared = useSharedData();
-  const recentTxs = useRecentMonths(ym);
+  // 지출 흐름 그래프의 '1년' 보기까지 쓰려고 11개월 전부터 불러와요 (성적표는 최근 3개월만 써요)
+  const recentTxs = useRecentMonths(ym, 12);
 
   // 프로필 (내 사진·이름, 상대 사진)
   const me = shared.profiles.find((p) => p.uid === user.uid) || null;
@@ -123,29 +123,34 @@ function Dashboard({ user }: { user: User }) {
 
   // 💌 같이 보기: 상대 기록 + 내 기록에 달린 반응
   const feedTxs = useFeedTxs();
-  const feed = useMemo(() => buildFeed(feedTxs, user.uid, shared.profiles), [feedTxs, user.uid, shared.profiles]);
+  const feed = useMemo(() => buildFeed(feedTxs, user.uid, shared.profiles, 40, { tickets, coupons, goals: shared.goals }),
+    [feedTxs, user.uid, shared.profiles, tickets, coupons, shared.goals]);
   const seenKey = `feedSeen_${user.uid}`;
   // 처음 쓰는 날엔 지난 소식이 한꺼번에 NEW로 뜨지 않게 지금부터 세요
-  const [feedSeen, setFeedSeen] = useState(() => {
+  const [localSeen, setLocalSeen] = useState(() => {
     const v = Number(store.get(seenKey, "0"));
     if (v) return v;
     const t = Date.now() - 86400000;
     store.set(seenKey, String(t));
     return t;
   });
+  // 읽은 시각은 계정(내 프로필)에도 저장해요 → 폰에서 읽으면 웹에서도 읽은 걸로
+  const feedSeen = Math.max(localSeen, Number(me?.feedSeenAt) || 0);
   const unseen = countUnseen(feed, feedSeen);
   const feedToasted = useRef(false);
   useEffect(() => {
-    if (feedToasted.current || unseen === 0) return;
+    // 내 프로필(계정에 저장된 읽은 시각)을 받은 뒤에만 알려줘요
+    if (feedToasted.current || !me || unseen === 0) return;
     feedToasted.current = true;
     const partnerName = shared.profiles.find((p) => p.uid !== user.uid)?.name || "상대";
     toast(`💌 ${partnerName} 님 새 소식 ${unseen}건이 있어요`);
-  }, [unseen, shared.profiles, user.uid, toast]);
+  }, [unseen, me, shared.profiles, user.uid, toast]);
   const openFeed = () => {
     setSheet({ type: "feed", lastSeen: feedSeen });
     const t = Date.now();
     store.set(seenKey, String(t));
-    setFeedSeen(t);
+    setLocalSeen(t);
+    saveProfile(user.uid, { feedSeenAt: t }).catch((err) => console.warn("읽은 시각 저장 참고:", err));
   };
 
   // 🏢 회사 돈은 기록만 하고, 예산·저축·무지출·그래프·성적표 계산에서는 전부 빼요
@@ -158,7 +163,6 @@ function Dashboard({ user }: { user: User }) {
   const cv = shared.categoryVersion;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const summary = useMemo(() => computeSummary(month.budget, txs, period), [month.budget, txs, period, cv]);
-  const bars = useMemo(() => buildMonthBars(ym, 6, recentHousehold, txs, todayYm(now)), [ym, recentHousehold, txs, now]);
   // 저축 목표 예상에 쓰는 '이번 달 계획 저축액'
   const planned = period.state === "current" ? summary.plannedSavings : plannedSavingsOf(month.defaultBudget);
   // 💰 월말 정산: 보고 있는 달(지난 달 화면) + 이번 달 화면에서는 지난달
@@ -224,6 +228,38 @@ function Dashboard({ user }: { user: User }) {
   const goal = sheet?.type === "goal" && sheet.goalId ? shared.goals.find((g) => g.id === sheet.goalId) ?? null : null;
   const openGoal = (g: Goal, prefill = 0) => setSheet({ type: "goal", goalId: g.id, mode: "deposit", prefill });
 
+
+  // 홈 카드들 (이번 달 / 지난달 화면에서 순서만 달라요)
+  const reportEl = (
+    <ReportSection period={period} s={summary} txs={txs} prevTxs={prevTxs} now={now} noSpendStart={noSpendStart}
+      onOpenLastMonth={() => setYm(shiftMonth(todayYm(now), -1))}
+      insights={insights && period.state === "past" ? <InsightCard data={insights} embedded /> : null}
+      settle={period.state === "past" && viewedSettle.loaded && (viewedSettle.settlement || canSettle(settleOptions(summary), txs.length > 0))
+        ? <SettlePanel key={ym} ym={ym} options={settleOptions(summary)} settlement={viewedSettle.settlement} goals={shared.goals} myName={me?.name} onNewGoal={newGoal} />
+        : null} />
+  );
+  const prevSettleEl = showPrevSettle && (
+    <SettlePanel key={`prev_${prevYm}`} ym={prevYm} options={prevOptions} settlement={null} goals={shared.goals} myName={me?.name} standalone onNewGoal={newGoal} />
+  );
+  const savingsEl = <SavingsCard s={summary} period={period} onEditBudget={() => setSheet({ type: "budget" })} />;
+  const goalsEl = (
+    <GoalsCard goals={shared.goals} planned={planned} now={now}
+      plan={period.state === "future" ? null : monthlyPlan(shared.goals, summary.income, summary.fixedTotal, summary.totalVariableBudget, summary.totalVariableSpent, period.state === "current" ? period.daysLeft : null)} onOpen={(g) => openGoal(g)}
+      onNew={() => setSheet({ type: "goal", goalId: null, mode: "edit" })} />
+  );
+  const budgetEl = <BudgetCard budget={month.budget} s={summary} period={period} txs={txs} prevTxs={prevTxs} />;
+  const trendEl = <TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={prevTxs} ym={ym} txs={txs} recentTxs={recentHousehold} today={toDateStr(now)} />;
+  const yearEl = (
+    <button type="button" id="openYearBtn" onClick={() => setSheet({ type: "year", year: period.y })}
+      className="w-full mb-4 px-5 py-4 rounded-3xl bg-white shadow-sm border border-toss-border/60 flex items-center justify-between active:scale-[0.99] transition">
+      <span className="text-left">
+        <span className="block text-base font-bold text-toss-text">📅 {period.y}년 결산</span>
+        <span className="block text-xs text-toss-sub mt-0.5">올해 모은 돈 · 카테고리 순위 · 단골 · 무지출을 한눈에</span>
+      </span>
+      <span className="text-sm font-bold text-toss-blue">보기 →</span>
+    </button>
+  );
+  const noSpendEl = <NoSpendCard period={period} txs={txs} prevTxs={prevTxs} now={now} start={noSpendStart} best={best} forcedDays={forcedDays} />;
   return (
     <div className="max-w-lg mx-auto px-4 pt-3 pb-10">
       <header className="flex items-center justify-between py-2 mb-3">
@@ -260,35 +296,34 @@ function Dashboard({ user }: { user: User }) {
       {month.error && <div className="mb-4 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-sm text-toss-red font-medium leading-relaxed">{month.error}</div>}
 
       <QuipBubble s={summary} period={period} now={now} override={jackpotToday ? "🍗🍺 오늘은 복권 1등! 묻지도 따지지도 않고 치맥 GO!" : bombBy ? `💣 오늘은 강제 무지출 데이! (어제 ${bombBy}의 폭탄) 지갑 봉인 🔒` : null} />
-      {period.state === "current" && (
-        <LotteryCard uid={user.uid} today={today} tickets={tickets} profiles={shared.profiles} bombBy={bombBy} couponCount={myCoupons}
-          onOpen={() => setSheet({ type: "lottery" })} onOpenCoupons={() => setSheet({ type: "coupons" })} />
+      {/* 이번 달: 날마다 바뀌는 정보(예산 · 무지출 · 복권 · 흐름)를 위로, 예산을 안 바꾸면 그대로인 저축 계획은 아래로.
+          지난달: 결과(성적표 · 정산 · 모은 돈)가 먼저 */}
+      {period.state === "current" ? (
+        <>
+          {reportEl /* 이번 달엔 '지난달 성적표 나왔어요' 알림만 (안 본 경우) */}
+          {prevSettleEl}
+          {budgetEl}
+          {noSpendEl}
+          <LotteryCard uid={user.uid} today={today} tickets={tickets} profiles={shared.profiles} bombBy={bombBy} couponCount={myCoupons}
+            onOpen={() => setSheet({ type: "lottery" })} onOpenCoupons={() => setSheet({ type: "coupons" })} />
+          {trendEl}
+          {insights && <InsightCard data={insights} />}
+          {savingsEl}
+          {goalsEl}
+          {yearEl}
+        </>
+      ) : (
+        <>
+          {reportEl}
+          {prevSettleEl}
+          {savingsEl}
+          {goalsEl}
+          {budgetEl}
+          {trendEl}
+          {yearEl}
+          {noSpendEl}
+        </>
       )}
-      <ReportSection period={period} s={summary} txs={txs} prevTxs={prevTxs} now={now} noSpendStart={noSpendStart}
-        onOpenLastMonth={() => setYm(shiftMonth(todayYm(now), -1))}
-        insights={insights && period.state === "past" ? <InsightCard data={insights} embedded /> : null}
-        settle={period.state === "past" && viewedSettle.loaded && (viewedSettle.settlement || canSettle(settleOptions(summary), txs.length > 0))
-          ? <SettlePanel key={ym} ym={ym} options={settleOptions(summary)} settlement={viewedSettle.settlement} goals={shared.goals} myName={me?.name} onNewGoal={newGoal} />
-          : null} />
-      {showPrevSettle && (
-        <SettlePanel key={`prev_${prevYm}`} ym={prevYm} options={prevOptions} settlement={null} goals={shared.goals} myName={me?.name} standalone onNewGoal={newGoal} />
-      )}
-      <SavingsCard s={summary} period={period} onEditBudget={() => setSheet({ type: "budget" })} />
-      <GoalsCard goals={shared.goals} planned={planned} now={now}
-        plan={period.state === "future" ? null : monthlyPlan(shared.goals, summary.income, summary.fixedTotal, summary.totalVariableBudget, summary.totalVariableSpent, period.state === "current" ? period.daysLeft : null)} onOpen={(g) => openGoal(g)}
-        onNew={() => setSheet({ type: "goal", goalId: null, mode: "edit" })} />
-      <BudgetCard budget={month.budget} s={summary} period={period} txs={txs} prevTxs={prevTxs} />
-      <TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={prevTxs} bars={bars} />
-      <button type="button" id="openYearBtn" onClick={() => setSheet({ type: "year", year: period.y })}
-        className="w-full mb-4 px-5 py-4 rounded-3xl bg-white shadow-sm border border-toss-border/60 flex items-center justify-between active:scale-[0.99] transition">
-        <span className="text-left">
-          <span className="block text-base font-bold text-toss-text">📅 {period.y}년 결산</span>
-          <span className="block text-xs text-toss-sub mt-0.5">올해 모은 돈 · 카테고리 순위 · 단골 · 무지출을 한눈에</span>
-        </span>
-        <span className="text-sm font-bold text-toss-blue">보기 →</span>
-      </button>
-      {insights && period.state === "current" && <InsightCard data={insights} />}
-      <NoSpendCard period={period} txs={txs} prevTxs={prevTxs} now={now} start={noSpendStart} best={best} forcedDays={forcedDays} />
       <TransactionList txs={month.txs} ym={ym} now={now} onEdit={(tx) => setSheet({ type: "expense", tx })}
         onSearchAll={(query) => setSheet({ type: "search", state: { ...DEFAULT_SEARCH, query } })} />
 

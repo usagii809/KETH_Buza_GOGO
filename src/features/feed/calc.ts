@@ -1,17 +1,29 @@
-import type { Goal, LotteryTicket, Profile, Transaction } from "../../lib/types";
+import type { Goal, LotteryTicket, Profile, Reaction, Transaction } from "../../lib/types";
 
 export const REACTIONS = ["👍", "❤️", "😱", "🥲"] as const;
+/** ➕ 눌러서 고르는 이모지 (8개씩 4줄) */
+export const MORE_REACTIONS = [
+  "😂", "🥰", "😍", "😘", "🤗", "😎", "🤩", "🥳",
+  "😮", "🤔", "🙄", "😭", "😤", "😡", "🫠", "😴",
+  "👏", "🙏", "💪", "🫶", "👀", "🔥", "💯", "✨",
+  "💸", "💰", "🤑", "🍗", "🍺", "☕", "🎉", "💩"
+];
 
 /** mine: 내가 한 일 (NEW · 새 소식 숫자엔 안 세요) */
 type Base = { id: string; at: number; who: string; mine: boolean };
-export type FeedItem = Base & (
-  | { kind: "record"; tx: Transaction }
-  | { kind: "reaction"; tx: Transaction; emoji: string }
+/** 복권 · 쿠폰 · 저축 소식 (반응을 달 수 있어요) */
+export type ActivityItem = Base & { reactions?: Record<string, Reaction> } & (
   | { kind: "lottery"; ticket: LotteryTicket }
   | { kind: "coupon"; ticket: LotteryTicket }
   | { kind: "goalMoney"; goal: Goal; amount: number; settle?: string }
   | { kind: "goalNew"; goal: Goal }
 );
+export type FeedItem =
+  | (Base & { kind: "record"; tx: Transaction })
+  | (Base & { kind: "reaction"; tx: Transaction; emoji: string })
+  | ActivityItem
+  /** 복권 · 쿠폰 · 저축 소식에 단 반응 */
+  | (Base & { kind: "actReaction"; target: ActivityItem; emoji: string });
 
 /** 기록 말고 같이 보여줄 활동들 */
 export interface FeedExtras {
@@ -20,6 +32,8 @@ export interface FeedExtras {
   /** 쿠폰 (쓴 것 포함) */
   coupons?: LotteryTicket[];
   goals?: Goal[];
+  /** 복권 · 쿠폰 · 저축 소식에 달린 반응 (소식 id → uid → 반응) */
+  reactions?: Record<string, Record<string, Reaction>>;
   /** 이 시각 이후 활동만 (기본 30일) */
   since?: number;
 }
@@ -52,6 +66,16 @@ export function buildFeed(txs: Transaction[], uid: string, profiles: Profile[], 
   }
   const since = extras.since ?? Date.now() - FEED_EXTRA_DAYS * 86400000;
   const known = (id?: string) => !!id;
+  // 활동 소식 + 거기 달린 반응 (자기 소식에 자기가 단 반응은 빼요)
+  const pushActivity = (a: ActivityItem, ownerUid: string) => {
+    const rs = extras.reactions?.[a.id];
+    if (rs) a.reactions = rs;
+    items.push(a);
+    for (const [rid, r] of Object.entries(rs || {})) {
+      if (rid === ownerUid || !r || !r.e) continue;
+      items.push({ kind: "actReaction", id: `xa_${a.id}_${rid}`, at: Number(r.at) || 0, who: nameOf(rid), mine: rid === uid, target: a, emoji: r.e });
+    }
+  };
 
   // 복권: 오늘의 복권은 날마다 있어서 한 사람당 하루 한 장
   const tickets = new Map<string, LotteryTicket>();
@@ -60,19 +84,19 @@ export function buildFeed(txs: Transaction[], uid: string, profiles: Profile[], 
     if (!known(t.uid)) continue;
     const mine = t.uid === uid;
     const revealedAt = Number(t.revealedAt || t.createdAt) || 0;
-    if (t.revealed && revealedAt >= since) items.push({ kind: "lottery", id: `l_${t.id}`, at: revealedAt, who: nameOf(t.uid), mine, ticket: t });
+    if (t.revealed && revealedAt >= since) pushActivity({ kind: "lottery", id: `l_${t.id}`, at: revealedAt, who: nameOf(t.uid), mine, ticket: t }, t.uid);
     const usedAt = Number(t.usedAt) || 0;
-    if (usedAt >= since) items.push({ kind: "coupon", id: `c_${t.id}`, at: usedAt, who: nameOf(t.uid), mine, ticket: t });
+    if (usedAt >= since) pushActivity({ kind: "coupon", id: `c_${t.id}`, at: usedAt, who: nameOf(t.uid), mine, ticket: t }, t.uid);
   }
 
   for (const g of extras.goals || []) {
     const createdAt = Number(g.createdAt) || 0;
-    if (known(g.createdBy) && createdAt >= since) items.push({ kind: "goalNew", id: `gn_${g.id}`, at: createdAt, who: nameOf(g.createdBy), mine: g.createdBy === uid, goal: g });
+    if (known(g.createdBy) && createdAt >= since) pushActivity({ kind: "goalNew", id: `gn_${g.id}`, at: createdAt, who: nameOf(g.createdBy), mine: g.createdBy === uid, goal: g }, g.createdBy!);
     (g.history || []).forEach((h, i) => {
       const at = Number(h.at) || 0;
       const amount = Number(h.amount) || 0;
       if (!known(h.by) || at < since || !amount) return;
-      items.push({ kind: "goalMoney", id: `gm_${g.id}_${at}_${i}`, at, who: nameOf(h.by), mine: h.by === uid, goal: g, amount, ...(h.settle ? { settle: h.settle } : {}) });
+      pushActivity({ kind: "goalMoney", id: `gm_${g.id}_${at}_${i}`, at, who: nameOf(h.by), mine: h.by === uid, goal: g, amount, ...(h.settle ? { settle: h.settle } : {}) }, h.by!);
     });
   }
 

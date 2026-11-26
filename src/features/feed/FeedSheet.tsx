@@ -1,17 +1,15 @@
-import { setReaction } from "../../data/db";
+import { setActivityReaction, setReaction } from "../../data/db";
 import { CATEGORY_MAP, normalizeCategory, normalizeSpender } from "../../lib/categories";
 import { formatKRW } from "../../lib/format";
 import { couponLabel } from "../lottery/coupons";
 import { symbolsOf, tierTitle } from "../lottery/ticket";
-import type { Profile } from "../../lib/types";
+import type { Profile, Reaction } from "../../lib/types";
 import { Avatar } from "../../ui/Avatar";
 import { useState } from "react";
 import { Segmented } from "../../ui/controls";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
-import { REACTIONS, timeAgo, type FeedItem } from "./calc";
-
-type ActivityItem = Extract<FeedItem, { kind: "lottery" | "coupon" | "goalMoney" | "goalNew" }>;
+import { MORE_REACTIONS, REACTIONS, timeAgo, type ActivityItem, type FeedItem } from "./calc";
 
 interface Props {
   uid: string;
@@ -34,9 +32,12 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
   const shown = items.filter((it) => tab === "all" || (tab === "me") === it.mine);
   const newCount = (mine: boolean) => items.filter((it) => it.mine === mine && !mine && it.at > lastSeen).length;
 
-  const react = async (txId: string, current: string | undefined, emoji: string) => {
+  /** 같은 이모지를 다시 누르면 반응을 지워요 */
+  const react = async (target: { tx: string } | { activity: string }, current: string | undefined, emoji: string) => {
+    const next = current === emoji ? null : emoji;
     try {
-      await setReaction(txId, uid, current === emoji ? null : emoji);
+      if ("tx" in target) await setReaction(target.tx, uid, next);
+      else await setActivityReaction(target.activity, uid, next);
     } catch (err) {
       console.error("반응 저장 오류:", err);
       toast("반응을 남기지 못했어요");
@@ -44,7 +45,7 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
   };
 
   return (
-    <Sheet title="💌 같이 보기" subtitle={`${me?.name || "나"} · ${partnerName}의 기록 · 반응 · 복권 · 쿠폰 · 저축 소식이에요`} onClose={onClose}>
+    <Sheet title="💌 같이 보기" onClose={onClose}>
       <div className="flex items-center justify-between mb-3">
         <Segmented options={[["all", "전체"], ["me", "나"], ["partner", partnerName + (newCount(false) ? ` ${newCount(false)}` : "")]]} value={tab} onChange={setTab} />
       </div>
@@ -58,8 +59,33 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
           {shown.map((it) => {
             const who = it.mine ? me : partner;
             const isNew = !it.mine && it.at > lastSeen;
+            const reactionsFor = (rs: Record<string, Reaction> | undefined, onReact: (cur: string | undefined, e: string) => void) => (
+              <ReactionArea mine={it.mine} reactions={rs} uid={uid} me={me} partner={partner} partnerName={partnerName} onReact={onReact} />
+            );
+            if (it.kind === "actReaction") {
+              const t = it.target;
+              return (
+                <div key={it.id} className={`feed-item flex items-center gap-3 p-3 rounded-2xl ${it.mine ? "bg-toss-bg" : "bg-rose-50/70"}`}>
+                  <span className="relative shrink-0">
+                    <Avatar profile={who} size={36} zoomable />
+                    <span className="absolute -right-1 -bottom-1 text-base leading-none">{it.emoji}</span>
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-toss-text leading-snug">
+                      {it.mine ? <><b>내가</b> {partnerName} 님 {targetLabel(t)}에 {it.emoji} 반응했어요</> : <><b>{it.who}</b> 님이 내 {targetLabel(t)}에 {it.emoji} 반응했어요</>}
+                    </p>
+                    <p className="text-xs text-toss-sub truncate">{targetSummary(t)} · {timeAgo(it.at)}</p>
+                  </div>
+                  {isNew && <NewDot />}
+                </div>
+              );
+            }
             if (it.kind !== "record" && it.kind !== "reaction") {
-              return <ActivityRow key={it.id} it={it} profile={who} myName={me?.name} partnerName={partnerName} isNew={isNew} />;
+              return (
+                <ActivityRow key={it.id} it={it} profile={who} myName={me?.name} partnerName={partnerName} isNew={isNew}>
+                  {reactionsFor(it.reactions, (cur, e) => react({ activity: it.id }, cur, e))}
+                </ActivityRow>
+              );
             }
             const tx = it.tx;
             const cat = CATEGORY_MAP[normalizeCategory(tx.category)];
@@ -81,8 +107,6 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
                 </div>
               );
             }
-            const mine = tx.reactions?.[uid]?.e;
-            const theirs = partner ? tx.reactions?.[partner.uid]?.e : undefined;
             return (
               <div key={it.id} className={`feed-item p-3 rounded-2xl border border-toss-border ${it.mine ? "bg-toss-bg/60" : ""}`}>
                 <div className="flex items-start gap-3">
@@ -97,20 +121,7 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
                   </div>
                   {isNew && <NewDot />}
                 </div>
-                {it.mine ? (
-                  // 내 기록: 반응 버튼 대신 상대가 남긴 반응
-                  theirs && <p className="mt-1.5 pl-12 text-xs text-toss-sub flex items-center gap-1"><Avatar profile={partner} size={16} />{partnerName} 님이 {theirs} 반응했어요</p>
-                ) : (
-                <div className="flex items-center gap-1.5 mt-2 pl-12">
-                  {REACTIONS.map((e) => (
-                    <button key={e} type="button" aria-label={`${e} 반응`} aria-pressed={mine === e} onClick={() => react(tx.id, mine, e)}
-                      className={`reaction w-9 h-8 rounded-full text-base leading-none flex items-center justify-center transition active:scale-90 ${mine === e ? "bg-toss-blueLight ring-2 ring-toss-blue" : "bg-toss-bg"}`}>
-                      {e}
-                    </button>
-                  ))}
-                  {mine && <span className="ml-1 flex items-center gap-1 text-xs text-toss-sub"><Avatar profile={me} size={16} />반응했어요</span>}
-                </div>
-                )}
+                {reactionsFor(tx.reactions, (cur, e) => react({ tx: tx.id }, cur, e))}
               </div>
             );
           })}
@@ -144,20 +155,91 @@ function myRecordLine(spender: string, myName: string | undefined, partnerName: 
   return <><b>내가</b> {whose}을 기록했어요 · {money}</>;
 }
 
-/** 복권 · 쿠폰 · 저축 목표 소식 한 줄 */
-function ActivityRow({ it, profile, myName, partnerName, isNew }: { it: ActivityItem; profile: Profile | null; myName?: string; partnerName: string; isNew: boolean }) {
+/**
+ * 반응 자리
+ * - 상대 소식: 이모지 버튼 (다시 누르면 취소)
+ * - 내 소식: 상대가 남긴 반응만 보여줘요
+ */
+function ReactionArea({ mine, reactions, uid, me, partner, partnerName, onReact }: {
+  mine: boolean; reactions?: Record<string, Reaction>; uid: string; me: Profile | null; partner: Profile | null; partnerName: string;
+  onReact: (current: string | undefined, emoji: string) => void;
+}) {
+  if (mine) {
+    const theirs = partner ? reactions?.[partner.uid]?.e : undefined;
+    return theirs ? <p className="mt-1.5 pl-12 text-xs text-toss-sub flex items-center gap-1"><Avatar profile={partner} size={16} />{partnerName} 님이 {theirs} 반응했어요</p> : null;
+  }
+  return <ReactionButtons my={reactions?.[uid]?.e} me={me} onReact={onReact} />;
+}
+
+/** 반응 버튼 4개 + 오른쪽 끝 ➕ (누르면 이모지가 더 펼쳐져요) */
+function ReactionButtons({ my, me, onReact }: { my?: string; me: Profile | null; onReact: (current: string | undefined, emoji: string) => void }) {
+  const [open, setOpen] = useState(false);
+  // 기본 4개 밖의 이모지로 반응했으면 그것도 버튼으로 보여줘요
+  const quick: string[] = my && !(REACTIONS as readonly string[]).includes(my) ? [...REACTIONS, my] : [...REACTIONS];
+  const chip = (selected: boolean) =>
+    `reaction shrink-0 w-9 h-8 rounded-full text-base leading-none flex items-center justify-center transition active:scale-90 ${selected ? "bg-toss-blueLight ring-2 ring-toss-blue" : "bg-black/[0.04] dark:bg-white/10"}`;
+  return (
+    <div className="mt-2 pl-12">
+      <div className="flex items-center gap-1.5">
+        {quick.map((e) => (
+          <button key={e} type="button" aria-label={`${e} 반응`} aria-pressed={my === e} onClick={() => onReact(my, e)} className={chip(my === e)}>{e}</button>
+        ))}
+        {/* 버튼이 5개면 자리가 좁아서 "반응했어요" 글자는 빼요 */}
+        {my && <span className="ml-1 flex items-center gap-1 text-xs text-toss-sub whitespace-nowrap"><Avatar profile={me} size={16} />{quick.length > REACTIONS.length ? "" : "반응했어요"}</span>}
+        <button type="button" aria-label={open ? "이모지 닫기" : "다른 이모지로 반응"} aria-expanded={open} onClick={() => setOpen((o) => !o)}
+          className={`reaction-more ml-auto shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold leading-none transition active:scale-90 ${open ? "bg-toss-blue text-white rotate-45" : "bg-black/[0.04] dark:bg-white/10 text-toss-sub"}`}>
+          +
+        </button>
+      </div>
+      {open && (
+        <div role="listbox" aria-label="이모지 고르기" className="emoji-picker mt-2 p-2 rounded-2xl bg-white dark:bg-toss-card border border-toss-border shadow-sm grid grid-cols-8 gap-0.5">
+          {MORE_REACTIONS.map((e) => (
+            <button key={e} type="button" role="option" aria-selected={my === e} aria-label={`${e} 반응`}
+              onClick={() => { onReact(my, e); setOpen(false); }}
+              className={`h-9 rounded-xl text-xl leading-none flex items-center justify-center active:scale-90 transition ${my === e ? "bg-toss-blueLight ring-2 ring-toss-blue" : "hover:bg-toss-bg"}`}>
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 반응 소식에서 부르는 이름: "복권" · "쿠폰" · "저축" · "저축 목표" */
+function targetLabel(t: ActivityItem) {
+  if (t.kind === "lottery") return "복권";
+  if (t.kind === "coupon") return "쿠폰";
+  if (t.kind === "goalNew") return "저축 목표";
+  return t.settle ? "정산" : "저축";
+}
+
+/** 반응 소식 아랫줄: 무엇에 반응했는지 짧게 */
+function targetSummary(t: ActivityItem) {
+  if (t.kind === "lottery") return tierTitle(t.ticket.tier, t.ticket.rank);
+  if (t.kind === "coupon") return couponLabel(t.ticket);
+  const name = `${t.goal.emoji} ${t.goal.name}`;
+  if (t.kind === "goalNew") return name;
+  return `${name} ${t.amount > 0 ? "+" : "−"}${formatKRW(Math.abs(t.amount))}`;
+}
+
+/** 복권 · 쿠폰 · 저축 목표 소식 한 줄 (+ 반응 자리) */
+function ActivityRow({ it, profile, myName, partnerName, isNew, children }: { it: ActivityItem; profile: Profile | null; myName?: string; partnerName: string; isNew: boolean; children?: React.ReactNode }) {
   const { icon, line, sub, tone } = describeActivity(it, myName, partnerName);
   return (
-    <div className={`feed-item flex items-center gap-3 p-3 rounded-2xl ${it.mine ? "bg-toss-bg" : tone}`}>
-      <span className="relative shrink-0">
-        <Avatar profile={profile} size={36} zoomable />
-        <span className="absolute -right-1 -bottom-1 text-base leading-none">{icon}</span>
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm text-toss-text leading-snug">{line}</p>
-        <p className="text-xs text-toss-sub truncate">{sub ? `${sub} · ` : ""}{timeAgo(it.at)}</p>
+    <div className={`feed-item p-3 rounded-2xl ${it.mine ? "bg-toss-bg" : tone}`}>
+      <div className="flex items-center gap-3">
+        <span className="relative shrink-0">
+          <Avatar profile={profile} size={36} zoomable />
+          <span className="absolute -right-1 -bottom-1 text-base leading-none">{icon}</span>
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-toss-text leading-snug">{line}</p>
+          <p className="text-xs text-toss-sub truncate">{sub ? `${sub} · ` : ""}{timeAgo(it.at)}</p>
+        </div>
+        {isNew && <NewDot />}
       </div>
-      {isNew && <NewDot />}
+      {children}
     </div>
   );
 }

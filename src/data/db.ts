@@ -26,6 +26,9 @@ export const refs = {
   profile: (uid: string) => doc(db, `${BASE}/profiles/${uid}`),
   lotteries: () => collection(db, `${BASE}/lottery`),
   lottery: (id: string) => doc(db, `${BASE}/lottery/${id}`),
+  // 같이 보기: 복권 · 쿠폰 · 저축 소식에 단 반응 (문서 id = 소식 id)
+  feedReactions: () => collection(db, `${BASE}/feedReactions`),
+  feedReaction: (id: string) => doc(db, `${BASE}/feedReactions/${id}`),
   // 예산 문서(months)와 섞이지 않게 따로 둬요
   settlement: (ym: string) => doc(db, `${BASE}/settlements/${ym}`)
 };
@@ -88,6 +91,10 @@ export const feedQuery = (since: number) => query(refs.transactions(), where("cr
 /** emoji가 null이면 반응 지우기 */
 export const setReaction = (txId: string, uid: string, emoji: string | null) =>
   updateDoc(refs.transaction(txId), { [`reactions.${uid}`]: emoji ? { e: emoji, at: Date.now() } : deleteField() });
+
+/** 복권 · 쿠폰 · 저축 소식에 반응 (emoji가 null이면 지우기) */
+export const setActivityReaction = (itemId: string, uid: string, emoji: string | null) =>
+  setDoc(refs.feedReaction(itemId), { [uid]: emoji ? { e: emoji, at: Date.now() } : deleteField() }, { merge: true });
 
 export const HISTORY_DAYS = 120;
 

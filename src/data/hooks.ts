@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { auth } from "../lib/firebase";
 import { applyCategoryConfig, getCategoryVersion, normalizeBudget, ZERO_BUDGET, type Budget } from "../lib/categories";
 import { shiftMonth } from "../lib/dates";
-import type { Goal, LotteryTicket, Profile, RecurringRule, Settlement, Transaction } from "../lib/types";
+import type { Goal, LotteryTicket, Profile, Reaction, RecurringRule, Settlement, Transaction } from "../lib/types";
 import type { StreakRecord } from "../features/noSpend/calc";
 import { couponQuery, FEED_DAYS, feedQuery, loadFirstRecordDate, loadMonthTransactions, loadRangeTransactions, lotteryQuery, loadRecentTransactions, monthQuery, refs, withId } from "./db";
 
@@ -168,6 +168,17 @@ export function useFeedTxs() {
     }, (err) => console.warn("새 소식 구독 참고:", err));
   }, []);
   return txs;
+}
+
+/** 같이 보기: 복권 · 쿠폰 · 저축 소식에 달린 반응 (소식 id → uid → 반응) */
+export function useFeedReactions() {
+  const [map, setMap] = useState<Record<string, Record<string, Reaction>>>({});
+  useEffect(() => onSnapshot(refs.feedReactions(), (snap) => {
+    const next: Record<string, Record<string, Reaction>> = {};
+    snap.docs.forEach((d) => { next[d.id] = d.data() as Record<string, Reaction>; });
+    setMap(next);
+  }, (err) => console.warn("반응 구독 참고:", err)), []);
+  return map;
 }
 
 /** 어떤 달의 정산 기록과 그 달 예산 (월말 정산용) */

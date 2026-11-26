@@ -60,6 +60,24 @@ describe("같이 보기 피드", () => {
     expect(feed[4]).toMatchObject({ settle: "2026-10", amount: 50000 });
     expect(countUnseen(feed, 2150)).toBe(3); // 3500 · 3000 · 2200 (내 3100 · 2300은 빼요)
   });
+
+  it("복권 · 저축 소식에도 반응을 달 수 있어요 (자기 소식에 단 반응은 빼요)", () => {
+    const t: LotteryTicket = { id: "t1", uid: "you", date: "2026-11-25", symbols: ["💣", "🍒", "🍒"], tier: "bomb", prize: "", revealed: true, revealedAt: 3000 };
+    const feed = buildFeed([], "me", profiles, 40, {
+      since: 500,
+      tickets: [t, { ...t, id: "t2", uid: "me", revealedAt: 3100 }],
+      reactions: {
+        l_t1: { me: { e: "🥲", at: 4000 }, you: { e: "👍", at: 4100 } },
+        l_t2: { you: { e: "❤️", at: 4200 } }
+      }
+    });
+    expect(feed.map((f) => [f.kind, f.at, f.mine])).toEqual([
+      ["actReaction", 4200, false], ["actReaction", 4000, true], ["lottery", 3100, true], ["lottery", 3000, false]
+    ]);
+    expect(feed[3]).toMatchObject({ reactions: { me: { e: "🥲" } } });
+    expect(feed[0]).toMatchObject({ emoji: "❤️", target: { id: "l_t2" } });
+    expect(countUnseen(feed, 3500)).toBe(1); // 경은 님이 내 복권에 ❤️
+  });
   it("몇 분 전 / 어제", () => {
     const now = new Date(2026, 10, 23, 10, 0).getTime();
     expect(timeAgo(now - 30000, now)).toBe("방금");

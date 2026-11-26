@@ -46,7 +46,15 @@ export const onSnapshot = (ref, a, b) => { const cb = typeof a === "function" ? 
 export const getDocs = async (q) => qsnap(q);
 const apply = (path, data, merge) => {
   const cur = merge ? { ...(store.get(path) || {}) } : {};
-  for (const [k, v] of Object.entries(data)) {
+  for (let [k, v] of Object.entries(data)) {
+    // updateDoc의 "reactions.u1" 같은 점 경로
+    if (k.includes(".")) {
+      const parts = k.split(".");
+      let o = cur;
+      for (const part of parts.slice(0, -1)) { o[part] = { ...(o[part] || {}) }; o = o[part]; }
+      if (v && v.__del) delete o[parts.at(-1)]; else o[parts.at(-1)] = v;
+      continue;
+    }
     if (v && v.__del) delete cur[k];
     else if (v && v.__inc !== undefined) cur[k] = (cur[k] || 0) + v.__inc;
     else if (v && v.__union) cur[k] = (cur[k] || []).concat(v.__union);

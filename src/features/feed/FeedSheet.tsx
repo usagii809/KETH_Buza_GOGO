@@ -59,9 +59,7 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
           {shown.map((it) => {
             const who = it.mine ? me : partner;
             const isNew = !it.mine && it.at > lastSeen;
-            const reactionsFor = (rs: Record<string, Reaction> | undefined, onReact: (cur: string | undefined, e: string) => void) => (
-              <ReactionArea mine={it.mine} reactions={rs} uid={uid} me={me} partner={partner} partnerName={partnerName} onReact={onReact} />
-            );
+            const reactProps = { uid, partner, partnerName };
             if (it.kind === "actReaction") {
               const t = it.target;
               return (
@@ -82,9 +80,8 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
             }
             if (it.kind !== "record" && it.kind !== "reaction") {
               return (
-                <ActivityRow key={it.id} it={it} profile={who} myName={me?.name} partnerName={partnerName} isNew={isNew}>
-                  {reactionsFor(it.reactions, (cur, e) => react({ activity: it.id }, cur, e))}
-                </ActivityRow>
+                <ActivityRow key={it.id} it={it} profile={who} myName={me?.name} isNew={isNew}
+                  {...reactProps} onReact={(cur, e) => react({ activity: it.id }, cur, e)} />
               );
             }
             const tx = it.tx;
@@ -108,21 +105,16 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
               );
             }
             return (
-              <div key={it.id} className={`feed-item p-3 rounded-2xl border border-toss-border ${it.mine ? "bg-toss-bg/60" : ""}`}>
-                <div className="flex items-start gap-3">
-                  <Avatar profile={who} size={36} className="shrink-0" zoomable />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-toss-text leading-snug">
-                      {it.mine ? myRecordLine(normalizeSpender(tx.spender), me?.name, partnerName, place, tx.amount) : recordLine(it.who, normalizeSpender(tx.spender), me?.name, place, tx.amount)}
-                    </p>
-                    <p className="text-xs text-toss-sub truncate">
-                      {tx.items ? `${tx.items} · ` : ""}{cat.short}{tx.company ? " · 🏢 회사 돈" : ""} · {timeAgo(it.at)}
-                    </p>
-                  </div>
-                  {isNew && <NewDot />}
-                </div>
-                {reactionsFor(tx.reactions, (cur, e) => react({ tx: tx.id }, cur, e))}
-              </div>
+              <ReactableRow key={it.id} className={`border border-toss-border ${it.mine ? "bg-toss-bg/60" : ""}`}
+                avatar={<Avatar profile={who} size={36} className="shrink-0" zoomable />}
+                isNew={isNew} mine={it.mine} reactions={tx.reactions} {...reactProps} onReact={(cur, e) => react({ tx: tx.id }, cur, e)}>
+                <p className="text-sm text-toss-text leading-snug">
+                  {it.mine ? myRecordLine(normalizeSpender(tx.spender), me?.name, partnerName, place, tx.amount) : recordLine(it.who, normalizeSpender(tx.spender), me?.name, place, tx.amount)}
+                </p>
+                <p className="text-xs text-toss-sub truncate">
+                  {tx.items ? `${tx.items} · ` : ""}{cat.short}{tx.company ? " · 🏢 회사 돈" : ""} · {timeAgo(it.at)}
+                </p>
+              </ReactableRow>
             );
           })}
         </div>
@@ -155,49 +147,49 @@ function myRecordLine(spender: string, myName: string | undefined, partnerName: 
   return <><b>내가</b> {whose}을 기록했어요 · {money}</>;
 }
 
-/**
- * 반응 자리
- * - 상대 소식: 이모지 버튼 (다시 누르면 취소)
- * - 내 소식: 상대가 남긴 반응만 보여줘요
- */
-function ReactionArea({ mine, reactions, uid, me, partner, partnerName, onReact }: {
-  mine: boolean; reactions?: Record<string, Reaction>; uid: string; me: Profile | null; partner: Profile | null; partnerName: string;
-  onReact: (current: string | undefined, emoji: string) => void;
-}) {
-  if (mine) {
-    const theirs = partner ? reactions?.[partner.uid]?.e : undefined;
-    return theirs ? <p className="mt-1.5 pl-12 text-xs text-toss-sub flex items-center gap-1"><Avatar profile={partner} size={16} />{partnerName} 님이 {theirs} 반응했어요</p> : null;
-  }
-  return <ReactionButtons my={reactions?.[uid]?.e} me={me} onReact={onReact} />;
-}
+type ReactFn = (current: string | undefined, emoji: string) => void;
 
-/** 내가 남긴 반응 + 오른쪽 끝 ➕ (누르면 이모지 판이 펼쳐져요) */
-function ReactionButtons({ my, me, onReact }: { my?: string; me: Profile | null; onReact: (current: string | undefined, emoji: string) => void }) {
+/**
+ * 반응을 달 수 있는 소식 한 칸
+ * - 상대 소식: 오른쪽에 ➕ (반응했으면 그 이모지). 누르면 아래로 이모지 판이 펼쳐져요
+ * - 내 소식: 상대가 남긴 반응만 아래에 한 줄
+ */
+function ReactableRow({ className, avatar, children, isNew, mine, reactions, uid, partner, partnerName, onReact }: {
+  className: string; avatar: React.ReactNode; children: React.ReactNode; isNew: boolean; mine: boolean;
+  reactions?: Record<string, Reaction>; uid: string; partner: Profile | null; partnerName: string; onReact: ReactFn;
+}) {
   const [open, setOpen] = useState(false);
+  const my = reactions?.[uid]?.e;
+  const theirs = partner ? reactions?.[partner.uid]?.e : undefined;
   return (
-    <div className="mt-2 pl-12">
-      <div className="flex items-center gap-1.5 min-h-8">
-        {my && (
-          // 내 반응: 다시 누르면 취소
-          <button type="button" aria-label={`${my} 반응 취소`} onClick={() => onReact(my, my)}
-            className="reaction shrink-0 h-8 pl-2.5 pr-3 rounded-full bg-toss-blueLight ring-2 ring-toss-blue flex items-center gap-1.5 text-base leading-none active:scale-95 transition">
-            {my}<Avatar profile={me} size={16} /><span className="text-xs text-toss-sub">반응했어요</span>
-          </button>
-        )}
-        <button type="button" aria-label={open ? "이모지 닫기" : "이모지로 반응"} aria-expanded={open} onClick={() => setOpen((o) => !o)}
-          className={`reaction-more ml-auto shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold leading-none transition active:scale-90 ${open ? "bg-toss-blue text-white rotate-45" : "bg-black/[0.04] dark:bg-white/10 text-toss-sub"}`}>
-          +
-        </button>
-      </div>
-      {open && (
-        <div role="listbox" aria-label="이모지 고르기" className="emoji-picker mt-2 p-2 rounded-2xl bg-white dark:bg-toss-card border border-toss-border shadow-sm grid grid-cols-8 gap-0.5">
-          {REACTIONS.map((e) => (
-            <button key={e} type="button" role="option" aria-selected={my === e} aria-label={`${e} 반응`}
-              onClick={() => { onReact(my, e); setOpen(false); }}
-              className={`h-9 rounded-xl text-xl leading-none flex items-center justify-center active:scale-90 transition ${my === e ? "bg-toss-blueLight ring-2 ring-toss-blue" : "hover:bg-toss-bg"}`}>
-              {e}
+    <div className={`feed-item p-3 rounded-2xl ${className}`}>
+      <div className="flex items-start gap-3">
+        {avatar}
+        <div className="min-w-0 flex-1">{children}</div>
+        <div className="shrink-0 flex flex-col items-end gap-1.5">
+          {isNew && <NewDot />}
+          {!mine && (
+            <button type="button" aria-label={open ? "이모지 닫기" : my ? `내 반응 ${my} · 바꾸기` : "이모지로 반응"} aria-expanded={open} onClick={() => setOpen((o) => !o)}
+              className={`reaction-more w-8 h-8 rounded-full flex items-center justify-center leading-none transition active:scale-90 ${
+                open ? "bg-toss-blue text-white text-lg font-bold" : my ? "bg-toss-blueLight ring-2 ring-toss-blue text-base" : "bg-black/[0.05] dark:bg-white/10 text-toss-sub text-lg font-bold"}`}>
+              {open ? "×" : my || "+"}
             </button>
-          ))}
+          )}
+        </div>
+      </div>
+      {mine && theirs && <p className="mt-1.5 pl-12 text-xs text-toss-sub flex items-center gap-1"><Avatar profile={partner} size={16} />{partnerName} 님이 {theirs} 반응했어요</p>}
+      {!mine && open && (
+        <div className="emoji-picker mt-2 ml-12 p-2 rounded-2xl bg-white dark:bg-toss-card border border-toss-border shadow-sm">
+          <div role="listbox" aria-label="이모지 고르기" className="grid grid-cols-8 gap-0.5">
+            {REACTIONS.map((e) => (
+              <button key={e} type="button" role="option" aria-selected={my === e} aria-label={`${e} 반응`}
+                onClick={() => { onReact(my, e); setOpen(false); }}
+                className={`h-9 rounded-xl text-xl leading-none flex items-center justify-center active:scale-90 transition ${my === e ? "bg-toss-blueLight ring-2 ring-toss-blue" : "hover:bg-toss-bg"}`}>
+                {e}
+              </button>
+            ))}
+          </div>
+          {my && <p className="mt-1.5 text-center text-[11px] text-toss-sub">같은 이모지를 다시 누르면 반응이 지워져요</p>}
         </div>
       )}
     </div>
@@ -221,24 +213,23 @@ function targetSummary(t: ActivityItem) {
   return `${name} ${t.amount > 0 ? "+" : "−"}${formatKRW(Math.abs(t.amount))}`;
 }
 
-/** 복권 · 쿠폰 · 저축 목표 소식 한 줄 (+ 반응 자리) */
-function ActivityRow({ it, profile, myName, partnerName, isNew, children }: { it: ActivityItem; profile: Profile | null; myName?: string; partnerName: string; isNew: boolean; children?: React.ReactNode }) {
+/** 복권 · 쿠폰 · 저축 목표 소식 한 줄 (+ 반응) */
+function ActivityRow({ it, profile, myName, partnerName, isNew, uid, partner, onReact }: {
+  it: ActivityItem; profile: Profile | null; myName?: string; partnerName: string; isNew: boolean; uid: string; partner: Profile | null; onReact: ReactFn;
+}) {
   const { icon, line, sub, tone } = describeActivity(it, myName, partnerName);
   return (
-    <div className={`feed-item p-3 rounded-2xl ${it.mine ? "bg-toss-bg" : tone}`}>
-      <div className="flex items-center gap-3">
+    <ReactableRow className={it.mine ? "bg-toss-bg" : tone} isNew={isNew} mine={it.mine} reactions={it.reactions}
+      uid={uid} partner={partner} partnerName={partnerName} onReact={onReact}
+      avatar={
         <span className="relative shrink-0">
           <Avatar profile={profile} size={36} zoomable />
           <span className="absolute -right-1 -bottom-1 text-base leading-none">{icon}</span>
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm text-toss-text leading-snug">{line}</p>
-          <p className="text-xs text-toss-sub truncate">{sub ? `${sub} · ` : ""}{timeAgo(it.at)}</p>
-        </div>
-        {isNew && <NewDot />}
-      </div>
-      {children}
-    </div>
+      }>
+      <p className="text-sm text-toss-text leading-snug">{line}</p>
+      <p className="text-xs text-toss-sub truncate">{sub ? `${sub} · ` : ""}{timeAgo(it.at)}</p>
+    </ReactableRow>
   );
 }
 

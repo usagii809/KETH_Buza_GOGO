@@ -1,5 +1,5 @@
 import { signOut } from "firebase/auth";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { exportBackup, importBackup, parseBackup, removeProfilePhoto, saveProfile } from "../../data/db";
 import { CATEGORY_MAP, normalizeCategory, normalizeSpender, type Budget } from "../../lib/categories";
 import { downloadCsv } from "../../lib/csv";
@@ -10,6 +10,7 @@ import { toAvatarDataUrl } from "../../lib/image";
 import type { Profile, RecurringRule, Transaction } from "../../lib/types";
 import { Avatar } from "../../ui/Avatar";
 import { useFeedback } from "../../ui/feedback";
+import { APP_BUILT_AT, APP_SHA, APP_VERSION, builtAtLabel, fetchServerVersion, isNewer, updateToLatest, type ServerVersion } from "../../lib/version";
 import { Sheet } from "../../ui/Sheet";
 
 function download(blob: Blob, filename: string) {
@@ -190,7 +191,31 @@ export function SettingsSheet({ uid, me, nameLocked, email, ym, txs, defaultBudg
         </button>
         <input ref={fileRef} type="file" accept=".json,application/json" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) importJson(f); }} />
+        <VersionRow />
       </div>
     </Sheet>
+  );
+}
+
+/** 지금 보고 있는 버전 + 새 버전이 있으면 업데이트 버튼 */
+function VersionRow() {
+  const [server, setServer] = useState<ServerVersion | null | "checking">("checking");
+  useEffect(() => { fetchServerVersion().then(setServer); }, []);
+  const newer = server !== "checking" && isNewer(server);
+  return (
+    <div id="appVersion" className="pt-3 mt-1 border-t border-toss-border text-center">
+      <p className="text-sm font-bold text-toss-sub num">{APP_VERSION}</p>
+      <p className="text-[11px] text-toss-muted num">{[APP_BUILT_AT ? `${builtAtLabel(APP_BUILT_AT)} 배포` : "", APP_SHA].filter(Boolean).join(" · ")}</p>
+      {server === "checking" ? (
+        <p className="text-xs text-toss-muted mt-0.5">최신 버전 확인 중…</p>
+      ) : newer && server ? (
+        <button type="button" onClick={updateToLatest}
+          className="mt-2 w-full py-2.5 rounded-xl bg-toss-blueLight text-sm font-bold text-toss-blue active:scale-[0.99] transition">
+          새 버전({server.version})이 있어요 · 지금 업데이트
+        </button>
+      ) : (
+        <p className="text-xs text-toss-green mt-0.5">{server ? "최신 버전이에요 ✓" : "최신 버전을 확인하지 못했어요 (오프라인?)"}</p>
+      )}
+    </div>
   );
 }

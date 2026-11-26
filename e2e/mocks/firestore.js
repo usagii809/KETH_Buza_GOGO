@@ -17,6 +17,8 @@ T("s1","2026-09-10","foodDining",300000,"오마카세");
 seed("recurring/r1", {memo:"휴대폰 요금", amount:55000, day:15, category:"livingTelecom", spender:"공동", postedMonths:[]});
 seed("goals/g1", {name:"신혼여행", emoji:"🏝️", target:5000000, saved:1200000, history:[{at:NOW-60*D,amount:600000},{at:NOW-30*D,amount:600000}], createdAt:1});
 window.__store = store;
+// 테스트에서 __store를 직접 바꾼 뒤 화면에 알릴 때
+window.__fire = () => listeners.forEach(fire);
 
 export const getFirestore = () => ({});
 export const collection = (db, path) => ({ path, col: true });
@@ -57,3 +59,10 @@ export const updateDoc = async (r, d) => apply(r.path, d, true);
 export const addDoc = async (c, d) => apply(c.path + "/n" + (++auto), d, false);
 export const deleteDoc = async (r) => { store.delete(r.path); listeners.forEach(fire); };
 export const writeBatch = () => { const ops = []; return { set(r, d, o) { ops.push([r, d, o]); }, commit: async () => ops.forEach(([r, d, o]) => apply(r.path, d, o && o.merge)) }; };
+// 앱이 새로 쓰기 시작한 함수들 (오프라인 캐시 · 정렬 · 한 문서 읽기)
+export const initializeFirestore = () => ({});
+export const persistentLocalCache = () => ({});
+export const persistentMultipleTabManager = () => ({});
+export const orderBy = () => ({});
+export const limit = () => ({});
+export const getDoc = async (r) => dsnap(r);

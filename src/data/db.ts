@@ -3,7 +3,7 @@ import {
   addDoc, arrayUnion, collection, deleteDoc, deleteField, doc, getDoc, getDocs, increment, limit,
   orderBy, query, setDoc, updateDoc, where, writeBatch, type DocumentData
 } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
 import { applyCategoryConfig, BUDGET_KEYS, normalizeBudget, normalizeCategory, normalizeSpender, type Budget, type CategoryConfig } from "../lib/categories";
 import { dueDateInMonth, todayStr, todayYm } from "../lib/dates";
 import type { Goal, LotteryTicket, Profile, RecurringRule, Settlement, Transaction } from "../lib/types";
@@ -239,12 +239,17 @@ export async function runRecurring(rules: RecurringRule[], uid: string, beforeFi
 
 // ── 저축 목표 ──
 export type GoalInput = Pick<Goal, "name" | "emoji" | "target" | "saved" | "monthly">;
-export const addGoal = (input: GoalInput) => addDoc(refs.goals(), { ...input, history: [], createdAt: Date.now() });
+/** 지금 로그인한 계정 (같이 보기에 '누가 했는지' 남기려고) */
+const myUid = () => auth.currentUser?.uid;
+const withBy = <T extends object>(o: T) => { const by = myUid(); return by ? { ...o, by } : o; };
+
+export const addGoal = (input: GoalInput) =>
+  addDoc(refs.goals(), { ...input, history: [], createdAt: Date.now(), ...(myUid() ? { createdBy: myUid() } : {}) });
 export const updateGoal = (id: string, input: GoalInput) => updateDoc(refs.goal(id), { ...input });
 export const deleteGoal = (id: string) => deleteDoc(refs.goal(id));
 /** amount > 0 모으기, < 0 꺼내기 */
 export const moveGoalMoney = (id: string, amount: number) =>
-  updateDoc(refs.goal(id), { saved: increment(amount), history: arrayUnion({ at: Date.now(), amount }) });
+  updateDoc(refs.goal(id), { saved: increment(amount), history: arrayUnion(withBy({ at: Date.now(), amount })) });
 
 // ── 무지출 최장 기록 (두 사람이 같이 봐요) ──
 export const saveNoSpendBest = (best: { days: number; from: string; to: string }) =>
@@ -279,7 +284,7 @@ export const markCouponUsed = (id: string) => updateDoc(refs.lottery(id), { used
 export async function settleMonth(ym: string, goal: Pick<Goal, "id" | "name">, amount: number, by?: string) {
   const at = Date.now();
   const batch = writeBatch(db);
-  batch.update(refs.goal(goal.id), { saved: increment(amount), history: arrayUnion({ at, amount }) });
+  batch.update(refs.goal(goal.id), { saved: increment(amount), history: arrayUnion(withBy({ at, amount, settle: ym })) });
   const settlement: Settlement = { at, goalId: goal.id, goalName: goal.name, amount, ...(by ? { by } : {}) };
   batch.set(refs.settlement(ym), settlement);
   await batch.commit();

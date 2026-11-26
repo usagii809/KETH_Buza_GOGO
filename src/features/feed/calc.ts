@@ -1,17 +1,35 @@
-import type { Profile, Transaction } from "../../lib/types";
+import type { Goal, LotteryTicket, Profile, Transaction } from "../../lib/types";
 
 export const REACTIONS = ["👍", "❤️", "😱", "🥲"] as const;
 
 export type FeedItem =
   | { kind: "record"; id: string; at: number; who: string; tx: Transaction }
-  | { kind: "reaction"; id: string; at: number; who: string; tx: Transaction; emoji: string };
+  | { kind: "reaction"; id: string; at: number; who: string; tx: Transaction; emoji: string }
+  | { kind: "lottery"; id: string; at: number; who: string; ticket: LotteryTicket }
+  | { kind: "coupon"; id: string; at: number; who: string; ticket: LotteryTicket }
+  | { kind: "goalMoney"; id: string; at: number; who: string; goal: Goal; amount: number; settle?: string }
+  | { kind: "goalNew"; id: string; at: number; who: string; goal: Goal };
+
+/** 기록 말고 같이 보여줄 활동들 */
+export interface FeedExtras {
+  /** 복권 (긁은 것) */
+  tickets?: LotteryTicket[];
+  /** 쿠폰 (쓴 것 포함) */
+  coupons?: LotteryTicket[];
+  goals?: Goal[];
+  /** 이 시각 이후 활동만 (기본 30일) */
+  since?: number;
+}
+
+export const FEED_EXTRA_DAYS = 30;
 
 /**
- * 같이 보기 피드
+ * 같이 보기 피드 (상대가 한 일만)
  * - 상대가 직접 남긴 기록 (자동 기록은 빼요)
  * - 내 기록에 상대가 남긴 반응
+ * - 상대의 복권 결과 · 쿠폰 사용 · 저축 목표에 넣고 뺀 돈 · 월말 정산 · 새 저축 목표
  */
-export function buildFeed(txs: Transaction[], uid: string, profiles: Profile[], max = 40): FeedItem[] {
+export function buildFeed(txs: Transaction[], uid: string, profiles: Profile[], max = 40, extras: FeedExtras = {}): FeedItem[] {
   const nameOf = (id?: string) => profiles.find((p) => p.uid === id)?.name || "상대";
   const items: FeedItem[] = [];
   const seen = new Set<string>();
@@ -28,6 +46,31 @@ export function buildFeed(txs: Transaction[], uid: string, profiles: Profile[], 
       }
     }
   }
+  const since = extras.since ?? Date.now() - FEED_EXTRA_DAYS * 86400000;
+  const isPartner = (id?: string) => !!id && id !== uid;
+
+  // 복권: 오늘의 복권은 날마다 있어서 한 사람당 하루 한 장
+  const tickets = new Map<string, LotteryTicket>();
+  for (const t of [...(extras.tickets || []), ...(extras.coupons || [])]) tickets.set(t.id, t);
+  for (const t of tickets.values()) {
+    if (!isPartner(t.uid)) continue;
+    const revealedAt = Number(t.revealedAt || t.createdAt) || 0;
+    if (t.revealed && revealedAt >= since) items.push({ kind: "lottery", id: `l_${t.id}`, at: revealedAt, who: nameOf(t.uid), ticket: t });
+    const usedAt = Number(t.usedAt) || 0;
+    if (usedAt >= since) items.push({ kind: "coupon", id: `c_${t.id}`, at: usedAt, who: nameOf(t.uid), ticket: t });
+  }
+
+  for (const g of extras.goals || []) {
+    const createdAt = Number(g.createdAt) || 0;
+    if (isPartner(g.createdBy) && createdAt >= since) items.push({ kind: "goalNew", id: `gn_${g.id}`, at: createdAt, who: nameOf(g.createdBy), goal: g });
+    (g.history || []).forEach((h, i) => {
+      const at = Number(h.at) || 0;
+      const amount = Number(h.amount) || 0;
+      if (!isPartner(h.by) || at < since || !amount) return;
+      items.push({ kind: "goalMoney", id: `gm_${g.id}_${at}_${i}`, at, who: nameOf(h.by), goal: g, amount, ...(h.settle ? { settle: h.settle } : {}) });
+    });
+  }
+
   return items.sort((a, b) => b.at - a.at).slice(0, max);
 }
 

@@ -1,11 +1,15 @@
 import { setReaction } from "../../data/db";
 import { CATEGORY_MAP, normalizeCategory, normalizeSpender } from "../../lib/categories";
 import { formatKRW } from "../../lib/format";
+import { couponLabel } from "../lottery/coupons";
+import { symbolsOf, tierTitle } from "../lottery/ticket";
 import type { Profile } from "../../lib/types";
 import { Avatar } from "../../ui/Avatar";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
 import { REACTIONS, timeAgo, type FeedItem } from "./calc";
+
+type ActivityItem = Extract<FeedItem, { kind: "lottery" | "coupon" | "goalMoney" | "goalNew" }>;
 
 interface Props {
   uid: string;
@@ -33,15 +37,18 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
   };
 
   return (
-    <Sheet title="💌 같이 보기" subtitle={`${partnerName} 님이 남긴 기록과 내 기록에 달린 반응이에요`} onClose={onClose}>
+    <Sheet title="💌 같이 보기" subtitle={`${partnerName} 님의 기록 · 반응 · 복권 · 쿠폰 · 저축 소식이에요`} onClose={onClose}>
       {items.length === 0 ? (
         <div className="py-12 text-center">
           <p className="text-base font-bold text-toss-text">아직 새 소식이 없어요</p>
-          <p className="text-sm text-toss-sub mt-1">{partnerName} 님이 기록하면 여기에 보여요</p>
+          <p className="text-sm text-toss-sub mt-1">{partnerName} 님이 기록하거나 복권을 긁으면 여기에 보여요</p>
         </div>
       ) : (
         <div className="space-y-2.5">
           {items.map((it) => {
+            if (it.kind !== "record" && it.kind !== "reaction") {
+              return <ActivityRow key={it.id} it={it} partner={partner} myName={me?.name} isNew={it.at > lastSeen} />;
+            }
             const tx = it.tx;
             const cat = CATEGORY_MAP[normalizeCategory(tx.category)];
             const place = tx.memo || cat.label;
@@ -107,6 +114,67 @@ function recordLine(recorder: string, spender: string, myName: string | undefine
   const whose = spender === "공동" ? <><span className="px-1 rounded bg-gray-100 font-bold">공동</span> 지출</>
     : spender === myName ? <><b>내</b> 지출</> : <><b>{spender}</b> 님 지출</>;
   return <><b>{recorder}</b> 님이 {whose}을 기록했어요 · {money}</>;
+}
+
+/** 복권 · 쿠폰 · 저축 목표 소식 한 줄 */
+function ActivityRow({ it, partner, myName, isNew }: { it: ActivityItem; partner: Profile | null; myName?: string; isNew: boolean }) {
+  const { icon, line, sub, tone } = describeActivity(it, myName);
+  return (
+    <div className={`feed-item flex items-center gap-3 p-3 rounded-2xl ${tone}`}>
+      <span className="relative shrink-0">
+        <Avatar profile={partner} size={36} />
+        <span className="absolute -right-1 -bottom-1 text-base leading-none">{icon}</span>
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-toss-text leading-snug">{line}</p>
+        <p className="text-xs text-toss-sub truncate">{sub ? `${sub} · ` : ""}{timeAgo(it.at)}</p>
+      </div>
+      {isNew && <NewDot />}
+    </div>
+  );
+}
+
+function describeActivity(it: ActivityItem, myName?: string) {
+  const who = <b>{it.who}</b>;
+  if (it.kind === "lottery") {
+    const t = it.ticket;
+    const big = t.tier === "jackpot" || t.tier === "prize" || t.tier === "love";
+    const line = t.tier === "bomb"
+      ? <>{who} 님 복권에서 💣 폭탄이 나왔어요! 내일은 둘 다 강제 무지출 데이</>
+      : big ? <>{who} 님이 복권에 당첨됐어요! <b>{tierTitle(t.tier, t.rank)}</b></>
+      : <>{who} 님이 오늘의 복권을 긁었어요 · {tierTitle(t.tier, t.rank)}</>;
+    return {
+      icon: t.tier === "bomb" ? "💣" : big ? "🎉" : "🎟️",
+      line,
+      sub: [symbolsOf(t).join(" "), big ? t.prize : ""].filter(Boolean).join(" · "),
+      tone: t.tier === "bomb" ? "bg-gray-100" : big ? "bg-amber-50" : "bg-toss-bg"
+    };
+  }
+  if (it.kind === "coupon") {
+    return {
+      icon: "🎫",
+      line: <>{who} 님이 쿠폰을 썼어요 · <b>{couponLabel(it.ticket)}</b></>,
+      sub: `${myName ? `${myName} 님` : "내"} 차례예요 😇`,
+      tone: "bg-violet-50"
+    };
+  }
+  const g = it.goal;
+  const goalName = <b>{g.emoji} {g.name}</b>;
+  if (it.kind === "goalNew") {
+    return { icon: "🎯", line: <>{who} 님이 새 저축 목표를 만들었어요 · {goalName}</>, sub: `목표 ${formatKRW(g.target)}`, tone: "bg-emerald-50" };
+  }
+  const pct = g.target > 0 ? Math.min(100, Math.floor((g.saved / g.target) * 100)) : 0;
+  if (it.settle) {
+    return {
+      icon: "🧾",
+      line: <>{who} 님이 {Number(it.settle.slice(5))}월 정산을 했어요 · 남은 돈 <b className="num">{formatKRW(it.amount)}</b> → {goalName}</>,
+      sub: `지금 ${pct}%`,
+      tone: "bg-emerald-50"
+    };
+  }
+  return it.amount > 0
+    ? { icon: "🐷", line: <>{who} 님이 {goalName}에 <b className="num text-toss-green">{formatKRW(it.amount)}</b> 모았어요</>, sub: `지금 ${pct}%`, tone: "bg-emerald-50" }
+    : { icon: "💸", line: <>{who} 님이 {goalName}에서 <b className="num">{formatKRW(-it.amount)}</b> 꺼냈어요</>, sub: `지금 ${pct}%`, tone: "bg-toss-bg" };
 }
 
 function NewDot() {

@@ -55,6 +55,10 @@ export interface RecurringRule {
 export interface GoalHistory {
   at: number;
   amount: number;
+  /** 누가 넣었/뺐는지 (uid, 같이 보기용 · 예전 기록엔 없어요) */
+  by?: string;
+  /** 월말 정산으로 들어온 돈이면 그 달 (YYYY-MM) */
+  settle?: string;
 }
 
 export interface Goal {
@@ -67,6 +71,8 @@ export interface Goal {
   monthly?: number;
   history?: GoalHistory[];
   createdAt?: number;
+  /** 만든 사람 uid (같이 보기용) */
+  createdBy?: string;
 }
 
 /** 계정별 프로필 (사진은 작게 줄여서 문서에 바로 저장) */
@@ -97,6 +103,8 @@ export interface LotteryTicket {
   prize: string;
   revealed: boolean;
   createdAt?: number;
+  /** 복권을 긁은 시각 */
+  revealedAt?: number;
   /** 쿠폰을 쓴 시각 */
   usedAt?: number;
 }

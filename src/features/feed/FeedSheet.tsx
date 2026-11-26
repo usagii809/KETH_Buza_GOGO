@@ -11,6 +11,7 @@ import { Segmented } from "../../ui/controls";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
 import { REACTIONS, timeAgo, type ActivityItem, type FeedItem } from "./calc";
+import { offlineBlocked } from "../../lib/online";
 
 interface Props {
   uid: string;
@@ -35,6 +36,7 @@ export function FeedSheet({ uid, items, profiles, lastSeen, onClose }: Props) {
 
   /** 같은 이모지를 다시 누르면 반응을 지워요 */
   const react = async (target: { tx: Transaction } | { activity: ActivityItem }, current: string | undefined, emoji: string) => {
+    if (offlineBlocked()) return;
     const next = current === emoji ? null : emoji;
     try {
       if ("tx" in target) await setReaction(target.tx.id, uid, next);

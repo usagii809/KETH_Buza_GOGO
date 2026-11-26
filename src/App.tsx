@@ -5,6 +5,7 @@ import { useAuthUser, useCoupons, useFeedReactions, useFeedTxs, useLottery, useM
 import { buildFeed, countUnseen } from "./features/feed/calc";
 import { FeedSheet } from "./features/feed/FeedSheet";
 import { setPushSender } from "./lib/push";
+import { offlineBlocked, reportFromCache, setOfflineToaster, useOffline } from "./lib/online";
 import { getPrefs, setPref, syncPrefs } from "./lib/prefs";
 import { Splash } from "./ui/Splash";
 import { LiveBanner, type LiveNote } from "./features/feed/LiveBanner";
@@ -139,7 +140,20 @@ function Dashboard({ user }: { user: User }) {
   };
 
 
-  const month = useMonthData(ym);
+  const shared = useSharedData();
+  // 📦 최근 기록 (실시간 하나): 이번 달 · 지난달 · 무지출 · 자동완성 · 같이 보기 · 비교가 나눠 써요
+  // 📴 오프라인 모드: 폰 연결 상태 + 서버 답을 받았는지 같이 봐요
+  const offline = useOffline();
+  useEffect(() => { reportFromCache(shared.historyFromCache); }, [shared.historyFromCache]);
+  const wasOffline = useRef(false);
+  useEffect(() => {
+    if (offline) wasOffline.current = true;
+    else if (wasOffline.current) { wasOffline.current = false; toast("✅ 다시 연결됐어요. 최신 내용으로 맞췄어요"); }
+  }, [offline, toast]);
+  useEffect(() => { setOfflineToaster(toast); }, [toast]);
+  const hist = useMemo(() => ({ txs: shared.history, start: shared.historyStart, loaded: shared.historyLoaded }),
+    [shared.history, shared.historyStart, shared.historyLoaded]);
+  const month = useMonthData(ym, hist);
   // ↔ 달을 넘기면 다음 달은 오른쪽에서, 이전 달은 왼쪽에서 밀려 들어와요 (끝나면 transform이 남지 않게 Web Animations로)
   const monthRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -157,11 +171,24 @@ function Dashboard({ user }: { user: User }) {
   const [booted, setBooted] = useState(false);
   useEffect(() => { if (!booted && month.txsLoaded && month.overrideLoaded) setBooted(true); }, [booted, month.txsLoaded, month.overrideLoaded]);
   useEffect(() => { const t = window.setTimeout(() => setBooted(true), 4000); return () => window.clearTimeout(t); }, []);
-  const shared = useSharedData();
   // 👯 같은 지출 경고에 쓸 이름 (uid → 태형/경은)
   const nameOf = useCallback((uid?: string) => shared.profiles.find((p) => p.uid === uid)?.name, [shared.profiles]);
-  // 지출 흐름 그래프의 '1년' 보기까지 쓰려고 11개월 전부터 불러와요 (성적표는 최근 3개월만 써요)
-  const recentTxs = useRecentMonths(ym, 12);
+  // 지출 흐름 그래프의 '1년' 보기까지 11개월 전부터 (최근 몇 달은 실시간 기록에서, 그 전은 달 요약에서)
+  // ④ 오래된 달 요약은 그래프가 화면에 보이거나, 카테고리 비교에 필요할 때만 읽어요
+  const [trendSeen, setTrendSeen] = useState(false);
+  const needOlderForInsights = shiftMonth(ym, -3) < shared.historyStart.slice(0, 7);
+  const recentTxs = useRecentMonths(ym, 12, hist, trendSeen || needOlderForInsights);
+  // 그래프 카드가 화면 근처에 오면 그때 오래된 달 요약을 읽어요 (한 번 보면 계속 유지)
+  const trendObserver = useRef<IntersectionObserver | null>(null);
+  const trendRef = useCallback((el: HTMLDivElement | null) => {
+    trendObserver.current?.disconnect();
+    if (!el || trendSeen) return;
+    if (typeof IntersectionObserver === "undefined") { setTrendSeen(true); return; }
+    trendObserver.current = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { setTrendSeen(true); trendObserver.current?.disconnect(); }
+    }, { rootMargin: "300px 0px" });
+    trendObserver.current.observe(el);
+  }, [trendSeen]);
 
   // 프로필 (내 사진·이름, 상대 사진)
   const me = shared.profiles.find((p) => p.uid === user.uid) || null;
@@ -188,7 +215,7 @@ function Dashboard({ user }: { user: User }) {
   const myCoupons = useMemo(() => groupCoupons(coupons, user.uid).mine.length, [coupons, user.uid]);
 
   // 💌 같이 보기: 상대 기록 + 내 기록에 달린 반응
-  const { txs: feedTxs, loaded: feedLoaded } = useFeedTxs();
+  const { txs: feedTxs, loaded: feedLoaded } = useFeedTxs(hist);
   const feedReactions = useFeedReactions();
   const feed = useMemo(() => buildFeed(feedTxs, user.uid, shared.profiles, 60, { tickets, coupons, goals: shared.goals, reactions: feedReactions }),
     [feedTxs, user.uid, shared.profiles, tickets, coupons, shared.goals, feedReactions]);
@@ -333,8 +360,9 @@ function Dashboard({ user }: { user: User }) {
   // 자동완성: 최근 120일 + 지금 보는 달 (id 중복 제거)
   const history = useMemo(() => [...new Map([...shared.history, ...month.txs].map((t) => [t.id, t])).values()], [shared.history, month.txs]);
   // ↩️ 결제 ↔ 환불 연결 (불러온 기록 전부에서: 최근 120일 · 이번 달 · 지난 12개월 · 새 소식)
-  const refundIndex = useMemo(() => buildRefundIndex(shared.history, recentTxs, month.prevTxs, month.txs, feedTxs),
-    [shared.history, recentTxs, month.prevTxs, month.txs, feedTxs]);
+  // (요약에서 만든 '합계 기록'은 환불 연결이 없어서 빼요)
+  const refundIndex = useMemo(() => buildRefundIndex(shared.history, month.prevTxs, month.txs),
+    [shared.history, month.prevTxs, month.txs]);
 
   // 무지출 챌린지는 '처음 기록을 남긴 날'부터 세요 (그 전엔 앱을 안 썼으니까)
   const noSpendStart = useMemo(() => {
@@ -374,10 +402,12 @@ function Dashboard({ user }: { user: User }) {
   useEffect(() => {
     // 직접 추가한 카테고리를 받기 전에 기록하면 '기타 생활비'로 들어가니까 기다려요
     if (!shared.recurringLoaded || !shared.categoriesLoaded) return;
+    // 오프라인일 땐 자동 기록도 안 남겨요 (연결되면 그때)
+    if (offline) return;
     runRecurring(shared.recurring, user.uid, pinIfNeeded).then((n) => { if (n) toast(`매달 자동 기록 ${n}건을 남겼어요 🔁`); });
     // pinIfNeeded는 일부러 빼요: 예산이 바뀔 때마다 다시 돌 필요는 없어서
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shared.recurringLoaded, shared.categoriesLoaded, shared.recurring, now, user.uid, toast]);
+  }, [shared.recurringLoaded, shared.categoriesLoaded, shared.recurring, now, user.uid, toast, offline]);
 
   const goal = view?.type === "goal" && view.goalId ? shared.goals.find((g) => g.id === view.goalId) ?? null : null;
   const openGoal = (g: Goal, prefill = 0) => setSheet({ type: "goal", goalId: g.id, mode: "deposit", prefill });
@@ -402,7 +432,7 @@ function Dashboard({ user }: { user: User }) {
       onNew={() => setSheet({ type: "goal", goalId: null, mode: "edit" })} />
   );
   const budgetEl = <BudgetCard budget={month.budget} s={summary} period={period} txs={txs} prevTxs={prevTxs} />;
-  const trendEl = <TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={prevTxs} ym={ym} txs={txs} recentTxs={recentHousehold} today={toDateStr(now)} />;
+  const trendEl = <div ref={trendRef}><TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={prevTxs} ym={ym} txs={txs} recentTxs={recentHousehold} today={toDateStr(now)} /></div>;
   const yearEl = (
     <button type="button" id="openYearBtn" onClick={() => setSheet({ type: "year", year: period.y })}
       className="w-full mb-4 px-5 py-4 rounded-3xl bg-white shadow-sm border border-toss-border/60 flex items-center justify-between active:scale-[0.99] transition">
@@ -419,6 +449,11 @@ function Dashboard({ user }: { user: User }) {
     {/* 🌱 이 달 기록 · 예산을 처음 받을 때까지 로딩 화면, 받으면 스르륵 걷혀요 */}
     <Splash done={booted} />
     <div className={`max-w-lg mx-auto px-4 pt-3 pb-10 ${booted ? "animate-app-in" : "opacity-0"}`}>
+      {offline && (
+        <div role="status" className="offline-banner sticky top-0 z-40 -mx-4 mb-2 px-4 py-2 bg-gray-900 text-white text-xs font-bold text-center" style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}>
+          📴 오프라인 모드 · 보기만 할 수 있어요
+        </div>
+      )}
       <header className="flex items-center justify-between py-2 mb-3">
         <div>
           <span onClick={onTitleTap} className="text-sm font-bold text-toss-blue tracking-tight select-none">태형이와 경은이의 부자 되기 프로젝트!!</span>
@@ -447,6 +482,11 @@ function Dashboard({ user }: { user: User }) {
       </header>
 
       <div ref={monthRef}>
+      {offline && month.txsLoaded && txs.length === 0 && (
+        <div className="offline-empty mb-4 p-3.5 rounded-2xl bg-toss-bg border border-toss-border text-sm text-toss-sub leading-relaxed">
+          📴 이 달 기록은 이 폰에 저장돼 있지 않아요. 인터넷에 연결되면 볼 수 있어요
+        </div>
+      )}
       {month.error && <div className="mb-4 p-3.5 rounded-2xl bg-red-50 border border-red-200 text-sm text-toss-red font-medium leading-relaxed">{month.error}</div>}
 
       <QuipBubble s={summary} period={period} now={now}
@@ -485,8 +525,8 @@ function Dashboard({ user }: { user: User }) {
       </div>
 
       <div className="fixed bottom-5 left-0 right-0 z-30 flex justify-center pointer-events-none px-4" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <button type="button" onClick={() => setSheet({ type: "expense" })}
-          className="pointer-events-auto flex items-center gap-2 px-6 py-3.5 rounded-full bg-toss-blue hover:bg-toss-blueDark text-white text-base font-bold shadow-lg shadow-blue-500/30 active:scale-95 transition">
+        <button type="button" aria-disabled={offline || undefined} onClick={() => { if (offlineBlocked()) return; setSheet({ type: "expense" }); }}
+          className={`pointer-events-auto flex items-center gap-2 px-6 py-3.5 rounded-full text-white text-base font-bold shadow-lg active:scale-95 transition ${offline ? "bg-gray-400 shadow-black/10" : "bg-toss-blue hover:bg-toss-blueDark shadow-blue-500/30"}`}>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.6" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
           <span>지출 기록</span>
         </button>

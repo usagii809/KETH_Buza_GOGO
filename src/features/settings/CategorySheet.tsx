@@ -7,6 +7,7 @@ import {
 import { inputClass, primaryButton } from "../../ui/controls";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
+import { offlineBlocked } from "../../lib/online";
 
 interface Props {
   /** 서버에 저장된 그대로의 설정 (없으면 null) */
@@ -36,6 +37,7 @@ export function CategorySheet({ config, onClose }: Props) {
   const cfg = current(config);
 
   const save = async (next: Required<CategoryConfig>, msg: string) => {
+    if (offlineBlocked()) return;
     setBusy(true);
     try { await saveCategoryConfig(next); toast(msg); return true; }
     catch (err) { console.error("카테고리 저장 오류:", err); toast("저장하지 못했어요. 다시 시도해 주세요"); return false; }
@@ -50,6 +52,7 @@ export function CategorySheet({ config, onClose }: Props) {
 
   const submitDraft = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (offlineBlocked()) return;
     if (!draft) return;
     const label = draft.label.trim();
     if (!label) { toast("이름을 적어주세요"); return; }
@@ -78,6 +81,7 @@ export function CategorySheet({ config, onClose }: Props) {
   };
 
   const startRemove = async (c: Category) => {
+    if (offlineBlocked()) return;
     setBusy(true);
     try {
       const use = await categoryInUse(c.key);

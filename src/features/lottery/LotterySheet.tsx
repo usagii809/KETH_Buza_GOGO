@@ -6,6 +6,7 @@ import { Sheet } from "../../ui/Sheet";
 import { confetti, emojiFloat, emojiPop, emojiRain } from "../fun/confetti";
 import { drawTicket, isJackpotSymbol, prizeText, JACKPOT_SYMBOL, LOVE_SYMBOL, LOSE_MESSAGE, symbolsOf, tierTitle, VISIBLE_PRIZES } from "./ticket";
 import { notify } from "../feed/notify";
+import { isOffline, OFFLINE_MSG, offlineBlocked } from "../../lib/online";
 
 interface Props {
   uid: string;
@@ -28,7 +29,7 @@ export function LotterySheet({ uid, myName, today, onClose, onOpenCoupons }: Pro
       .then((t) => { if (alive) { setTicket(t); setRevealed(t.revealed); } })
       .catch((err) => {
         console.error("복권 오류:", err);
-        toast("복권을 불러오지 못했어요. 잠시 후 다시 해주세요");
+        toast(isOffline() ? OFFLINE_MSG : "복권을 불러오지 못했어요. 잠시 후 다시 해주세요");
         onClose();
       });
     return () => { alive = false; };
@@ -37,6 +38,7 @@ export function LotterySheet({ uid, myName, today, onClose, onOpenCoupons }: Pro
 
   const cardRef = useRef<HTMLDivElement>(null);
   const onReveal = () => {
+    if (offlineBlocked()) return; // 결과가 서버에 고정돼야 해서 오프라인에선 못 긁어요
     if (!ticket || revealed) return;
     setRevealed(true);
     revealTicket(ticket.id).catch((err) => console.warn("복권 저장 참고:", err));

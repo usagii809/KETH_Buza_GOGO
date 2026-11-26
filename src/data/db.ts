@@ -32,6 +32,8 @@ export const refs = {
   // 🔔 알림 받을 기기 (문서 id = 기기 구독 주소의 해시)
   pushSub: (id: string) => doc(db, `${BASE}/pushSubs/${id}`),
   pushSubs: () => collection(db, `${BASE}/pushSubs`),
+  // 📦 오래된 달의 요약 (그래프 · 비교용. 진짜 기록에서 언제든 다시 만들 수 있어요)
+  monthSummary: (ym: string) => doc(db, `${BASE}/monthSummaries/${ym}`),
   // 예산 문서(months)와 섞이지 않게 따로 둬요
   settlement: (ym: string) => doc(db, `${BASE}/settlements/${ym}`)
 };
@@ -59,6 +61,7 @@ export async function localFirst(write: Promise<unknown>, waitMs = 2500): Promis
 }
 
 export function addExpense(input: ExpenseInput, uid: string) {
+  markSummariesStale([input.date]);
   // 문서 id를 먼저 만들고 저장해요 (오프라인에서도 바로 화면에 나와요)
   return setDoc(doc(refs.transactions()), {
     ...clean(input),
@@ -68,7 +71,8 @@ export function addExpense(input: ExpenseInput, uid: string) {
   });
 }
 /** 고치기. refundOf가 빈 문자열이면 원래 결제와의 연결을 끊어요 */
-export function updateExpense(id: string, input: ExpenseInput) {
+export function updateExpense(id: string, input: ExpenseInput, prev?: Pick<Transaction, "date">) {
+  markSummariesStale([input.date, prev?.date]);
   const { refundOf, ...rest } = input;
   const link = refundOf ? { refundOf } : refundOf === "" ? { refundOf: deleteField() } : {};
   return updateDoc(refs.transaction(id), { ...clean(rest), ...link, yearMonth: input.date.slice(0, 7), updatedAt: Date.now() });
@@ -76,15 +80,81 @@ export function updateExpense(id: string, input: ExpenseInput) {
 export const deleteExpense = (id: string) => deleteDoc(refs.transaction(id));
 /** 지운 기록 되살리기 (같은 id · 같은 내용으로 다시 저장) */
 export function restoreExpenses(txs: Transaction[]) {
+  markSummariesStale(txs.map((t) => t.date));
   const batch = writeBatch(db);
   txs.forEach(({ id, pending: _pending, ...data }) => batch.set(refs.transaction(id), clean(data as Record<string, unknown>)));
   return batch.commit();
 }
 /** 결제와 연결된 환불까지 한 번에 지워요 (따로 지우면 중간에 한쪽만 남을 수 있어서) */
-export function deleteExpenses(ids: string[]) {
+export function deleteExpenses(txs: Pick<Transaction, "id" | "date">[]) {
+  markSummariesStale(txs.map((t) => t.date));
   const batch = writeBatch(db);
-  ids.forEach((id) => batch.delete(refs.transaction(id)));
+  txs.forEach((t) => batch.delete(refs.transaction(t.id)));
   return batch.commit();
+}
+
+// ── 📦 기록 읽기 줄이기 ──
+// - 최근 몇 달(오늘로부터 120일 전이 속한 달의 1일부터 · 앞으로 날짜 포함)은 실시간 구독 하나로 받아서
+//   이번 달 · 지난달 · 무지출 · 자동완성 · 같이 보기 · 비교가 모두 나눠 써요
+// - 그보다 오래된 달은 '달 요약' 문서 하나만 읽어요 (그래프 · 카테고리 비교용)
+//   요약은 진짜 기록에서 다시 만들 수 있어서, 없거나 · 낡았거나(stale) · 그 달을 열면 새로 만들어요
+export const HISTORY_DAYS = 120;
+export const SUMMARY_VERSION = 1;
+
+/** 실시간으로 받는 기록의 시작일 (YYYY-MM-01) */
+export function historyStart(now = new Date()): string {
+  return `${todayStr(new Date(now.getTime() - HISTORY_DAYS * 86400000)).slice(0, 7)}-01`;
+}
+export const historyQuery = (start: string) => query(refs.transactions(), where("date", ">=", start));
+
+/** 요약에 넣는 기록: 가계부 기록만 (회사 돈 빼고) */
+const summaryKey = (t: Transaction) =>
+  `${String(t.date).slice(8, 10)}|${normalizeCategory(t.category)}|${normalizeSpender(t.spender)}|${t.auto ? 1 : 0}`;
+
+/** 한 달 기록 → 요약 (날짜 · 카테고리 · 사람 · 자동 기록별 합계) */
+export function summarizeMonth(txs: Transaction[]): Record<string, number> {
+  const rows: Record<string, number> = {};
+  for (const t of txs) {
+    if (t.company || !t.date) continue;
+    const k = summaryKey(t);
+    rows[k] = (rows[k] || 0) + (Number(t.amount) || 0);
+  }
+  return rows;
+}
+
+/** 요약 → 계산에 그대로 쓸 수 있는 '합계 기록' (그래프 · 비교는 합계만 보니까 결과가 같아요) */
+export function summaryToTxs(ym: string, rows: Record<string, number>): Transaction[] {
+  return Object.entries(rows).map(([k, amount]) => {
+    const [dd, category, spender, auto] = k.split("|");
+    return {
+      id: `sum:${ym}:${k}`, date: `${ym}-${dd}`, yearMonth: ym, category, spender, amount, memo: "",
+      ...(auto === "1" ? { auto: true } : {}), createdBy: "", createdAt: 0
+    } as unknown as Transaction;
+  });
+}
+
+/** 요약 저장 (그 달 진짜 기록으로) */
+export const saveMonthSummary = (ym: string, txs: Transaction[]) =>
+  setDoc(refs.monthSummary(ym), { v: SUMMARY_VERSION, ym, rows: summarizeMonth(txs), builtAt: Date.now() });
+
+/**
+ * 오래된 달 하나의 '합계 기록' (가계부 기록만)
+ * 요약이 있으면 문서 1개만 읽고, 없거나 낡았으면 그 달 기록을 읽어서 요약을 새로 만들어 둬요
+ */
+export async function loadOldMonth(ym: string): Promise<Transaction[]> {
+  const snap = await getDoc(refs.monthSummary(ym));
+  const d = snap.exists() ? snap.data() : null;
+  if (d && d.v === SUMMARY_VERSION && !d.stale && d.rows && typeof d.rows === "object") return summaryToTxs(ym, d.rows as Record<string, number>);
+  const txs = await loadMonthTransactions(ym);
+  saveMonthSummary(ym, txs).catch((err) => console.warn("달 요약 저장 참고:", err));
+  return txs.filter((t) => !t.company);
+}
+
+/** 오래된 달 기록이 바뀌면 그 달 요약을 '낡음'으로 표시 (다음에 다시 만들어요) */
+export function markSummariesStale(dates: (string | undefined)[]) {
+  const start = historyStart().slice(0, 7);
+  const yms = new Set(dates.filter((d): d is string => !!d && d.length >= 7).map((d) => d.slice(0, 7)).filter((ym) => ym < start));
+  yms.forEach((ym) => setDoc(refs.monthSummary(ym), { stale: true }, { merge: true }).catch((err) => console.warn("달 요약 표시 참고:", err)));
 }
 
 // ── 같이 보기: 반응 ──
@@ -98,8 +168,6 @@ export const setReaction = (txId: string, uid: string, emoji: string | null) =>
 /** 복권 · 쿠폰 · 저축 소식에 반응 (emoji가 null이면 지우기) */
 export const setActivityReaction = (itemId: string, uid: string, emoji: string | null) =>
   setDoc(refs.feedReaction(itemId), { [uid]: emoji ? { e: emoji, at: Date.now() } : deleteField() }, { merge: true });
-
-export const HISTORY_DAYS = 120;
 
 /** 최근 120일 기록 (자동완성 · 무지출 최장 기록용) */
 export async function loadRecentTransactions(days = HISTORY_DAYS): Promise<Transaction[]> {
@@ -191,6 +259,7 @@ export async function removeCategory(key: string, to: string, next: CategoryConf
   ]);
   const ops: ((b: ReturnType<typeof writeBatch>) => void)[] = [];
   t.docs.forEach((x) => ops.push((b) => b.update(x.ref, { category: to, updatedAt: Date.now() })));
+  markSummariesStale(t.docs.map((x) => String(x.data().date || "")));
   r.docs.forEach((x) => ops.push((b) => b.update(x.ref, { category: to })));
   // 예산은 옮길 카테고리에 더해요
   const moveBudget = (ref: ReturnType<typeof refs.month>, data: DocumentData | undefined) => {
@@ -401,6 +470,7 @@ export async function importBackup(b: ParsedBackup) {
   b.months.forEach(([ym, budget]) => ops.push((x) => x.set(refs.month(ym), budget, { merge: true })));
   b.recurring.forEach(({ id, ...rest }) => ops.push((x) => x.set(refs.recurringRule(String(id)), rest)));
   b.goals.forEach(({ id, ...rest }) => ops.push((x) => x.set(refs.goal(String(id)), rest)));
+  markSummariesStale(b.transactions.map((item) => String(item.date)));
   b.transactions.forEach((item) => {
     const ref = item.id ? refs.transaction(String(item.id)) : doc(refs.transactions());
     const date = String(item.date);

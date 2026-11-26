@@ -16,6 +16,24 @@ T("o5","2026-10-25","foodCafe",12000,"이디야","경은");
 T("s1","2026-09-10","foodDining",300000,"오마카세");
 seed("recurring/r1", {memo:"휴대폰 요금", amount:55000, day:15, category:"livingTelecom", spender:"공동", postedMonths:[]});
 seed("goals/g1", {name:"신혼여행", emoji:"🏝️", target:5000000, saved:1200000, history:[{at:NOW-60*D,amount:600000},{at:NOW-30*D,amount:600000}], createdAt:1});
+// 📊 읽기 양 시험용: ?bulk=150 이면 지난 18개월 동안 한 달 150건씩 넣어요
+(() => {
+  const n = Number(new URLSearchParams(location.search).get("bulk") || 0);
+  if (!n) return;
+  const cats = ["foodIngredients","foodDining","foodCafe","livingTransport","livingOther"];
+  const who = ["태형","경은","공동"];
+  const now = new Date(NOW);
+  for (let m = 0; m < 18; m++) {
+    const d0 = new Date(now.getFullYear(), now.getMonth() - m, 1);
+    const days = m === 0 ? now.getDate() : new Date(d0.getFullYear(), d0.getMonth() + 1, 0).getDate();
+    const per = m === 0 ? Math.round(n * now.getDate() / 30) : n;
+    for (let i = 0; i < per; i++) {
+      const day = 1 + (i * 7) % days;
+      const ds = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      seed(`transactions/bulk_${m}_${i}`, { date: ds, yearMonth: ds.slice(0, 7), category: cats[i % 5], amount: 1000 * (1 + (i * 13) % 40), memo: "가게" + (i % 12), spender: who[i % 3], createdBy: i % 2 ? "u1" : "u2", createdAt: new Date(ds).getTime() + i });
+    }
+  }
+})();
 window.__store = store;
 // 테스트에서 __store를 직접 바꾼 뒤 화면에 알릴 때
 window.__fire = () => listeners.forEach(fire);
@@ -35,15 +53,26 @@ const qsnap = (q) => {
   const docs = [];
   store.forEach((d, p) => {
     const rest = p.slice(q.path.length + 1);
-    if (p.startsWith(q.path + "/") && !rest.includes("/") && (q.conds || []).every((c) => pass(d, c))) docs.push({ id: rest, data: () => clone(d), metadata: { hasPendingWrites: false, fromCache: false } });
+    if (p.startsWith(q.path + "/") && !rest.includes("/") && (q.conds || []).every((c) => !c.o || pass(d, c))) docs.push({ id: rest, data: () => clone(d), metadata: { hasPendingWrites: false, fromCache: false } });
   });
-  return { docs, forEach: (f) => docs.forEach(f) };
+  const ob = (q.conds || []).find((c) => c.orderBy), lim = (q.conds || []).find((c) => c.limit);
+  if (ob) docs.sort((a, b) => String(a.data()[ob.orderBy]).localeCompare(String(b.data()[ob.orderBy])));
+  if (lim) docs.splice(lim.limit);
+  return { docs, forEach: (f) => docs.forEach(f), metadata: { fromCache: !!window.__offline, hasPendingWrites: false } };
 };
-const dsnap = (r) => { const d = store.get(r.path); return { exists: () => !!d, data: () => d && clone(d) }; };
-const fire = (l) => setTimeout(() => l.cb(l.ref.col ? qsnap(l.ref) : dsnap(l.ref)), 5);
+const dsnap = (r) => { const d = store.get(r.path); return { exists: () => !!d, data: () => d && clone(d), metadata: { fromCache: !!window.__offline, hasPendingWrites: false } }; };
+// 📊 읽은 문서 수 세기 (진짜 Firestore처럼: 처음 받을 때 전부, 그 뒤엔 바뀐 문서만 — 여기선 처음 받을 때만 세요)
+window.__reads = { total: 0, by: {} };
+const countRead = (label, n) => { window.__reads.total += n; window.__reads.by[label] = (window.__reads.by[label] || 0) + n; };
+const labelOf = (ref) => (ref.path || "").replace(/^ledgers\/shared_household\//, "").split("/")[0] + (ref.conds && ref.conds.length ? "?" + ref.conds.map((c) => c.f || c.orderBy || "limit").join(",") : "");
+const fire = (l) => setTimeout(() => {
+  const snap = l.ref.col ? qsnap(l.ref) : dsnap(l.ref);
+  if (!l.counted) { l.counted = true; countRead("listen:" + labelOf(l.ref), l.ref.col ? snap.docs.length : 1); }
+  l.cb(snap);
+}, 5);
 // onSnapshot(ref, cb) 와 onSnapshot(ref, 옵션, cb) 둘 다 받아요
 export const onSnapshot = (ref, a, b) => { const cb = typeof a === "function" ? a : b; const l = { ref, cb }; listeners.add(l); fire(l); return () => listeners.delete(l); };
-export const getDocs = async (q) => qsnap(q);
+export const getDocs = async (q) => { const s = qsnap(q); countRead("get:" + labelOf(q), s.docs.length || 1); return s; };
 const apply = (path, data, merge) => {
   const cur = merge ? { ...(store.get(path) || {}) } : {};
   for (let [k, v] of Object.entries(data)) {
@@ -82,6 +111,6 @@ export const writeBatch = () => {
 export const initializeFirestore = () => ({});
 export const persistentLocalCache = () => ({});
 export const persistentMultipleTabManager = () => ({});
-export const orderBy = () => ({});
-export const limit = () => ({});
-export const getDoc = async (r) => dsnap(r);
+export const orderBy = (f) => ({ orderBy: f });
+export const limit = (n) => ({ limit: n });
+export const getDoc = async (r) => { countRead("get:" + labelOf(r), 1); return dsnap(r); };

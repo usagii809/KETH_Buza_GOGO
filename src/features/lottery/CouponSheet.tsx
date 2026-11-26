@@ -8,6 +8,7 @@ import { confetti } from "../fun/confetti";
 import { couponLabel, groupCoupons } from "./coupons";
 import { symbolsOf } from "./ticket";
 import { notify } from "../feed/notify";
+import { offlineBlocked } from "../../lib/online";
 
 interface Props {
   uid: string;
@@ -27,6 +28,7 @@ export function CouponSheet({ uid, coupons, profiles, onClose }: Props) {
   const nameOf = (t: LotteryTicket) => profiles.find((p) => p.uid === t.uid)?.name || t.name || "";
 
   const use = async (t: LotteryTicket) => {
+    if (offlineBlocked()) return;
     const ok = await confirm({ title: `${josa(couponLabel(t), "을", "를")} 쓸까요?`, message: `${partnerName} 님에게 이 화면을 보여주세요. 쓰고 나면 되돌릴 수 없어요.`, okText: "지금 쓰기" });
     if (!ok) return;
     try {

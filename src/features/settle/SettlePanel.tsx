@@ -7,6 +7,7 @@ import { useFeedback } from "../../ui/feedback";
 import { confetti } from "../fun/confetti";
 import type { SettleOptions } from "./calc";
 import { notify } from "../feed/notify";
+import { offlineBlocked } from "../../lib/online";
 
 interface Props {
   ym: string;
@@ -41,6 +42,7 @@ export function SettlePanel({ ym, options, settlement, goals, myName, standalone
   }
 
   const settle = async () => {
+    if (offlineBlocked()) return;
     if (!goal || amount <= 0 || busy) return;
     const ok = await confirm({ title: `${josa(goal.name, "으로", "로")} ${formatShort(amount)} 옮길까요?`, message: `${goal.emoji} ${goal.name} 목표에 넣고 ${m}월 정산을 끝내요. 실제 통장 이체도 잊지 마세요!`, okText: "옮기기" });
     if (!ok) return;
@@ -58,6 +60,7 @@ export function SettlePanel({ ym, options, settlement, goals, myName, standalone
     }
   };
   const skip = async () => {
+    if (offlineBlocked()) return;
     const ok = await confirm({ title: `${m}월 정산을 넘어갈까요?`, message: "저축 목표에 넣지 않고 정산을 끝내요.", okText: "넘어가기" });
     if (ok) skipSettlement(ym, myName).catch(() => toast("저장하지 못했어요"));
   };

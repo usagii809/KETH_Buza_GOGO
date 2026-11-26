@@ -6,7 +6,7 @@ import { applyCategoryConfig, getCategoryVersion, normalizeBudget, ZERO_BUDGET, 
 import { shiftMonth } from "../lib/dates";
 import type { Goal, LotteryTicket, Profile, Reaction, RecurringRule, Settlement, Transaction } from "../lib/types";
 import type { StreakRecord } from "../features/noSpend/calc";
-import { couponQuery, FEED_DAYS, feedQuery, loadFirstRecordDate, loadMonthTransactions, loadRangeTransactions, lotteryQuery, loadRecentTransactions, monthQuery, refs, withId } from "./db";
+import { couponQuery, FEED_DAYS, historyQuery, historyStart, loadFirstRecordDate, loadMonthTransactions, loadOldMonth, lotteryQuery, monthQuery, refs, saveMonthSummary, withId } from "./db";
 
 /** undefined = 확인 중, null = 로그아웃 */
 export function useAuthUser() {
@@ -23,16 +23,33 @@ const errorMessage = (err: FirestoreError) =>
 const byDateDesc = (a: Transaction, b: Transaction) =>
   a.date !== b.date ? b.date.localeCompare(a.date) : (b.createdAt || 0) - (a.createdAt || 0);
 
-/** 보고 있는 달의 예산 · 내역 · 지난달 내역 (실시간) */
-export function useMonthData(ym: string) {
+/** 최근 기록 (실시간 하나로 받아서 여러 곳이 나눠 써요) */
+export interface HistoryFeed {
+  txs: Transaction[];
+  /** 이 날짜(YYYY-MM-01)부터 받아요 */
+  start: string;
+  loaded: boolean;
+}
+
+const ymOf = (t: Transaction) => t.yearMonth || String(t.date || "").slice(0, 7);
+
+/**
+ * 보고 있는 달의 예산 · 내역 · 지난달 내역
+ * - 최근 몇 달 안이면 '최근 기록' 실시간 구독에서 꺼내 써요 (따로 읽지 않아요)
+ * - 그보다 오래된 달만 그 달을 따로 실시간으로 받아요 (열 때만) → 받으면서 그 달 요약도 새로 맞춰요
+ */
+export function useMonthData(ym: string, hist: HistoryFeed) {
   const [defaultBudget, setDefaultBudget] = useState<Budget>(ZERO_BUDGET);
   const [override, setOverride] = useState<Budget | null>(null);
   const [overrideLoaded, setOverrideLoaded] = useState(false);
-  const [txs, setTxs] = useState<Transaction[]>([]);
-  const [prevTxs, setPrevTxs] = useState<Transaction[]>([]);
+  const [ownTxs, setOwnTxs] = useState<Transaction[]>([]);
+  const [ownLoaded, setOwnLoaded] = useState(false);
+  const [ownPrev, setOwnPrev] = useState<Transaction[]>([]);
   const [error, setError] = useState<string | null>(null);
-  // 이 달 기록을 한 번이라도 받았는지 (첫 로딩 화면을 언제 걷을지)
-  const [txsLoaded, setTxsLoaded] = useState(false);
+  const startYm = hist.start.slice(0, 7);
+  const inWindow = ym >= startYm;
+  const prevYm = shiftMonth(ym, -1);
+  const prevInWindow = prevYm >= startYm;
 
   useEffect(() => onSnapshot(refs.defaultBudget(), (snap) => {
     setError(null);
@@ -43,9 +60,9 @@ export function useMonthData(ym: string) {
     // 달을 바꾸는 순간 이전 달 데이터가 잠깐 보이지 않도록 비움
     setOverride(null);
     setOverrideLoaded(false);
-    setTxs([]);
-    setPrevTxs([]);
-    setTxsLoaded(false);
+    setOwnTxs([]);
+    setOwnLoaded(false);
+    setOwnPrev([]);
     let alive = true;
 
     const unsubMonth = onSnapshot(refs.month(ym), (snap) => {
@@ -54,36 +71,60 @@ export function useMonthData(ym: string) {
       setOverrideLoaded(true);
     }, (err) => setError(errorMessage(err)));
 
-    // includeMetadataChanges: 오프라인 기록이 서버에 올라가면 '올리는 중' 표시를 지우려고
-    const unsubTx = onSnapshot(monthQuery(ym), { includeMetadataChanges: true }, (snap) => {
+    // 오래된 달: 그 달만 따로 받아요
+    const unsubTx = inWindow ? () => {} : onSnapshot(monthQuery(ym), { includeMetadataChanges: true }, (snap) => {
       setError(null);
-      setTxs(snap.docs.map((d) => ({ ...withId<Transaction>(d.id, d.data()), ...(d.metadata.hasPendingWrites ? { pending: true } : {}) })).sort(byDateDesc));
-      setTxsLoaded(true);
-    }, (err) => { setError(errorMessage(err)); setTxsLoaded(true); });
+      const list = snap.docs.map((d) => ({ ...withId<Transaction>(d.id, d.data()), ...(d.metadata.hasPendingWrites ? { pending: true } : {}) })).sort(byDateDesc);
+      setOwnTxs(list);
+      setOwnLoaded(true);
+      // 서버에서 받은 진짜 기록으로 그 달 요약을 맞춰둬요 (낡은 요약 바로잡기)
+      if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) saveMonthSummary(ym, list).catch((err) => console.warn("달 요약 저장 참고:", err));
+    }, (err) => { setError(errorMessage(err)); setOwnLoaded(true); });
 
-    loadMonthTransactions(shiftMonth(ym, -1))
-      .then((list) => { if (alive) setPrevTxs(list); })
-      .catch((err) => console.warn("지난달 내역 조회 참고:", err));
-
+    if (!prevInWindow) {
+      loadMonthTransactions(prevYm)
+        .then((list) => { if (alive) setOwnPrev(list); })
+        .catch((err) => console.warn("지난달 내역 조회 참고:", err));
+    }
     return () => { alive = false; unsubMonth(); unsubTx(); };
-  }, [ym]);
+  }, [ym, inWindow, prevInWindow, prevYm]);
 
+  const fromHist = (key: string) => hist.txs.filter((t) => ymOf(t) === key).sort(byDateDesc);
+  const txs = useMemo(() => (inWindow ? fromHist(ym) : ownTxs), [inWindow, hist.txs, ym, ownTxs]);
+  const prevTxs = useMemo(() => (prevInWindow ? fromHist(prevYm) : ownPrev), [prevInWindow, hist.txs, prevYm, ownPrev]);
+  const txsLoaded = inWindow ? hist.loaded : ownLoaded;
   const budget = useMemo(() => (override ? { ...defaultBudget, ...override } : defaultBudget), [defaultBudget, override]);
   return { defaultBudget, override, overrideLoaded, budget, txs, prevTxs, error, txsLoaded };
 }
 
-/** 보고 있는 달 이전 (n-1)개월 기록 (월별 그래프용, 1회 조회) */
-export function useRecentMonths(ym: string, n = 6) {
-  const [txs, setTxs] = useState<Transaction[]>([]);
+/**
+ * 보고 있는 달 이전 (n-1)개월 기록 (월별 그래프 · 카테고리 비교용)
+ * - 최근 몇 달은 '최근 기록'에서, 그보다 오래된 달은 달 요약(문서 1개씩)에서 가져와요
+ * - enabled가 false면 오래된 달은 아직 안 읽어요 (그래프가 화면에 보일 때 읽어요)
+ */
+const oldMonthCache = new Map<string, Promise<Transaction[]>>();
+export function useRecentMonths(ym: string, n: number, hist: HistoryFeed, enabled: boolean) {
+  const startYm = hist.start.slice(0, 7);
+  const months = useMemo(() => Array.from({ length: n - 1 }, (_, i) => shiftMonth(ym, i - (n - 1))), [ym, n]);
+  const oldMonths = useMemo(() => months.filter((m) => m < startYm), [months, startYm]);
+  const [old, setOld] = useState<Transaction[]>([]);
   useEffect(() => {
     let alive = true;
-    setTxs([]);
-    loadRangeTransactions(shiftMonth(ym, -(n - 1)), shiftMonth(ym, -1))
-      .then((list) => { if (alive) setTxs(list); })
-      .catch((err) => console.warn("월별 기록 조회 참고:", err));
+    setOld([]);
+    if (!enabled || !oldMonths.length) return;
+    Promise.all(oldMonths.map((m) => {
+      if (!oldMonthCache.has(m)) oldMonthCache.set(m, loadOldMonth(m).catch((err) => { oldMonthCache.delete(m); throw err; }));
+      return oldMonthCache.get(m)!;
+    }))
+      .then((lists) => { if (alive) setOld(lists.flat()); })
+      .catch((err) => console.warn("지난 달 요약 조회 참고:", err));
     return () => { alive = false; };
-  }, [ym, n]);
-  return txs;
+  }, [enabled, oldMonths.join(",")]);
+  const recent = useMemo(() => {
+    const set = new Set(months.filter((m) => m >= startYm));
+    return hist.txs.filter((t) => set.has(ymOf(t)));
+  }, [hist.txs, months, startYm]);
+  return useMemo(() => [...old, ...recent], [old, recent]);
 }
 
 /** 달과 상관없는 공유 데이터: 자동 기록 규칙, 저축 목표, 최근 기록(자동완성) */
@@ -92,6 +133,9 @@ export function useSharedData() {
   const [recurringLoaded, setRecurringLoaded] = useState(false);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [history, setHistory] = useState<Transaction[]>([]);
+  // 받기 시작한 날짜는 앱을 연 순간 한 번 정해요 (그 뒤로는 실시간으로 바뀐 것만 받아요)
+  const [start] = useState(() => historyStart());
+  const [historyFromCache, setHistoryFromCache] = useState(false);
   const [firstRecord, setFirstRecord] = useState<string | null>(null);
   const [firstRecordLoaded, setFirstRecordLoaded] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -123,12 +167,17 @@ export function useSharedData() {
       applyCategoryConfig(raw);
       setCategoryConfig({ raw, version: getCategoryVersion() });
     }, (err) => { console.warn("카테고리 구독 참고:", err); setCategoryConfig((c) => c ?? { raw: {}, version: getCategoryVersion() }); });
-    loadRecentTransactions().then((list) => { setHistory(list); setHistoryLoaded(true); }).catch((err) => console.warn("최근 기록 조회 참고:", err));
-    return () => { unsubRec(); unsubGoals(); unsubBest(); unsubProfiles(); unsubCats(); };
+    // 📦 최근 기록 (실시간): 이번 달 · 지난달 · 무지출 · 자동완성 · 같이 보기가 모두 이걸 나눠 써요
+    const unsubHist = onSnapshot(historyQuery(start), { includeMetadataChanges: true }, (snap) => {
+      setHistory(snap.docs.map((d) => ({ ...withId<Transaction>(d.id, d.data()), ...(d.metadata.hasPendingWrites ? { pending: true } : {}) })));
+      setHistoryFromCache(snap.metadata.fromCache);
+      setHistoryLoaded(true);
+    }, (err) => { console.warn("최근 기록 구독 참고:", err); setHistoryLoaded(true); });
+    return () => { unsubRec(); unsubGoals(); unsubBest(); unsubProfiles(); unsubCats(); unsubHist(); };
   }, []);
 
   return {
-    recurring, recurringLoaded, goals, history, historyLoaded, firstRecord, firstRecordLoaded, noSpendBest, profiles,
+    recurring, recurringLoaded, goals, history, historyLoaded, historyStart: start, historyFromCache, firstRecord, firstRecordLoaded, noSpendBest, profiles,
     categoryConfig: categoryConfig?.raw ?? null, categoriesLoaded: !!categoryConfig, categoryVersion: categoryConfig?.version ?? 0
   };
 }
@@ -162,19 +211,13 @@ export function useCoupons() {
   return coupons;
 }
 
-/** 새 소식 피드용: 최근 30일 안에 남긴 기록 (실시간) */
-export function useFeedTxs() {
-  const [txs, setTxs] = useState<Transaction[]>([]);
-  // 처음 한 번 받았는지 (그 전엔 '새 소식' 알림을 판단하지 않아요)
-  const [loaded, setLoaded] = useState(false);
-  useEffect(() => {
+/** 새 소식 피드용: 최근 30일 안에 남긴 기록 (따로 읽지 않고 '최근 기록'에서 꺼내요) */
+export function useFeedTxs(hist: HistoryFeed) {
+  const txs = useMemo(() => {
     const since = Date.now() - FEED_DAYS * 86400000;
-    return onSnapshot(feedQuery(since), (snap) => {
-      setTxs(snap.docs.map((d) => withId<Transaction>(d.id, d.data())));
-      setLoaded(true);
-    }, (err) => { console.warn("새 소식 구독 참고:", err); setLoaded(true); });
-  }, []);
-  return { txs, loaded };
+    return hist.txs.filter((t) => (Number(t.createdAt) || 0) >= since);
+  }, [hist.txs]);
+  return { txs, loaded: hist.loaded };
 }
 
 /** 같이 보기: 복권 · 쿠폰 · 저축 소식에 달린 반응 (소식 id → uid → 반응) */

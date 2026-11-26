@@ -6,6 +6,7 @@ import { formatKRW } from "../../lib/format";
 import { MoneyInput, primaryButton } from "../../ui/controls";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
+import { offlineBlocked } from "../../lib/online";
 
 const inputCls = "w-36 shrink-0 bg-white text-right text-base font-bold num rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-toss-blue placeholder:text-toss-muted placeholder:font-medium";
 
@@ -35,6 +36,7 @@ export function BudgetSheet({ period, budget, onClose }: { period: PeriodInfo; b
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (offlineBlocked()) return;
     setBusy(true);
     try {
       await saveBudget(period.key, draft, alsoDefault);

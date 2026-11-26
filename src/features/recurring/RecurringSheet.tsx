@@ -6,6 +6,7 @@ import type { RecurringRule } from "../../lib/types";
 import { MoneyInput } from "../../ui/controls";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
+import { offlineBlocked } from "../../lib/online";
 
 export const dayLabel = (day: number) => (Number(day) >= 31 ? "말일" : `${day}일`);
 
@@ -25,6 +26,7 @@ export function RecurringSheet({ rules, onClose }: { rules: RecurringRule[]; onC
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (offlineBlocked()) return;
     if (form.amount <= 0) { toast("금액을 입력해 주세요"); return; }
     const data = { ...form, memo: form.memo.trim() };
     try {
@@ -43,6 +45,7 @@ export function RecurringSheet({ rules, onClose }: { rules: RecurringRule[]; onC
   };
 
   const remove = async (id: string) => {
+    if (offlineBlocked()) return;
     if (!(await confirm({ title: "자동 기록을 그만할까요?", message: "이미 기록된 내역은 그대로 남아요.", okText: "그만하기" }))) return;
     try {
       await deleteRecurring(id);

@@ -16,6 +16,7 @@ import { Sheet } from "../../ui/Sheet";
 import { Segmented } from "../../ui/controls";
 import { setPref, usePref } from "../../lib/prefs";
 import { disablePush, enablePush, isPushOn, PUSH_KINDS, pushReady, pushSupport, setPushMute, type PushKind } from "../../lib/push";
+import { offlineBlocked } from "../../lib/online";
 
 function download(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -48,6 +49,7 @@ export function SettingsSheet({ uid, me, nameLocked, email, ym, txs, defaultBudg
   const [photoBusy, setPhotoBusy] = useState(false);
 
   const changePhoto = async (file: File) => {
+    if (offlineBlocked()) return;
     setPhotoBusy(true);
     try {
       await saveProfile(uid, { photo: await toAvatarDataUrl(file) });
@@ -60,9 +62,11 @@ export function SettingsSheet({ uid, me, nameLocked, email, ym, txs, defaultBudg
     }
   };
   const removePhoto = async () => {
+    if (offlineBlocked()) return;
     try { await removeProfilePhoto(uid); toast("사진을 지웠어요"); } catch { toast("지우지 못했어요"); }
   };
   const setName = async (name: "태형" | "경은") => {
+    if (offlineBlocked()) return;
     try { await saveProfile(uid, { name }); toast(`반가워요, ${name}! 👋`); } catch { toast("저장하지 못했어요"); }
   };
 
@@ -92,6 +96,7 @@ export function SettingsSheet({ uid, me, nameLocked, email, ym, txs, defaultBudg
   };
 
   const importJson = async (file: File) => {
+    if (offlineBlocked()) return;
     let parsed;
     try { parsed = parseBackup(JSON.parse(await file.text())); }
     catch { toast("이 앱에서 만든 백업 파일인지 확인해 주세요"); return; }
@@ -243,6 +248,7 @@ function NotifyRow({ uid }: { uid: string }) {
   const denied = support === "ok" && Notification.permission === "denied";
 
   const toggle = async () => {
+    if (offlineBlocked()) return;
     if (busy) return;
     setBusy(true);
     try {

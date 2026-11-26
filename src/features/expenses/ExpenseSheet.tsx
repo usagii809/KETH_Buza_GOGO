@@ -15,6 +15,7 @@ import { timeAgo } from "../feed/calc";
 import type { DiningBan } from "../lottery/ticket";
 import { refundCandidates, refundableOf, type RefundIndex } from "./refunds";
 import { notify } from "../feed/notify";
+import { offlineBlocked } from "../../lib/online";
 
 interface Props {
   /** 있으면 수정, 없으면 새 기록 */
@@ -91,6 +92,7 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (offlineBlocked()) return;
     if (amount <= 0) { toast("금액을 입력해 주세요"); return; }
     // 회사 돈은 태형이만 (다른 사람으로 바꾸면 자동으로 꺼져요)
     const isCompany = spender === "태형" && company;
@@ -161,7 +163,7 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
     try {
       let saved: "synced" | "queued";
       if (tx) {
-        saved = await localFirst(updateExpense(tx.id, input));
+        saved = await localFirst(updateExpense(tx.id, input, tx));
       } else {
         await localFirst(beforeAdd(ym), 1500).catch((err) => console.warn("월 예산 고정 참고:", err));
         saved = await localFirst(addExpense(input, uid));
@@ -203,6 +205,7 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
   });
 
   const remove = async () => {
+    if (offlineBlocked()) return;
     if (!tx) return;
     // 환불이 연결된 결제: 결제만 지우면 환불과 함께 두 번 빠져요 → 같이 지워요
     if (linkedRefunds.length) {
@@ -215,7 +218,7 @@ export function ExpenseSheet({ tx, refundFor, onRefund, viewedYm, uid, history, 
       if (pick !== "both") return;
       try {
         const removed = [tx, ...linkedRefunds];
-        const saved = await localFirst(deleteExpenses(removed.map((r) => r.id)));
+        const saved = await localFirst(deleteExpenses(removed));
         onClose();
         toast(saved === "queued" ? `환불 ${linkedRefunds.length}건과 같이 지웠어요 (연결되면 반영돼요)` : `환불 ${linkedRefunds.length}건과 같이 지웠어요`, undoAction(removed));
       } catch {

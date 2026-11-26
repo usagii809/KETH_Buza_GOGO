@@ -8,6 +8,7 @@ import { Sheet } from "../../ui/Sheet";
 import { confetti } from "../fun/confetti";
 import { GOAL_EMOJIS, goalEta, goalPct } from "./calc";
 import { notify } from "../feed/notify";
+import { offlineBlocked } from "../../lib/online";
 
 interface Props {
   /** null = 새 목표 */
@@ -35,6 +36,7 @@ function DepositView({ goal, prefill, planned, now, onEdit, onClose }:
   const history = (goal.history || []).filter((h) => h && h.at).sort((a, b) => b.at - a.at).slice(0, 5);
 
   const move = async (sign: 1 | -1) => {
+    if (offlineBlocked()) return;
     if (amount <= 0) { toast("금액을 입력해 주세요"); return; }
     const saved = Number(goal.saved) || 0;
     if (sign < 0 && amount > saved) { toast("모은 돈보다 많이 꺼낼 수 없어요"); return; }
@@ -117,6 +119,7 @@ function EditView({ goal, onClose }: { goal: Goal | null; onClose: () => void })
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (offlineBlocked()) return;
     const n = name.trim();
     if (!n) { toast("목표 이름을 적어주세요"); return; }
     if (target <= 0) { toast("목표 금액을 입력해 주세요"); return; }
@@ -131,6 +134,7 @@ function EditView({ goal, onClose }: { goal: Goal | null; onClose: () => void })
   };
 
   const remove = async () => {
+    if (offlineBlocked()) return;
     if (!goal) return;
     if (!(await confirm({ title: "이 목표를 지울까요?", message: "모은 기록도 함께 사라져요.", okText: "지우기" }))) return;
     try { await deleteGoal(goal.id); onClose(); toast("목표를 지웠어요"); } catch { toast("지우지 못했어요"); }

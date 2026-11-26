@@ -1,12 +1,31 @@
 import { shiftMonth, toDateStr, type PeriodInfo } from "../../lib/dates";
 import type { Transaction } from "../../lib/types";
 
-/** 날짜별 지출 합계 (자동 기록은 무지출 판정에서 제외, 환불은 지출이 아니라서 제외) */
+/**
+ * 날짜별 지출 합계 (자동 기록은 무지출 판정에서 제외).
+ * 같은 날 취소한 결제는 그만큼 빼요: 전액 취소면 그 결제는 0원 → 그날 다른 지출이 없으면 무지출.
+ * - 같은 날 '환불·부분취소 기록'(refundOf로 원래 결제와 연결된 것)
+ * - 연결은 없지만 같은 날 · 같은 사용처로 적은 환불
+ * 다른 날 결제의 환불은 지출이 아니라서 빼지 않아요 (오늘 쓴 돈을 지난 환불이 가리지 않게).
+ */
 export function spentByDate(txs: Transaction[]): Record<string, number> {
+  const amt = (t: Transaction) => Number(t.amount) || 0;
+  const paid = txs.filter((t) => !t.auto && amt(t) > 0);
+  const byId = new Map(paid.map((t) => [t.id, t]));
+  const cancelled = new Map<string, number>();
+  const memoOf = (t: Transaction) => String(t.memo || "").trim();
+  const left = (t: Transaction) => amt(t) - (cancelled.get(t.id) || 0);
+  for (const r of txs) {
+    if (r.auto || amt(r) >= 0) continue;
+    let orig = r.refundOf ? byId.get(r.refundOf) : undefined;
+    if (!r.refundOf && memoOf(r)) orig = paid.find((t) => t.date === r.date && memoOf(t) === memoOf(r) && left(t) > 0);
+    if (!orig || orig.date !== r.date) continue;
+    cancelled.set(orig.id, (cancelled.get(orig.id) || 0) - amt(r));
+  }
   const m: Record<string, number> = {};
-  txs.forEach((tx) => {
-    if (tx.auto || !((Number(tx.amount) || 0) > 0)) return;
-    m[tx.date] = (m[tx.date] || 0) + (Number(tx.amount) || 0);
+  paid.forEach((t) => {
+    const v = Math.max(0, left(t));
+    if (v > 0) m[t.date] = (m[t.date] || 0) + v;
   });
   return m;
 }

@@ -34,7 +34,6 @@ import { CategorySheet } from "./features/settings/CategorySheet";
 import { SearchSheet, type SearchState } from "./features/search/SearchSheet";
 import { DEFAULT_SEARCH } from "./features/search/calc";
 import { YearSheet } from "./features/yearly/YearSheet";
-import { buildMonthBars } from "./features/trend/calc";
 import { TrendCard } from "./features/trend/TrendCard";
 import { plannedSavingsOf } from "./lib/categories";
 import { getPeriodInfo, shiftMonth, toDateStr, todayStr, todayYm } from "./lib/dates";
@@ -96,7 +95,8 @@ function Dashboard({ user }: { user: User }) {
 
   const month = useMonthData(ym);
   const shared = useSharedData();
-  const recentTxs = useRecentMonths(ym);
+  // 지출 흐름 그래프의 '1년' 보기까지 쓰려고 11개월 전부터 불러와요 (성적표는 최근 3개월만 써요)
+  const recentTxs = useRecentMonths(ym, 12);
 
   // 프로필 (내 사진·이름, 상대 사진)
   const me = shared.profiles.find((p) => p.uid === user.uid) || null;
@@ -163,7 +163,6 @@ function Dashboard({ user }: { user: User }) {
   const cv = shared.categoryVersion;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const summary = useMemo(() => computeSummary(month.budget, txs, period), [month.budget, txs, period, cv]);
-  const bars = useMemo(() => buildMonthBars(ym, 6, recentHousehold, txs, todayYm(now)), [ym, recentHousehold, txs, now]);
   // 저축 목표 예상에 쓰는 '이번 달 계획 저축액'
   const planned = period.state === "current" ? summary.plannedSavings : plannedSavingsOf(month.defaultBudget);
   // 💰 월말 정산: 보고 있는 달(지난 달 화면) + 이번 달 화면에서는 지난달
@@ -283,7 +282,7 @@ function Dashboard({ user }: { user: User }) {
         plan={period.state === "future" ? null : monthlyPlan(shared.goals, summary.income, summary.fixedTotal, summary.totalVariableBudget, summary.totalVariableSpent, period.state === "current" ? period.daysLeft : null)} onOpen={(g) => openGoal(g)}
         onNew={() => setSheet({ type: "goal", goalId: null, mode: "edit" })} />
       <BudgetCard budget={month.budget} s={summary} period={period} txs={txs} prevTxs={prevTxs} />
-      <TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={prevTxs} bars={bars} />
+      <TrendCard period={period} spentSoFar={summary.totalVariableSpent} prevTxs={prevTxs} ym={ym} txs={txs} recentTxs={recentHousehold} today={toDateStr(now)} />
       <button type="button" id="openYearBtn" onClick={() => setSheet({ type: "year", year: period.y })}
         className="w-full mb-4 px-5 py-4 rounded-3xl bg-white shadow-sm border border-toss-border/60 flex items-center justify-between active:scale-[0.99] transition">
         <span className="text-left">

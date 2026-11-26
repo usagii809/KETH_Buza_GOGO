@@ -190,7 +190,7 @@ describe("기타", () => {
   });
 });
 
-import { averageOf, buildMonthBars } from "../features/trend/calc";
+import { averageOf, buildDayBars, buildMonthBars, buildWeekBars } from "../features/trend/calc";
 import { getSpendTier, pickQuip, TIERS } from "../features/quips/quips";
 
 describe("월별 지출 그래프", () => {
@@ -400,5 +400,32 @@ describe("로그인 계정 → 이름", () => {
     expect(await nameForEmail(" SomeOne@Example.com ", table)).toBe("태형");
     expect(await nameForEmail("other@example.com", table)).toBeNull();
     expect(await nameForEmail(null, table)).toBeNull();
+  });
+});
+
+describe("지출 흐름 일별 · 주별", () => {
+  const t = (date: string, amount: number) => ({ id: date + amount, date, yearMonth: date.slice(0, 7), category: "foodCafe", amount }) as Transaction;
+  const list = [t("2026-11-01", 5000), t("2026-11-01", 3000), t("2026-11-02", 10000), t("2026-11-24", 14200), t("2026-11-26", 2000), t("2026-11-26", -2000)];
+
+  it("일별: 그달 날짜 전부, 오늘은 진행 중, 내일부터는 아직", () => {
+    const bars = buildDayBars("2026-11", list, "2026-11-26");
+    expect(bars).toHaveLength(30);
+    expect(bars[0]).toMatchObject({ label: "1", title: "11월 1일 (일)", total: 8000, count: 2 });
+    expect(bars[25]).toMatchObject({ total: 0, count: 2, inProgress: true, future: false });
+    expect(bars[26]).toMatchObject({ future: true });
+  });
+
+  it("주별: 월요일 시작, 달 밖은 빼요 (2026년 11월 1일은 일요일)", () => {
+    const weeks = buildWeekBars("2026-11", list, "2026-11-26");
+    expect(weeks.map((w) => w.title)).toEqual([
+      "11월 1주차 (1~1일)", "11월 2주차 (2~8일)", "11월 3주차 (9~15일)", "11월 4주차 (16~22일)", "11월 5주차 (23~29일)", "11월 6주차 (30~30일)"
+    ]);
+    expect(weeks.map((w) => w.total)).toEqual([8000, 10000, 0, 0, 14200, 0]);
+    expect(weeks[4]).toMatchObject({ inProgress: true, future: false });
+    expect(weeks[5]).toMatchObject({ future: true });
+  });
+
+  it("지난달을 보면 진행 중인 날이 없어요", () => {
+    expect(buildDayBars("2026-10", [], "2026-11-26").some((b) => b.inProgress || b.future)).toBe(false);
   });
 });

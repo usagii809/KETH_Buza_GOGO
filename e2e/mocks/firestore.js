@@ -35,13 +35,14 @@ const qsnap = (q) => {
   const docs = [];
   store.forEach((d, p) => {
     const rest = p.slice(q.path.length + 1);
-    if (p.startsWith(q.path + "/") && !rest.includes("/") && (q.conds || []).every((c) => pass(d, c))) docs.push({ id: rest, data: () => clone(d) });
+    if (p.startsWith(q.path + "/") && !rest.includes("/") && (q.conds || []).every((c) => pass(d, c))) docs.push({ id: rest, data: () => clone(d), metadata: { hasPendingWrites: false, fromCache: false } });
   });
   return { docs, forEach: (f) => docs.forEach(f) };
 };
 const dsnap = (r) => { const d = store.get(r.path); return { exists: () => !!d, data: () => d && clone(d) }; };
 const fire = (l) => setTimeout(() => l.cb(l.ref.col ? qsnap(l.ref) : dsnap(l.ref)), 5);
-export const onSnapshot = (ref, cb) => { const l = { ref, cb }; listeners.add(l); fire(l); return () => listeners.delete(l); };
+// onSnapshot(ref, cb) 와 onSnapshot(ref, 옵션, cb) 둘 다 받아요
+export const onSnapshot = (ref, a, b) => { const cb = typeof a === "function" ? a : b; const l = { ref, cb }; listeners.add(l); fire(l); return () => listeners.delete(l); };
 export const getDocs = async (q) => qsnap(q);
 const apply = (path, data, merge) => {
   const cur = merge ? { ...(store.get(path) || {}) } : {};

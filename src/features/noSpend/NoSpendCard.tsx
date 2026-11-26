@@ -57,7 +57,7 @@ export function NoSpendCard({ period, txs, prevTxs, now, start, best, forcedDays
     <Card>
       <div className="flex items-center justify-between">
         <h2 className="text-base font-bold text-toss-text">무지출 챌린지 🌱</h2>
-        {start && <span className="text-sm font-bold text-toss-green num">무지출 {count}일</span>}
+        {start && <span className="text-sm font-bold text-toss-green num">{period.m}월 무지출 {count}일</span>}
       </div>
       <p className="text-sm font-semibold text-toss-text mt-0.5">{msg}</p>
 

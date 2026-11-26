@@ -388,12 +388,8 @@ function Dashboard({ user }: { user: User }) {
           <span onClick={onTitleTap} className="text-sm font-bold text-toss-blue tracking-tight select-none">태형이와 경은이의 부자 되기 프로젝트!!</span>
           <div className="flex items-center gap-2 mt-1.5">
             <NavButton label="이전 달" d="M15 19l-7-7 7-7" onClick={() => setYm(shiftMonth(ym, -1))} />
-            <h1 className="text-xl font-bold text-toss-text tracking-tight num px-1">{period.y}년 {period.m}월</h1>
+            <h1 className="text-xl font-bold text-toss-text tracking-tight num px-1 whitespace-nowrap">{period.y}년 {period.m}월</h1>
             <NavButton label="다음 달" d="M9 5l7 7-7 7" onClick={() => setYm(shiftMonth(ym, 1))} />
-            {period.state !== "current" && (
-              <button type="button" onClick={() => setYm(todayYm())}
-                className="ml-1 px-2.5 py-1 rounded-full bg-toss-blueLight text-toss-blue text-xs font-bold active:scale-95 transition">이번 달로</button>
-            )}
           </div>
         </div>
         <div className="flex items-center gap-2">

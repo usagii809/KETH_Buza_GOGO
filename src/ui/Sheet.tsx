@@ -9,19 +9,45 @@ interface SheetProps {
   footer?: ReactNode;
 }
 
+// ── 뒤 화면 스크롤 잠금 ──
+// 아이폰 사파리는 body의 overflow: hidden을 무시하고 뒤 화면을 같이 끌어요.
+// 그래서 body를 지금 스크롤 위치에 '고정'해 두고, 닫을 때 그 위치로 되돌려요.
+// (시트가 바로 다른 시트로 바뀌어도 꼬이지 않게 몇 개가 열려 있는지 세요)
+let locks = 0;
+let savedY = 0;
+function lockScroll() {
+  if (locks++ > 0) return;
+  savedY = window.scrollY;
+  const b = document.body.style;
+  b.position = "fixed";
+  b.top = `-${savedY}px`;
+  b.left = "0";
+  b.right = "0";
+  b.width = "100%";
+  b.overflow = "hidden";
+}
+function unlockScroll() {
+  if (--locks > 0) return;
+  locks = 0;
+  const b = document.body.style;
+  b.position = b.top = b.left = b.right = b.width = b.overflow = "";
+  window.scrollTo(0, savedY);
+}
+
 /** 아래에서 올라오는 시트. 바깥 탭 · ESC · 손잡이를 아래로 끌어서 닫기 */
 export function Sheet({ title, subtitle, onClose, children, footer }: SheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ startY: number; dy: number } | null>(null);
 
+  // 뒤 화면 잠금은 열릴 때 한 번만 (onClose가 바뀔 때마다 풀었다 잠그면 화면이 튀어요)
   useEffect(() => {
-    document.body.classList.add("overflow-hidden");
+    lockScroll();
+    return unlockScroll;
+  }, []);
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.classList.remove("overflow-hidden");
-      window.removeEventListener("keydown", onKey);
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -44,7 +70,7 @@ export function Sheet({ title, subtitle, onClose, children, footer }: SheetProps
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-none"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div ref={sheetRef} role="dialog" aria-modal="true"

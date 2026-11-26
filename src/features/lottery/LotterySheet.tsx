@@ -3,7 +3,7 @@ import { getOrCreateTicket, revealTicket } from "../../data/db";
 import type { LotteryTicket } from "../../lib/types";
 import { useFeedback } from "../../ui/feedback";
 import { Sheet } from "../../ui/Sheet";
-import { confetti } from "../fun/confetti";
+import { confetti, emojiFloat, emojiPop, emojiRain } from "../fun/confetti";
 import { drawTicket, isJackpotSymbol, JACKPOT_SYMBOL, LOVE_SYMBOL, LOSE_MESSAGE, symbolsOf, tierTitle, VISIBLE_PRIZES } from "./ticket";
 import { notify } from "../feed/notify";
 
@@ -35,15 +35,21 @@ export function LotterySheet({ uid, myName, today, onClose, onOpenCoupons }: Pro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uid, today]);
 
+  const cardRef = useRef<HTMLDivElement>(null);
   const onReveal = () => {
     if (!ticket || revealed) return;
     setRevealed(true);
     revealTicket(ticket.id).catch((err) => console.warn("복권 저장 참고:", err));
     notify.lottery(ticket); // 🔔
-    if (ticket.tier === "jackpot") { confetti(); setTimeout(confetti, 900); toast("🎰🎰🎰 잭팟! 오늘은 치맥 GO!"); }
-    else if (ticket.tier === "love") { confetti(); setTimeout(confetti, 700); toast("💕 숨겨진 하트 세 개! 뽀뽀 해주기 당첨"); }
-    else if (ticket.tier === "prize") { confetti(); toast(`🎁 ${ticket.rank}등 당첨! 쿠폰함에 넣어뒀어요`); }
-    else if (ticket.tier === "bomb") toast("💣 펑! 다음 주 일주일간 외식·배달 금지예요");
+    // 🎉 결과에 맞는 이모지가 복권 칸 한가운데에서 터져요 (긁어서 그림이 다 보이는 순간)
+    const r = cardRef.current?.getBoundingClientRect();
+    const cx = r ? r.left + r.width / 2 : window.innerWidth / 2;
+    const cy = r ? r.top + r.height / 2 : window.innerHeight / 3;
+    const pic = symbolsOf(ticket)[0];
+    if (ticket.tier === "jackpot") { emojiPop(["🍗", "🍺"], cx, cy); confetti(); setTimeout(() => emojiPop(["🍗", "🍺"], cx, cy), 700); toast("🎰🎰🎰 잭팟! 오늘은 치맥 GO!"); }
+    else if (ticket.tier === "love") { emojiFloat(["💕"], cx, cy); confetti(); toast("💕 숨겨진 하트 세 개! 뽀뽀 해주기 당첨"); }
+    else if (ticket.tier === "prize") { emojiPop([pic, "🎁"], cx, cy); toast(`🎁 ${ticket.rank}등 당첨! 쿠폰함에 넣어뒀어요`); }
+    else if (ticket.tier === "bomb") { emojiRain(["💣", "😭"]); toast("💣 펑! 다음 주 일주일간 외식·배달 금지예요"); }
   };
 
   const resultBg = ticket?.tier === "jackpot" ? "ruby-panel gold-shine text-amber-50"
@@ -65,7 +71,7 @@ export function LotterySheet({ uid, myName, today, onClose, onOpenCoupons }: Pro
             </button>
           </div>
           {showTable && <PrizeTable />}
-          <ScratchCard symbols={symbolsOf(ticket)} revealed={revealed} onReveal={onReveal} />
+          <div ref={cardRef}><ScratchCard symbols={symbolsOf(ticket)} revealed={revealed} onReveal={onReveal} /></div>
           {!revealed && (
             <div className="flex items-center justify-between text-xs text-toss-sub">
               <span>손가락으로 그림 세 칸을 긁어보세요</span>
